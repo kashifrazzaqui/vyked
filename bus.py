@@ -9,7 +9,6 @@ from services import ServiceClient, ServiceHost
 
 
 class Bus:
-
     _ASTERISK = '*'
 
     def __init__(self):
@@ -29,7 +28,7 @@ class Bus:
         self._host_id = uuid.uuid4()
 
     def send(self, packet):
-        #TODO: attach a sender node id for getting responses
+        # TODO: attach a sender node id for getting responses
         func = getattr(self, '_' + packet['type'] + '_sender')
         func(packet)
 
@@ -40,9 +39,7 @@ class Bus:
         """
         entity = packet['entity']
         if entity == Bus._ASTERISK:
-            pass #TODO: Send to each instance of this service
-
-
+            pass  # TODO: Send to each instance of this service
 
 
     def _message_sender(self, packet):
@@ -72,9 +69,9 @@ class Bus:
 
         self._create_service_hosts()
         self._setup_registry_client()
-        #TODO: ask it for endpoints for various service clients
-        self._create_service_clients()  #make tcp connections to all required services
-        #TODO: activate service host with registry
+        # TODO: ask it for endpoints for various service clients
+        self._create_service_clients()  # make tcp connections to all required services
+        # TODO: activate service host with registry
 
         print('Serving on {}'.format(self._tcp_server.sockets[0].getsockname()))
         print("Event loop running forever, press CTRL+c to interrupt.")
@@ -115,5 +112,5 @@ class Bus:
 
 
 if __name__ == '__main__':
-    bus = Bus() #TODO: Needs service registry host, port in constructor
+    bus = Bus()  # TODO: Needs service registry host, port in constructor
     bus.start()
