@@ -10,7 +10,7 @@ def listen(func):  # incoming
     """
 
     def wrapper(*args, **kwargs):
-        pass #TODO
+        pass  # TODO
 
     return wrapper
 
@@ -72,6 +72,7 @@ def api(func):  # incoming
 
 def _make_address(app_name, service_name, node_id):
     return '/{}/{}/{}'.format(app_name, service_name, node_id)
+
 
 def _parse_address(address):
     app, service, node_id = address.split('/')

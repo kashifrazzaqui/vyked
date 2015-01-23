@@ -1,8 +1,7 @@
 
-
 class RegistryClient:
     def get_endpoint(self):
-        #TODO: connect to service registry
+        # TODO: connect to service registry
         pass
 
     def add(self, _host):
@@ -10,7 +9,7 @@ class RegistryClient:
         pass
 
     def connect(self):
-        #asyncio.create_connection and run_until_complete; blocking
+        # asyncio.create_connection and run_until_complete; blocking
         pass
 
     def provision(self, service_names):
@@ -19,5 +18,5 @@ class RegistryClient:
         pass
 
     def _receive(self):
-        #called from registry protocol when it gets data
+        # called from registry protocol when it gets data
         pass
