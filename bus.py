@@ -1,70 +1,97 @@
-import uuid
+from again.utils import unique_hex
 import asyncio
 from functools import partial
 import os
 import signal
-from jsonprotocol import StreamingJSONServerProtocol
+from jsonprotocol import ServiceHostProtocol, ServiceClientProtocol, ServiceProtocol
 from registryclient import RegistryClient
 from services import ServiceClient, ServiceHost
 
 
 class Bus:
-
     _ASTERISK = '*'
 
-    def __init__(self):
+    def __init__(self, registry_host:str, registry_port:int):
+        self._registry_host = registry_host
+        self._registry_port = registry_port
         self._loop = asyncio.get_event_loop()
-        self._pending = {}
-        self._client_routing_table = {}
+        self._client_protocols = {}
         self._service_clients = []
+        self._host = None
+        self._host_id = unique_hex()
 
-    def require(self, *args):
+    def require(self, *args:[ServiceClient]):
         for each in args:
             if isinstance(each, ServiceClient):
                 each.set_bus(self)
                 self._service_clients.append(each)
 
-    def serve(self, service_host, ip_addr, port):
+    def serve(self, service_host:ServiceHost, ip_addr:str, port:int):
         self._host = service_host
-        self._host_id = uuid.uuid4()
 
-    def send(self, packet):
-        #TODO: attach a sender node id for getting responses
+    def add_host_connection(self, protocol, host, port):
+        pass #TODO
+
+    def send(self, packet:dict):
+        packet['from'] = self._host_id
         func = getattr(self, '_' + packet['type'] + '_sender')
         func(packet)
 
-    def _request_sender(self, packet):
+
+    def _request_sender(self, packet:dict):
         """
         sends a request to a server from a ServiceClient
         auto dispatch method called from self.send()
         """
-        entity = packet['entity']
-        if entity == Bus._ASTERISK:
-            pass #TODO: Send to each instance of this service
+        app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
+        host, port, node_id = self._registry.resolve(app, service, version, entity)
+        packet['to'] = node_id
+        client_protocol = self._client_protocols[node_id]
+        client_protocol.send(packet)
 
 
-
-
-    def _message_sender(self, packet):
+    def _message_sender(self, packet:dict):
         """
         auto dispatch method called from self.send()
         """
         pass
 
-    def register_client(self, client_id, client):
-        self._client_routing_table[client_id] = client
+    def host_receive(self, protocol:ServiceHostProtocol, packet:dict):
+        if self._host.is_for_me(packet):
+            func = getattr(self, '_' + packet['type'] + '_receiver')
+            func(packet, protocol)
+        else:
+            print('wrongly routed packet: ', packet)
 
-    def receive(self, packet):
-        # receives data from service clients
-        pass
+    def _request_receiver(self, packet, protocol):
+        api_fn = getattr(self._host, packet['endpoint'])
+        if callable(api_fn) and api_fn.is_api:
+            from_id = packet['from']
+            entity = packet['entity']
+            result_packet = api_fn(from_id=from_id, entity=entity, *packet['params'])
+            protocol.send(result_packet)
+        else:
+            print('no api found for packet: ', packet)
 
-    def _stop(self, signame):
+
+    def client_receive(self, service_client:ServiceClient, packet:dict):
+        func = getattr(self, '_' + packet['type'] + '_receiver')
+        func(packet, service_client)
+
+    def _response_receiver(self, packet, service_client):
+        service_client.process_response(packet)
+
+    def _stop(self, signame:str):
         print('\ngot signal {} - exiting'.format(signame))
         self._loop.stop()
 
-    def _make_host(self):
-        self._host_transport = StreamingJSONServerProtocol(self)
+    def _host_factory(self):
+        self._host_transport = ServiceHostProtocol(self)
         return self._host_transport
+
+    def _client_factory(self):
+        p = ServiceClientProtocol(self)
+
 
     def start(self):
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
@@ -72,9 +99,8 @@ class Bus:
 
         self._create_service_hosts()
         self._setup_registry_client()
-        #TODO: ask it for endpoints for various service clients
-        self._create_service_clients()  #make tcp connections to all required services
-        #TODO: activate service host with registry
+        self._create_service_clients()  # make tcp connections to all required services
+        self._registry.request_activation()
 
         print('Serving on {}'.format(self._tcp_server.sockets[0].getsockname()))
         print("Event loop running forever, press CTRL+c to interrupt.")
@@ -91,29 +117,30 @@ class Bus:
 
 
     def _create_service_hosts(self):
-        host_coro = self._loop.create_server(self._make_host, '127.0.0.1', 8000)
+        # TODO: Create http server also
+        host_coro = self._loop.create_server(self._host_factory, '127.0.0.1', 8000)
         task = asyncio.async(host_coro)
         self._tcp_server = self._loop.run_until_complete(task)
 
     def _create_service_clients(self):
-        # ask
-        # transport, protocol = asyncio.create_connection()
-        # save reference to each protocol in an endpoint:protocol map
-        # and use its 'send' method to send data to this service instance
-        # any data received in this protocol will be sent to bus.receive
-        pass
+        for sc in self._service_clients:
+            for host, port, node_id in self._registry.get_all_addresses(sc.properties):
+                coro = self._loop.create_connection(self._client_factory, host, port)
+                transport, protocol = self._loop.run_until_complete(coro)
+                protocol.set_service_client(sc)
+                self._client_protocols[node_id] = protocol
 
     def _setup_registry_client(self):
-        self._registry = RegistryClient()
+        self._registry = RegistryClient(self._loop, self._registry_host, self._registry_port)
         self._registry.connect()
-        service_names = ["/{}/{}".format(client.app_name, client.name) for client in self._service_clients]
-        self._loop.run_until_complete(self._registry.provision(service_names))
-        host, port = self._registry.get_endpoint()
-        # TODO: create asyncio.create_connection using self._make_registry_protocol
-        # TODO: run until complete
-        self._registry.add(self._host)
+        self._registry.host(*self._host.properties)
+        service_names = [service_client.properties for service_client in self._service_clients]
+        self._registry.provision(service_names)
+        self._registry.register()
 
 
 if __name__ == '__main__':
-    bus = Bus() #TODO: Needs service registry host, port in constructor
+    REGISTRY_HOST = '127.0.0.1'
+    REGISTRY_PORT = 4500
+    bus = Bus(REGISTRY_HOST, REGISTRY_PORT)
     bus.start()
