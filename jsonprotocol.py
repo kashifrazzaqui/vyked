@@ -1,13 +1,13 @@
 import asyncio
 from jsonstreamer import ObjectStreamer
 import json
+from registry import Registry
 from services import ServiceClient
 
 
-class ServiceProtocol(asyncio.Protocol):
-    def __init__(self, bus):
+class JSONProtocol(asyncio.Protocol):
+    def __init__(self):
         self._pending_data = []
-        self._bus = bus
         self._connected = False
         self._transport = None
         self._obj_streamer = None
@@ -68,27 +68,28 @@ class ServiceProtocol(asyncio.Protocol):
         print('Pair {}'.format(pair))
         raise RuntimeError('Received a key-value pair object - expected elements only')
 
-class ServiceHostProtocol(ServiceProtocol):
+class ServiceHostProtocol(JSONProtocol):
     def __init__(self, bus):
-        super(ServiceHostProtocol, self).__init__(bus)
+        super(ServiceHostProtocol, self).__init__()
+        self._bus = bus
 
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
         print('Client Connection from {}'.format(peername))
         super(ServiceHostProtocol, self).connection_made(transport)
-        self._bus.add_host_connection(self, host=peername[0], port=peername[1])
 
     def connection_lost(self, exc):
         super(ServiceHostProtocol, self).connection_lost(exc)
-        self._bus.remove_host_connection
+        #TODO: think about what needs to be done here
 
     def on_element(self, element):
         self._bus.host_receive(self, packet=element, protocol=self)
 
 
-class ServiceClientProtocol(ServiceProtocol):
+class ServiceClientProtocol(JSONProtocol):
     def __init__(self, bus):
-        super(ServiceClientProtocol, self).__init__(bus)
+        super(ServiceClientProtocol, self).__init__()
+        self._bus = bus
 
     def set_service_client(self, service_client:ServiceClient):
         self._service_client = service_client
@@ -101,3 +102,17 @@ class ServiceClientProtocol(ServiceProtocol):
     def on_element(self, element):
         self._bus.client_receive(self, packet=element, service_client=self._service_client)
 
+class RegistryProtocol(JSONProtocol):
+
+    def __init__(self, registry:Registry):
+        super(RegistryProtocol, self).__init__()
+        self._registry = registry
+
+    def connection_made(self, transport):
+        peername = transport.get_extra_info('peername')
+        print('Connected to server{}'.format(peername))
+        super(RegistryProtocol, self).connection_made(transport)
+        #TODO: pass protocol to registry
+
+    def on_element(self, element):
+        self._registry.receive(packet=element, registry_protocol=self)

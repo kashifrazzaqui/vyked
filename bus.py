@@ -3,14 +3,12 @@ import asyncio
 from functools import partial
 import os
 import signal
-from jsonprotocol import ServiceHostProtocol, ServiceClientProtocol, ServiceProtocol
+from jsonprotocol import ServiceHostProtocol, ServiceClientProtocol, JSONProtocol
 from registryclient import RegistryClient
 from services import ServiceClient, ServiceHost
 
 
 class Bus:
-    _ASTERISK = '*'
-
     def __init__(self, registry_host:str, registry_port:int):
         self._registry_host = registry_host
         self._registry_port = registry_port
@@ -28,9 +26,6 @@ class Bus:
 
     def serve(self, service_host:ServiceHost, ip_addr:str, port:int):
         self._host = service_host
-
-    def add_host_connection(self, protocol, host, port):
-        pass #TODO
 
     def send(self, packet:dict):
         packet['from'] = self._host_id
@@ -86,18 +81,17 @@ class Bus:
         self._loop.stop()
 
     def _host_factory(self):
-        self._host_transport = ServiceHostProtocol(self)
-        return self._host_transport
+        return ServiceHostProtocol(self)
 
     def _client_factory(self):
-        p = ServiceClientProtocol(self)
+        return ServiceClientProtocol(self)
 
 
-    def start(self):
+    def start(self, host_ip:str, host_port:int):
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
 
-        self._create_service_hosts()
+        self._create_service_hosts(host_ip, host_port)
         self._setup_registry_client()
         self._create_service_clients()  # make tcp connections to all required services
         self._registry.request_activation()
@@ -116,11 +110,10 @@ class Bus:
             self._loop.close()
 
 
-    def _create_service_hosts(self):
+    def _create_service_hosts(self, host_ip, host_port):
         # TODO: Create http server also
-        host_coro = self._loop.create_server(self._host_factory, '127.0.0.1', 8000)
-        task = asyncio.async(host_coro)
-        self._tcp_server = self._loop.run_until_complete(task)
+        host_coro = self._loop.create_server(self._host_factory, host_ip, host_port)
+        self._tcp_server = self._loop.run_until_complete(host_coro)
 
     def _create_service_clients(self):
         for sc in self._service_clients:
@@ -142,5 +135,7 @@ class Bus:
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'
     REGISTRY_PORT = 4500
+    HOST_IP = '127.0.0.1'
+    HOST_PORT = 8000
     bus = Bus(REGISTRY_HOST, REGISTRY_PORT)
-    bus.start()
+    bus.start(HOST_IP, HOST_PORT)
