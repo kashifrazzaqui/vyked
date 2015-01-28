@@ -9,15 +9,9 @@ from services import ServiceClient, ServiceHost
 
 
 class Bus:
-<<<<<<< HEAD
-    _ASTERISK = '*'
-
-    def __init__(self):
-=======
     def __init__(self, registry_host:str, registry_port:int):
         self._registry_host = registry_host
         self._registry_port = registry_port
->>>>>>> master
         self._loop = asyncio.get_event_loop()
         self._client_protocols = {}
         self._service_clients = []
@@ -33,13 +27,8 @@ class Bus:
     def serve(self, service_host:ServiceHost, ip_addr:str, port:int):
         self._host = service_host
 
-<<<<<<< HEAD
-    def send(self, packet):
-        # TODO: attach a sender node id for getting responses
-=======
     def send(self, packet:dict):
         packet['from'] = self._host_id
->>>>>>> master
         func = getattr(self, '_' + packet['type'] + '_sender')
         func(packet)
 
@@ -49,14 +38,6 @@ class Bus:
         sends a request to a server from a ServiceClient
         auto dispatch method called from self.send()
         """
-<<<<<<< HEAD
-        entity = packet['entity']
-        if entity == Bus._ASTERISK:
-            pass  # TODO: Send to each instance of this service
-
-
-    def _message_sender(self, packet):
-=======
         app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
         host, port, node_id = self._registry.resolve(app, service, version, entity)
         packet['to'] = node_id
@@ -65,7 +46,6 @@ class Bus:
 
 
     def _message_sender(self, packet:dict):
->>>>>>> master
         """
         auto dispatch method called from self.send()
         """
@@ -113,14 +93,8 @@ class Bus:
 
         self._create_service_hosts(host_ip, host_port)
         self._setup_registry_client()
-<<<<<<< HEAD
-        # TODO: ask it for endpoints for various service clients
-        self._create_service_clients()  # make tcp connections to all required services
-        # TODO: activate service host with registry
-=======
         self._create_service_clients()  # make tcp connections to all required services
         self._registry.request_activation()
->>>>>>> master
 
         print('Serving on {}'.format(self._tcp_server.sockets[0].getsockname()))
         print("Event loop running forever, press CTRL+c to interrupt.")
@@ -159,14 +133,9 @@ class Bus:
 
 
 if __name__ == '__main__':
-<<<<<<< HEAD
-    bus = Bus()  # TODO: Needs service registry host, port in constructor
-    bus.start()
-=======
     REGISTRY_HOST = '127.0.0.1'
     REGISTRY_PORT = 4500
     HOST_IP = '127.0.0.1'
     HOST_PORT = 8000
     bus = Bus(REGISTRY_HOST, REGISTRY_PORT)
     bus.start(HOST_IP, HOST_PORT)
->>>>>>> master
