@@ -1,5 +1,6 @@
 from again.utils import unique_hex
-from jsonprotocol import RegistryProtocol
+
+from jsonprotocol import RegistryClientProtocol
 
 
 class RegistryClient:
@@ -15,7 +16,7 @@ class RegistryClient:
         self._protocol.send(packet)
 
     def _protocol_factory(self):
-        p = RegistryProtocol(self)
+        p = RegistryClientProtocol(self)
         return p
 
     def connect(self):
@@ -31,7 +32,7 @@ class RegistryClient:
         # Note: registry returns a 3 tuple of host, port and node_id for each service provisioned
         pass
 
-    def _receive(self):
+    def receive(self, packet:dict, registry_protocol:RegistryClientProtocol):
         # called from registry protocol when it gets data
         pass
 

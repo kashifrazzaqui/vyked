@@ -25,21 +25,20 @@ class Registry:
         self._loop.stop()
 
     def receive(self, packet:dict, registry_protocol:RegistryProtocol):
-        request_type = packet["type"]
-        if request_type == "host":
+        request_type = packet['type']
+        if request_type == 'host':
             self._host_service(packet)
-        elif request_type == "resolve":
+        elif request_type == 'resolve':
             pass
 
     def _host_service(self, packet):
-        params = packet["params"]
+        params = packet['params']
         service_name = self._get_full_service_name(params['app'], params["service"], params['version'])
-        service_entry = {'host': params['host'], 'port': params['port'], 'node_id': params['node_id']}
+        service_entry = (params['host'], params['port'], params['node_id'])
         if self._services.get(service_name) is None:
             self._services[service_name] = [service_entry]
         else:
             self._services[service_name].append(service_entry)
-
 
     @staticmethod
     def _get_full_service_name(app, service, version):

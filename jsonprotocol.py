@@ -2,6 +2,7 @@ import asyncio
 from jsonstreamer import ObjectStreamer
 import json
 from registry import Registry
+from registryclient import RegistryClient
 from services import ServiceClient
 
 
@@ -102,6 +103,7 @@ class ServiceClientProtocol(JSONProtocol):
     def on_element(self, element):
         self._bus.client_receive(self, packet=element, service_client=self._service_client)
 
+
 class RegistryProtocol(JSONProtocol):
 
     def __init__(self, registry:Registry):
@@ -110,9 +112,24 @@ class RegistryProtocol(JSONProtocol):
 
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
-        print('Connected to server{}'.format(peername))
+        print('Connected from {}'.format(peername))
         super(RegistryProtocol, self).connection_made(transport)
         #TODO: pass protocol to registry
 
     def on_element(self, element):
         self._registry.receive(packet=element, registry_protocol=self)
+
+
+class RegistryClientProtocol(JSONProtocol):
+
+    def __init__(self, registry_client:RegistryClient):
+        super(RegistryClientProtocol, self).__init__()
+        self._registry_client = registry_client
+
+    def connection_made(self, transport):
+        peername = transport.get_extra_info('peername')
+        print('Connected to server{}'.format(peername))
+        super(RegistryClientProtocol, self).connection_made(transport)
+
+    def on_element(self, element):
+        self._registry_client.receive(packet=element, registry_protocol=self)
