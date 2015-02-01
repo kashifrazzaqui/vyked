@@ -1,3 +1,4 @@
+from again.utils import unique_hex
 from jsonprotocol import RegistryProtocol
 
 
@@ -10,8 +11,8 @@ class RegistryClient:
         self._protocol = None
 
     def host(self, app, service, version):
-        # TODO: register service host
-        pass
+        packet = self._make_host_packet(app, service, version)
+        self._protocol.send(packet)
 
     def _protocol_factory(self):
         p = RegistryProtocol(self)
@@ -41,3 +42,15 @@ class RegistryClient:
 
     def resolve(self, app: str, service: str, version: str, entity:str):
         pass
+
+    def _make_host_packet(self, app, service, version):
+        params = {'app': app,
+                  'service': service,
+                  'version': version,
+                  'host': self._host,
+                  'port': self._port,
+                  'node_id': unique_hex()}
+        packet = {'pid': unique_hex(),
+                  'type': 'host',
+                  'params': params}
+        return packet

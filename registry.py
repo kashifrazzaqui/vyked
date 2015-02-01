@@ -1,16 +1,16 @@
 import signal
 from functools import partial
-
 import asyncio
 
 from jsonprotocol import RegistryProtocol
-
 
 class Registry:
     def __init__(self, ip, port):
         self._ip = ip
         self._port = port
         self._loop = asyncio.get_event_loop()
+        self._services = {}
+        self._service_states = []
 
     def _rfactory(self):
         return RegistryProtocol(self)
@@ -26,8 +26,21 @@ class Registry:
         self._loop.stop()
 
     def receive(self, packet:dict, registry_protocol:RegistryProtocol):
-        pass #TODO
+        request_type = packet["type"]
+        if request_type == "host":
+            self._host_service(packet)
+        elif request_type == "resolve":
+            pass
 
+    def _host_service(self, packet):
+        params = packet["params"]
+        service_name = self._get_full_service_name(params['app'], params["service"], params['version'])
+        service_entry = {'host': params['host'], 'port': params['port'], 'node_id': params['node_if']}
+        self._services[service_name] = service_entry
+
+    @staticmethod
+    def _get_full_service_name(app, service, version):
+        return "{}/{}/{}".format(app, service, version)
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'
