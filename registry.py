@@ -1,8 +1,10 @@
 import signal
 from functools import partial
 import asyncio
+from again.utils import unique_hex
 
 from jsonprotocol import RegistryProtocol
+
 
 class Registry:
     def __init__(self, ip, port):
@@ -28,7 +30,8 @@ class Registry:
         request_type = packet['type']
         if request_type == 'host':
             self._host_service(packet)
-        elif request_type == 'resolve':
+        elif request_type == 'provision':
+            self._handle_provision(packet, registry_protocol)
             pass
 
     def _host_service(self, packet):
@@ -43,6 +46,20 @@ class Registry:
     @staticmethod
     def _get_full_service_name(app, service, version):
         return "{}/{}/{}".format(app, service, version)
+
+    def _handle_provision(self, packet, registry_protocol):
+        params = packet['params']
+        result = {}
+        for app_name, service_name, version in params['service_names']:
+            key = self._get_full_service_name(app_name, service_name, version)
+            result[key] = self._services.get(key)
+        result_params = {'result': result,
+                         'request_id': params['request_id']}
+        result_packet = {'pid': unique_hex(),
+                         'type': 'provision',
+                         'params': result_params}
+        registry_protocol.send(result_packet)
+
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'
