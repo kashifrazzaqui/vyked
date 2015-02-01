@@ -10,7 +10,6 @@ class Registry:
         self._port = port
         self._loop = asyncio.get_event_loop()
         self._services = {}
-        self._service_states = []
 
     def _rfactory(self):
         return RegistryProtocol(self)
@@ -35,8 +34,12 @@ class Registry:
     def _host_service(self, packet):
         params = packet["params"]
         service_name = self._get_full_service_name(params['app'], params["service"], params['version'])
-        service_entry = {'host': params['host'], 'port': params['port'], 'node_id': params['node_if']}
-        self._services[service_name] = service_entry
+        service_entry = {'host': params['host'], 'port': params['port'], 'node_id': params['node_id']}
+        if self._services.get(service_name) is None:
+            self._services[service_name] = [service_entry]
+        else:
+            self._services[service_name].append(service_entry)
+
 
     @staticmethod
     def _get_full_service_name(app, service, version):
