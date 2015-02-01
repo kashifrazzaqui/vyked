@@ -12,7 +12,7 @@ class RegistryClient:
         self._port = port
         self._transport = None
         self._protocol = None
-        self._provision_requests = {}
+        self._pending_requests = {}
 
     def host(self, app, service, version):
         packet = self._make_host_packet(app, service, version)
@@ -29,7 +29,7 @@ class RegistryClient:
     def provision(self, full_service_names):
         future = Future()
         request_id = unique_hex()
-        self._provision_requests[request_id] = future
+        self._pending_requests[request_id] = future
         packet = self._make_provision_packet(request_id, full_service_names)
         self._protocol.send(packet)
         return future
@@ -60,7 +60,7 @@ class RegistryClient:
 
     def _handle_provision_response(self, packet):
         params = packet['params']
-        future = self._provision_requests.pop(params['request_id'])
+        future = self._pending_requests.pop(params['request_id'])
         future.set_result(packet['result'])
 
     @staticmethod
