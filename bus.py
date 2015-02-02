@@ -39,7 +39,7 @@ class Bus:
         auto dispatch method called from self.send()
         """
         app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
-        host, port, node_id = self._registry.resolve(app, service, version, entity)
+        host, port, node_id = self._registry_client.resolve(app, service, version, entity)
         packet['to'] = node_id
         client_protocol = self._client_protocols[node_id]
         client_protocol.send(packet)
@@ -94,7 +94,7 @@ class Bus:
         self._create_service_hosts(host_ip, host_port)
         self._setup_registry_client()
         self._create_service_clients()  # make tcp connections to all required services
-        self._registry.request_activation()
+        self._registry_client.request_activation()
 
         print('Serving on {}'.format(self._tcp_server.sockets[0].getsockname()))
         print("Event loop running forever, press CTRL+c to interrupt.")
@@ -117,19 +117,19 @@ class Bus:
 
     def _create_service_clients(self):
         for sc in self._service_clients:
-            for host, port, node_id in self._registry.get_all_addresses(sc.properties):
+            for host, port, node_id in self._registry_client.get_all_addresses(sc.properties):
                 coro = self._loop.create_connection(self._client_factory, host, port)
                 transport, protocol = self._loop.run_until_complete(coro)
                 protocol.set_service_client(sc)
                 self._client_protocols[node_id] = protocol
 
     def _setup_registry_client(self):
-        self._registry = RegistryClient(self._loop, self._registry_host, self._registry_port)
-        self._registry.connect()
-        self._registry.host(*self._host.properties)
+        self._registry_client = RegistryClient(self._loop, self._registry_host, self._registry_port)
+        self._registry_client.connect()
+        self._registry_client.host(*self._host.properties)
         service_names = [service_client.properties for service_client in self._service_clients]
-        self._registry.provision(service_names)
-        self._registry.register()
+        self._registry_client.provision(service_names)
+        self._registry_client.register()
 
 
 if __name__ == '__main__':
