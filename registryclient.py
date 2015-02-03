@@ -12,11 +12,17 @@ class RegistryClient:
         self._port = port
         self._transport = None
         self._protocol = None
+        self._app = None
+        self._service = None
+        self._version = None
         self._pending_requests = {}
         self._available_services = {}
         self._assigned_services = {}
 
     def host(self, app, service, version):
+        self._app = app
+        self._service = service
+        self._version = version
         packet = self._make_host_packet(app, service, version)
         self._protocol.send(packet)
 
@@ -51,7 +57,7 @@ class RegistryClient:
     def register(self):
         pass
 
-    def _make_host_packet(self, app, service, version):
+    def _make_host_packet(self, app:str, service:str, version:str):
         params = {'app': app,
                   'service': service,
                   'version': version,
@@ -69,15 +75,17 @@ class RegistryClient:
         self._available_services = params['result']
         future.set_result(packet['result'])
 
-    @staticmethod
-    def _get_full_service_name(app, service, version):
-        return "{}/{}/{}".format(app, service, version)
-
-    @staticmethod
-    def _make_provision_packet(request_id, full_service_names):
-        params = {'service_names': full_service_names,
+    def _make_provision_packet(self, request_id, full_service_names):
+        params = {'app': self._app,
+                  'service': self._service,
+                  'version': self._version,
+                  'service_names': full_service_names,
                   'request_id': request_id}
         packet = {'pid': unique_hex(),
                   'type': 'host',
                   'params': params}
         return packet
+
+    @staticmethod
+    def _get_full_service_name(app, service, version):
+        return "{}/{}/{}".format(app, service, version)

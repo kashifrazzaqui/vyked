@@ -12,6 +12,8 @@ class Registry:
         self._port = port
         self._loop = asyncio.get_event_loop()
         self._services = {}
+        self._service_states = {}
+        self._service_dependencies = {}
 
     def _rfactory(self):
         return RegistryProtocol(self)
@@ -34,7 +36,7 @@ class Registry:
             self._handle_provision(packet, registry_protocol)
             pass
 
-    def _host_service(self, packet):
+    def _host_service(self, packet:dict):
         params = packet['params']
         service_name = self._get_full_service_name(params['app'], params["service"], params['version'])
         service_entry = (params['host'], params['port'], params['node_id'])
@@ -44,12 +46,13 @@ class Registry:
             self._services[service_name].append(service_entry)
 
     @staticmethod
-    def _get_full_service_name(app, service, version):
+    def _get_full_service_name(app:str, service:str, version:str):
         return "{}/{}/{}".format(app, service, version)
 
-    def _handle_provision(self, packet, registry_protocol):
+    def _handle_provision(self, packet:dict, registry_protocol:RegistryProtocol):
         params = packet['params']
         result = {}
+        self._add_dependencies(params['app'], params['service'], params['version'], params['service_names'])
         for app_name, service_name, version in params['service_names']:
             key = self._get_full_service_name(app_name, service_name, version)
             result[key] = self._services.get(key)
@@ -60,6 +63,14 @@ class Registry:
                          'params': result_params}
         registry_protocol.send(result_packet)
 
+    def _add_dependencies(self, app, service, version, dependencies):
+        full_service_name = self._get_full_service_name(app, service, version)
+        for dependency in dependencies:
+            if self._service_dependencies.get(full_service_name) is None:
+                self._service_dependencies[full_service_name] = [dependency]
+            else:
+                if dependency not in self._service_dependencies[full_service_name]:
+                    self._service_dependencies[full_service_name].append(dependency)
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'
