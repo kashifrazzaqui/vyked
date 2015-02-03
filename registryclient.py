@@ -56,7 +56,8 @@ class RegistryClient:
         return entity_map.get(entity)
 
     def register(self):
-        pass
+        packet = self._make_register_packet()
+        self._protocol.send(packet)
 
     def _make_host_packet(self, app:str, service:str, version:str):
         self._node_id = unique_hex()
@@ -85,6 +86,16 @@ class RegistryClient:
                   'request_id': request_id}
         packet = {'pid': unique_hex(),
                   'type': 'host',
+                  'params': params}
+        return packet
+
+    def _make_register_packet(self):
+        params = {'app': self._app,
+                  'service': self._service,
+                  'version': self._version,
+                  'node_id': self._node_id}
+        packet = {'pid': unique_hex(),
+                  'type': 'register',
                   'params': params}
         return packet
 
