@@ -1,3 +1,4 @@
+from enum import Enum
 import signal
 from functools import partial
 import asyncio
@@ -39,6 +40,7 @@ class Registry:
     def _host_service(self, packet:dict):
         params = packet['params']
         service_name = self._get_full_service_name(params['app'], params["service"], params['version'])
+        self._service_states[service_name] = self._ServiceState.HOSTED
         service_entry = (params['host'], params['port'], params['node_id'])
         if self._services.get(service_name) is None:
             self._services[service_name] = [service_entry]
@@ -71,6 +73,12 @@ class Registry:
             else:
                 if dependency not in self._service_dependencies[full_service_name]:
                     self._service_dependencies[full_service_name].append(dependency)
+
+    class _ServiceState(Enum):
+        HOSTED = 'hosted'
+        REGISTERED = 'registered'
+        ACTIVATION_REQUESTED = 'activation_requested'
+        ACTIVATED = 'activated'
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'
