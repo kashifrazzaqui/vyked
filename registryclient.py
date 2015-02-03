@@ -15,6 +15,7 @@ class RegistryClient:
         self._app = None
         self._service = None
         self._version = None
+        self._node_id = None
         self._pending_requests = {}
         self._available_services = {}
         self._assigned_services = {}
@@ -58,12 +59,13 @@ class RegistryClient:
         pass
 
     def _make_host_packet(self, app:str, service:str, version:str):
+        self._node_id = unique_hex()
         params = {'app': app,
                   'service': service,
                   'version': version,
                   'host': self._host,
                   'port': self._port,
-                  'node_id': unique_hex()}
+                  'node_id': self._node_id}
         packet = {'pid': unique_hex(),
                   'type': 'host',
                   'params': params}
