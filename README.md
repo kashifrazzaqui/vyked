@@ -7,9 +7,9 @@ Service Oriented Architecture Framework in Python
 ##### Service activation protocol
     Two phase process - register and activate
 * ServiceHost setups its servers
-* ServiceHost requests registeration with the ServiceRegistry by providing its node_id, full_service_name
+* ServiceHost requests registration with the ServiceRegistry by providing its node_id, full_service_name
 and a list of all its dependencies
-* Registry responds to the registeration request of service host when it has atleast one instance for each dependency
+* Registry responds to the registration request of service host when it has atleast one instance for each dependency
  registered but not necessarily activated
 * ServiceHost receives registration response and connects with dependencies
 * ServiceHost then sends a request to activate and waits

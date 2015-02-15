@@ -1,5 +1,5 @@
-import json
 from asyncio import Future
+
 from again.utils import unique_hex
 
 

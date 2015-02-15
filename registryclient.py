@@ -1,3 +1,8 @@
+from asyncio import Future
+
+from again.utils import unique_hex
+
+from jsonprotocol import RegistryClientProtocol
 
 
 class RegistryClient:
@@ -7,38 +12,93 @@ class RegistryClient:
         self._port = port
         self._transport = None
         self._protocol = None
+        self._app = None
+        self._service = None
+        self._version = None
+        self._node_id = None
+        self._pending_requests = {}
+        self._available_services = {}
+        self._assigned_services = {}
 
     def host(self, app, service, version):
-        # TODO: register service host
-        pass
+        self._app = app
+        self._service = service
+        self._version = version
+        packet = self._make_host_packet(app, service, version)
+        self._protocol.send(packet)
 
     def _protocol_factory(self):
-        p = RegistryProtocol(self)
+        p = RegistryClientProtocol(self)
         return p
 
     def connect(self):
-        coro =  self._loop.create_connection(self._protocol_factory, self._host, self._port)
+        coro = self._loop.create_connection(self._protocol_factory, self._host, self._port)
         self._transport, self._protocol = self._loop.run_until_complete(coro)
 
-
-
     def provision(self, full_service_names):
-        for app_name, service_name, version in full_service_names:
-            pass
-        # ask registry for all instance endpoints for given service names
-        # returns a future whose result is set when registry protocol receives a response
-        # which it sends to RegistryClient._receive which then sets result on this future
-        # Note: registry returns a 3 tuple of host, port and node_id for each service provisioned
-        pass
+        future = Future()
+        request_id = unique_hex()
+        self._pending_requests[request_id] = future
+        packet = self._make_provision_packet(request_id, full_service_names)
+        self._protocol.send(packet)
+        return future
 
-    def _receive(self):
-        #called from registry protocol when it gets data
-        pass
+    def receive(self, packet:dict, registry_protocol:RegistryClientProtocol):
+        if packet['type'] == 'provision':
+            self._handle_provision_response(packet)
 
     def get_all_addresses(self, full_service_name):
-        #returns a list of all (host, port, node_id) that point to instances of given service
-        # this info comes from the registry after registering
-        pass
+        return self._available_services.get(
+            self._get_full_service_name(full_service_name[0], full_service_name[1], full_service_name[2]))
 
     def resolve(self, app: str, service: str, version: str, entity:str):
-        pass
+        entity_map = self._assigned_services.get(self._get_full_service_name(app, service, version))
+        return entity_map.get(entity)
+
+    def register(self):
+        packet = self._make_register_packet()
+        self._protocol.send(packet)
+
+    def _make_host_packet(self, app:str, service:str, version:str):
+        self._node_id = unique_hex()
+        params = {'app': app,
+                  'service': service,
+                  'version': version,
+                  'host': self._host,
+                  'port': self._port,
+                  'node_id': self._node_id}
+        packet = {'pid': unique_hex(),
+                  'type': 'host',
+                  'params': params}
+        return packet
+
+    def _handle_provision_response(self, packet):
+        params = packet['params']
+        future = self._pending_requests.pop(params['request_id'])
+        self._available_services = params['result']
+        future.set_result(packet['result'])
+
+    def _make_provision_packet(self, request_id, full_service_names):
+        params = {'app': self._app,
+                  'service': self._service,
+                  'version': self._version,
+                  'service_names': full_service_names,
+                  'request_id': request_id}
+        packet = {'pid': unique_hex(),
+                  'type': 'host',
+                  'params': params}
+        return packet
+
+    def _make_register_packet(self):
+        params = {'app': self._app,
+                  'service': self._service,
+                  'version': self._version,
+                  'node_id': self._node_id}
+        packet = {'pid': unique_hex(),
+                  'type': 'register',
+                  'params': params}
+        return packet
+
+    @staticmethod
+    def _get_full_service_name(app, service, version):
+        return "{}/{}/{}".format(app, service, version)
