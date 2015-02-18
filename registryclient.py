@@ -20,11 +20,11 @@ class RegistryClient:
         self._available_services = {}
         self._assigned_services = {}
 
-    def host(self, app, service, version):
+    def register(self, dependencies, app, service, version):
         self._app = app
         self._service = service
         self._version = version
-        packet = self._make_host_packet(app, service, version)
+        packet = self._make_registration_packet(app, service, version, dependencies)
         self._protocol.send(packet)
 
     def _protocol_factory(self):
@@ -55,16 +55,17 @@ class RegistryClient:
         entity_map = self._assigned_services.get(self._get_full_service_name(app, service, version))
         return entity_map.get(entity)
 
-    def _make_host_packet(self, app:str, service:str, version:str):
+    def _make_registration_packet(self, app:str, service:str, version:str, dependencies):
         self._node_id = unique_hex()
         params = {'app': app,
                   'service': service,
                   'version': version,
                   'host': self._host,
                   'port': self._port,
-                  'node_id': self._node_id}
+                  'node_id': self._node_id,
+                  'dependencies': dependencies}
         packet = {'pid': unique_hex(),
-                  'type': 'host',
+                  'type': 'register',
                   'params': params}
         return packet
 

@@ -31,20 +31,23 @@ class Registry:
 
     def receive(self, packet:dict, registry_protocol:RegistryProtocol):
         request_type = packet['type']
-        if request_type == 'host':
-            self._host_service(packet)
+        if request_type == 'register':
+            self._register_service(packet)
         elif request_type == 'provision':
             self._handle_provision(packet, registry_protocol)
 
-    def _host_service(self, packet:dict):
+    def _register_service(self, packet:dict):
         params = packet['params']
         service_name = self._get_full_service_name(params['app'], params["service"], params['version'])
-        self._service_states[service_name] = self._ServiceState.HOSTED
+        dependencies = params['dependencies']
+        self._service_states[service_name] = self._ServiceState.REGISTERED
         service_entry = (params['host'], params['port'], params['node_id'])
         if self._services.get(service_name) is None:
             self._services[service_name] = [service_entry]
         else:
             self._services[service_name].append(service_entry)
+        if self._service_dependencies[service_name] is None:
+            self._service_dependencies[service_name] = dependencies
 
     @staticmethod
     def _get_full_service_name(app:str, service:str, version:str):
@@ -74,8 +77,7 @@ class Registry:
                     self._service_dependencies[full_service_name].append(dependency)
 
     class _ServiceState(Enum):
-        HOSTED = 'hosted'
-        ACTIVATION_REQUESTED = 'activation_requested'
+        REGISTERED = 'registered'
         ACTIVATED = 'activated'
 
 if __name__ == '__main__':
