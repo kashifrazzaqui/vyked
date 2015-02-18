@@ -35,8 +35,6 @@ class Registry:
             self._host_service(packet)
         elif request_type == 'provision':
             self._handle_provision(packet, registry_protocol)
-        elif request_type == 'register':
-            self._handle_registration(packet['params'])
 
     def _host_service(self, packet:dict):
         params = packet['params']
@@ -47,11 +45,6 @@ class Registry:
             self._services[service_name] = [service_entry]
         else:
             self._services[service_name].append(service_entry)
-
-    def _handle_registration(self, params:dict):
-        full_service_name = self._get_full_service_name(params['app'], params['service'], params['version'])
-        self._service_states[full_service_name] = self._ServiceState.REGISTERED
-        # TODO : Check if provisioning is successful for a service
 
     @staticmethod
     def _get_full_service_name(app:str, service:str, version:str):
@@ -82,7 +75,6 @@ class Registry:
 
     class _ServiceState(Enum):
         HOSTED = 'hosted'
-        REGISTERED = 'registered'
         ACTIVATION_REQUESTED = 'activation_requested'
         ACTIVATED = 'activated'
 

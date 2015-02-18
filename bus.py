@@ -129,7 +129,6 @@ class Bus:
         self._registry_client.host(*self._host.properties)
         service_names = [service_client.properties for service_client in self._service_clients]
         self._registry_client.provision(service_names)
-        self._registry_client.register()
 
 
 if __name__ == '__main__':
