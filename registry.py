@@ -67,8 +67,12 @@ class Registry:
         return "{}/{}/{}".format(app, service, version)
 
     def _send_activated_packet(self, node:str, protocol:RegistryProtocol):
-        # Send activated message
+        packet = self._make_activated_packet()
+        protocol.send(packet)
         pass
+
+    def _make_activated_packet(self):
+        return {}
 
 
 if __name__ == '__main__':
