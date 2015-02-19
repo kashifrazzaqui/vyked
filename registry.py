@@ -1,4 +1,3 @@
-from enum import Enum
 import signal
 from functools import partial
 from collections import defaultdict
@@ -73,7 +72,6 @@ class Registry:
 
     def _make_activated_packet(self):
         return {}
-
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'

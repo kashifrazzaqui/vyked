@@ -35,17 +35,9 @@ class RegistryClient:
         coro = self._loop.create_connection(self._protocol_factory, self._host, self._port)
         self._transport, self._protocol = self._loop.run_until_complete(coro)
 
-    def provision(self, full_service_names):
-        future = Future()
-        request_id = unique_hex()
-        self._pending_requests[request_id] = future
-        packet = self._make_provision_packet(request_id, full_service_names)
-        self._protocol.send(packet)
-        return future
-
     def receive(self, packet:dict, registry_protocol:RegistryClientProtocol):
-        if packet['type'] == 'provision':
-            self._handle_provision_response(packet)
+        # handle responses from protocol
+        pass
 
     def get_all_addresses(self, full_service_name):
         return self._available_services.get(
@@ -66,23 +58,6 @@ class RegistryClient:
                   'dependencies': dependencies}
         packet = {'pid': unique_hex(),
                   'type': 'register',
-                  'params': params}
-        return packet
-
-    def _handle_provision_response(self, packet):
-        params = packet['params']
-        future = self._pending_requests.pop(params['request_id'])
-        self._available_services = params['result']
-        future.set_result(packet['result'])
-
-    def _make_provision_packet(self, request_id, full_service_names):
-        params = {'app': self._app,
-                  'service': self._service,
-                  'version': self._version,
-                  'service_names': full_service_names,
-                  'request_id': request_id}
-        packet = {'pid': unique_hex(),
-                  'type': 'host',
                   'params': params}
         return packet
 
