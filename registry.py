@@ -53,7 +53,6 @@ class Registry:
         params = packet['params']
         service_name = self._get_full_service_name(params['app'], params["service"], params['version'])
         dependencies = params['dependencies']
-        self._service_states[service_name] = self._ServiceState.REGISTERED
         service_entry = (params['host'], params['port'], params['node_id'])
         self._registered_services[service_name].append(service_entry)
         self._pending_services[service_name].append(params['node_id'])
@@ -66,10 +65,6 @@ class Registry:
     @staticmethod
     def _get_full_service_name(app:str, service:str, version:str):
         return "{}/{}/{}".format(app, service, version)
-
-    class _ServiceState(Enum):
-        REGISTERED = 'registered'
-        ACTIVATED = 'activated'
 
     def _send_activated_packet(self, node:str, protocol:RegistryProtocol):
         # Send activated message
