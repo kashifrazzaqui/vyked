@@ -4,7 +4,7 @@ from again.utils import unique_hex
 
 
 # Service Client decorators
-def listen(func):  # incoming
+def subscribe(func):
     """
     use to listen for publications from a specific endpoint of a service
     """
@@ -15,7 +15,7 @@ def listen(func):  # incoming
     return wrapper
 
 
-def request(func):  # outgoing
+def request(func):
     """
     use to request an api call from a specific endpoint
     """
