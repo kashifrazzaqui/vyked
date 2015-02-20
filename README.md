@@ -1,7 +1,8 @@
-KOZO - japanese for structure
+Vyked
 ===
 
-Service Oriented Architecture Framework in Python
+a python framework for service oriented architectures
+
 
 #### Service Registry
 ##### Service activation protocol
@@ -26,17 +27,13 @@ and a list of all its dependencies
         'entity': <user_id>, # user_id is routing key/partition for who this service is required
         'endpoint': <api_name>, #added at the service layer
         'version': <api version>, #added at the service layer
-        'type': <message|request|response|special>, # added at the service layer
+        'type': <message|request|response>, # added at the service layer
         'params': <json object>, #added at the specific ServiceHost/Client implementation
     }
         
 ####
- * pinging - half open socket checkt
+ * pinging - half open socket checks
  * heartbeats
  * routing
  
  
- #### Routing mechanism
- 
- a routing address aka 'service address' is described as "/app-name/service-name/entity-id" this is semantically describing that the packet
- should be routed to a service instance that is responsible for service a specific entity for a given app
