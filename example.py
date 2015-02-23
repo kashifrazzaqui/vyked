@@ -42,7 +42,6 @@ def setup_identity_service():
     identity_service = IdentityService()
     bus.serve(identity_service)
     bus.start(IDENTITY_HOST, IDENTITY_PORT)
-    bus.start(IDENTITY_HOST, IDENTITY_PORT)
 
 if __name__ == '__main__':
     setup_registry()
