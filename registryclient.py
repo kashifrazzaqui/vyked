@@ -1,5 +1,3 @@
-from asyncio import Future
-
 from again.utils import unique_hex
 
 from jsonprotocol import RegistryClientProtocol

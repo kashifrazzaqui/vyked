@@ -93,8 +93,7 @@ class Bus:
 
         self._create_service_hosts(host_ip, host_port)
         self._setup_registry_client()
-        self._create_service_clients()  # make tcp connections to all required services
-        self._registry_client.request_activation()
+        self._create_service_clients()  # this can only be done once register response has been received
 
         print('Serving on {}'.format(self._tcp_server.sockets[0].getsockname()))
         print("Event loop running forever, press CTRL+c to interrupt.")
