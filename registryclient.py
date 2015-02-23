@@ -1,8 +1,5 @@
 from again.utils import unique_hex
 
-from jsonprotocol import RegistryClientProtocol
-
-
 class RegistryClient:
     def __init__(self, loop, host, port):
         self._loop = loop
@@ -26,6 +23,7 @@ class RegistryClient:
         self._protocol.send(packet)
 
     def _protocol_factory(self):
+        from jsonprotocol import RegistryClientProtocol
         p = RegistryClientProtocol(self)
         return p
 
@@ -33,7 +31,7 @@ class RegistryClient:
         coro = self._loop.create_connection(self._protocol_factory, self._host, self._port)
         self._transport, self._protocol = self._loop.run_until_complete(coro)
 
-    def receive(self, packet:dict, registry_protocol:RegistryClientProtocol):
+    def receive(self, packet:dict, registry_protocol):
         # handle responses from protocol
         pass
 

@@ -3,9 +3,6 @@ from functools import partial
 from collections import defaultdict
 import asyncio
 
-from jsonprotocol import RegistryProtocol
-
-
 class Registry:
     def __init__(self, ip, port):
         self._ip = ip
@@ -18,6 +15,7 @@ class Registry:
         self._service_dependencies = {}
 
     def _rfactory(self):
+        from jsonprotocol import RegistryProtocol
         return RegistryProtocol(self)
 
     def start(self):
@@ -30,7 +28,7 @@ class Registry:
         print('\ngot signal {} - exiting'.format(signame))
         self._loop.stop()
 
-    def receive(self, packet:dict, registry_protocol:RegistryProtocol):
+    def receive(self, packet:dict, registry_protocol):
         request_type = packet['type']
         if request_type == 'register':
             self._register_service(packet, registry_protocol)
@@ -48,7 +46,7 @@ class Registry:
                     self._send_activated_packet(node, self._service_protocols[node])
                     self._pending_services.pop(node)
 
-    def _register_service(self, packet:dict, registry_protocol:RegistryProtocol):
+    def _register_service(self, packet:dict, registry_protocol):
         params = packet['params']
         service_name = self._get_full_service_name(params['app'], params["service"], params['version'])
         dependencies = params['dependencies']
@@ -65,7 +63,7 @@ class Registry:
     def _get_full_service_name(app:str, service:str, version:str):
         return "{}/{}/{}".format(app, service, version)
 
-    def _send_activated_packet(self, node:str, protocol:RegistryProtocol):
+    def _send_activated_packet(self, node:str, protocol):
         packet = self._make_activated_packet()
         protocol.send(packet)
         pass

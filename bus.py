@@ -3,7 +3,7 @@ import asyncio
 from functools import partial
 import os
 import signal
-from jsonprotocol import ServiceHostProtocol, ServiceClientProtocol, JSONProtocol
+from jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from registryclient import RegistryClient
 from services import ServiceClient, ServiceHost
 
