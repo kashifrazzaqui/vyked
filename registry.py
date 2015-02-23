@@ -34,17 +34,18 @@ class Registry:
             self._register_service(packet, registry_protocol)
 
     def _handle_pending_registrations(self):
-        for service_name, nodes in self._pending_services:
+        for service_name in self._pending_services:
             depends_on = self._service_dependencies[service_name]
             should_activate = True
             for app, service, version in depends_on:
                 if self._registered_services.get(self._get_full_service_name(app, service, version)) is None:
                     should_activate = False
                     break
+            nodes = self._pending_services[service_name]
             for node in nodes:
                 if should_activate:
                     self._send_activated_packet(node, self._service_protocols[node])
-                    self._pending_services.pop(node)
+                    nodes.remove(node)
 
     def _register_service(self, packet:dict, registry_protocol):
         params = packet['params']
@@ -54,7 +55,7 @@ class Registry:
         self._registered_services[service_name].append(service_entry)
         self._pending_services[service_name].append(params['node_id'])
         self._service_protocols[params['node_id']] = registry_protocol
-        if self._service_dependencies[service_name] is None:
+        if self._service_dependencies.get(service_name) is None:
             self._service_dependencies[service_name] = dependencies
         self._handle_pending_registrations()
 
