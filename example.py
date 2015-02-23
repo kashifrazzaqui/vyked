@@ -9,6 +9,10 @@ IDENTITY_HOST = '127.0.0.1'
 IDENTITY_PORT = 4501
 
 class IdentityService(ServiceHost):
+
+    def __init__(self):
+        super(IdentityService, self).__init__("IdentityService", "1", "Example")
+
     @api
     def create(self, user_name, password):
         return user_name
@@ -35,9 +39,9 @@ def setup_registry():
 
 def setup_identity_service():
     bus = Bus(REGISTRY_HOST, REGISTRY_PORT)
-    bus.start(IDENTITY_HOST, IDENTITY_PORT)
     identity_service = IdentityService()
     bus.serve(identity_service)
+    bus.start(IDENTITY_HOST, IDENTITY_PORT)
     bus.start(IDENTITY_HOST, IDENTITY_PORT)
 
 if __name__ == '__main__':

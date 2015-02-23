@@ -24,7 +24,7 @@ class Bus:
                 each.set_bus(self)
                 self._service_clients.append(each)
 
-    def serve(self, service_host:ServiceHost, ip_addr:str, port:int):
+    def serve(self, service_host:ServiceHost):
         self._host = service_host
 
     def send(self, packet:dict):
