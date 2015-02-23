@@ -49,6 +49,7 @@ class JSONProtocol(asyncio.Protocol):
 
     def data_received(self, byte_data):
         string_data = byte_data.decode()
+        print("Data received {}".format(string_data))
         self._obj_streamer.consume(string_data)
 
     def on_object_stream_start(self):
