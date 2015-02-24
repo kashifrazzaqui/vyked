@@ -2,6 +2,8 @@ import signal
 from functools import partial
 from collections import defaultdict
 import asyncio
+from again.utils import unique_hex
+
 
 class Registry:
     def __init__(self, ip, port):
@@ -23,6 +25,15 @@ class Registry:
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
         registry_coro = self._loop.create_server(self._rfactory, self._ip, self._port)
         self._server = self._loop.run_until_complete(registry_coro)
+        try:
+            self._loop.run_forever()
+        except Exception as e:
+            print(e)
+        finally:
+            self._server.close()
+            self._loop.run_until_complete(self._server.wait_closed())
+            self._loop.close()
+
 
     def _stop(self, signame:str):
         print('\ngot signal {} - exiting'.format(signame))
@@ -69,8 +80,11 @@ class Registry:
         protocol.send(packet)
         pass
 
-    def _make_activated_packet(self):
-        return {}
+    @staticmethod
+    def _make_activated_packet():
+        packet = {'pid': unique_hex(),
+                  'type': 'registered'}
+        return packet
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'

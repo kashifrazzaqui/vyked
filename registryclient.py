@@ -32,7 +32,6 @@ class RegistryClient:
         self._transport, self._protocol = self._loop.run_until_complete(coro)
 
     def receive(self, packet:dict, registry_protocol):
-        # handle responses from protocol
         pass
 
     def get_all_addresses(self, full_service_name):

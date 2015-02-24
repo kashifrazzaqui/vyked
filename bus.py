@@ -18,7 +18,7 @@ class Bus:
         self._host = None
         self._host_id = unique_hex()
 
-    def require(self, *args:[ServiceClient]):
+    def require(self, args:[ServiceClient]):
         for each in args:
             if isinstance(each, ServiceClient):
                 each.set_bus(self)
@@ -93,7 +93,7 @@ class Bus:
 
         self._create_service_hosts(host_ip, host_port)
         self._setup_registry_client()
-        self._create_service_clients()  # this can only be done once register response has been received
+        # self._create_service_clients()  this can only be done once register response has been received
 
         print('Serving on {}'.format(self._tcp_server.sockets[0].getsockname()))
         print("Event loop running forever, press CTRL+c to interrupt.")
@@ -125,8 +125,12 @@ class Bus:
     def _setup_registry_client(self):
         self._registry_client = RegistryClient(self._loop, self._registry_host, self._registry_port)
         self._registry_client.connect()
-        service_names = [service_client.properties for service_client in self._service_clients]
+        service_names = [self._create_json_service_name(*service_client.properties) for service_client in self._service_clients]
         self._registry_client.register(service_names, *self._host.properties)
+
+    @staticmethod
+    def _create_json_service_name(app, service, version):
+        return {'app': app, 'service': service, 'version': version}
 
 
 if __name__ == '__main__':
