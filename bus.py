@@ -60,10 +60,10 @@ class Bus:
 
     def _request_receiver(self, packet, protocol):
         api_fn = getattr(self._host, packet['endpoint'])
-        if callable(api_fn) and api_fn.is_api:
-            from_id = packet['from']
+        if api_fn.is_api:
+            from_node_id = packet['from']
             entity = packet['entity']
-            result_packet = api_fn(from_id=from_id, entity=entity, *packet['params'])
+            result_packet = api_fn(from_id=from_node_id, entity=entity, **packet['params'])
             protocol.send(result_packet)
         else:
             print('no api found for packet: ', packet)
