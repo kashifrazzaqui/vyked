@@ -24,6 +24,8 @@ def request(func):
         params = func(*args, **kwargs)
         self = params.pop('self')
         entity = params.pop('entity')
+        request_id = unique_hex()
+        params['request_id'] = request_id
         future = self._send_request(endpoint=func.__name__, entity=entity, params=params)
         return future
 
@@ -115,8 +117,7 @@ class ServiceClient(Service):
     def _send_request(self, endpoint, entity, params):
         packet = self._make_packet(ServiceClient._REQ_PKT_STR, endpoint, params, entity)
         future = Future()
-        request_id = unique_hex()
-        params['request_id'] = request_id
+        request_id = params['request_id']
         self._pending_requests[request_id] = future
         self._bus.send(packet)
         return future
