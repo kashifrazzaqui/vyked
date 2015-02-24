@@ -2,8 +2,8 @@ from services import ServiceHost, ServiceClient, api, publish, request, subscrib
 
 class IdentityService(ServiceHost):
     @api
-    def create(self, user_name, password):
-        return user_name
+    def create(self, user_name, password, request_id=None, entity=None):
+        return True
 
     @publish
     def password_changed(self, user_name):
