@@ -10,10 +10,10 @@ def subscribe(func):
     """
 
     def wrapper(*args, **kwargs):
-        pass  # TODO
+        return func(*args, **kwargs)
 
+    wrapper.is_subscribe = True
     return wrapper
-
 
 def request(func):
     """
@@ -103,16 +103,11 @@ class Service:
 
 
 class ServiceClient(Service):
-    _MSG_PKT_STR = 'message'
     _REQ_PKT_STR = 'request'
 
     def __init__(self, service_name, service_version, app_name):
         super(ServiceClient, self).__init__(service_name, service_version, app_name)
         self._pending_requests = {}
-
-    def _send_message(self, endpoint, packet_id, entity, sender, params):
-        packet = self._make_packet(ServiceClient._MSG_PKT_STR, endpoint, params, entity)
-        self._bus.send(packet=packet)
 
     def _send_request(self, endpoint, entity, params):
         packet = self._make_packet(ServiceClient._REQ_PKT_STR, endpoint, params, entity)
@@ -123,7 +118,7 @@ class ServiceClient(Service):
         return future
 
     def process_response(self, packet):
-        params = packet['params']
+        params = packet['payload']
         request_id = params['request_id']
         has_result = 'result' in params
         has_error = 'error' in params
@@ -145,7 +140,7 @@ class ServiceClient(Service):
                   'endpoint': endpoint,
                   'version': self.version,
                   'type': packet_type,
-                  'params': params}
+                  'payload': params}
         return packet
 
 
@@ -165,7 +160,7 @@ class ServiceHost(Service):
                   'to': from_id,
                   'entity': entity,
                   'type': 'response',
-                  'params': {'request_id': request_id, 'result': result}}
+                  'payload': {'request_id': request_id, 'result': result}}
         return packet
 
 

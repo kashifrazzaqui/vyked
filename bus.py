@@ -63,7 +63,7 @@ class Bus:
         if api_fn.is_api:
             from_node_id = packet['from']
             entity = packet['entity']
-            result_packet = api_fn(from_id=from_node_id, entity=entity, **packet['params'])
+            result_packet = api_fn(from_id=from_node_id, entity=entity, **packet['payload'])
             protocol.send(result_packet)
         else:
             print('no api found for packet: ', packet)

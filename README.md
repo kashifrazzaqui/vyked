@@ -20,15 +20,17 @@ and a list of all its dependencies
     {
         'to': <node_address> # bus layer
         'from': <node_address>, # bus layer
-        
-        'pid': <guid>, # added at the service layer
+
+        'pid': <guid>, # packet_id which is added at the service layer
+        'type': <message|request|response>, # added at the service layer
+
         'app': <app_name>,
         'service':<service_name>,
         'entity': <user_id>, # user_id is routing key/partition for who this service is required
         'endpoint': <api_name>, #added at the service layer
         'version': <api version>, #added at the service layer
-        'type': <message|request|response>, # added at the service layer
-        'params': <json object>, #added at the specific ServiceHost/Client implementation
+
+        'payload': <json object>, #added at the specific ServiceHost/Client implementation
     }
         
 ####
