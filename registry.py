@@ -48,8 +48,9 @@ class Registry:
         for service_name in self._pending_services:
             depends_on = self._service_dependencies[service_name]
             should_activate = True
-            for app, service, version in depends_on:
-                if self._registered_services.get(self._get_full_service_name(app, service, version)) is None:
+            for dependency in depends_on:
+                if self._registered_services.get(self._get_full_service_name(dependency["app"], dependency["service"],
+                                                                             dependency["version"])) is None:
                     should_activate = False
                     break
             nodes = self._pending_services[service_name]
