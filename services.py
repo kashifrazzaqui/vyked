@@ -6,12 +6,14 @@ from again.utils import unique_hex
 # Service Client decorators
 def subscribe(func):
     """
-    use to listen for publications from a specific endpoint of a service
+    use to listen for publications from a specific endpoint of a service,
+    this method receives a publication from a remote service
     """
 
     def wrapper(*args, **kwargs):
-        pass  # TODO
+        return func(*args, **kwargs)
 
+    wrapper.is_subscribe = True
     return wrapper
 
 
@@ -29,6 +31,7 @@ def request(func):
         future = self._send_request(endpoint=func.__name__, entity=entity, params=params)
         return future
 
+    wrapper.is_request = True
     return wrapper
 
 
@@ -36,16 +39,16 @@ def request(func):
 
 def publish(func):
     """
-    publish a message from this endpoint
+    publish the return value of this function as a message from this endpoint
     """
 
     def wrapper(*args, **kwargs):  # outgoing
-        params = func(*args, **kwargs)
-        self = params.pop('self')
-        entity = params.pop('entity')
-        sender = params.pop('sender')
-        self._publish(func.__name__, unique_hex(), entity, sender, params)
+        payload = func(*args, **kwargs)
+        self = payload.pop('self')
+        self._publish(func.__name__, payload)
         return None
+
+    wrapper.is_publish = True
 
     return wrapper
 
@@ -77,6 +80,10 @@ def api(func):  # incoming
 
 
 class Service:
+    _PUB_PKT_STR = 'publish'
+    _REQ_PKT_STR = 'request'
+    _RES_PKT_STR = 'response'
+
     def __init__(self, service_name, service_version, app_name):
         self._service_name = service_name
         self._service_version = service_version
@@ -103,49 +110,57 @@ class Service:
 
 
 class ServiceClient(Service):
-    _MSG_PKT_STR = 'message'
-    _REQ_PKT_STR = 'request'
-
     def __init__(self, service_name, service_version, app_name):
         super(ServiceClient, self).__init__(service_name, service_version, app_name)
         self._pending_requests = {}
 
-    def _send_message(self, endpoint, packet_id, entity, sender, params):
-        packet = self._make_packet(ServiceClient._MSG_PKT_STR, endpoint, params, entity)
-        self._bus.send(packet=packet)
-
     def _send_request(self, endpoint, entity, params):
-        packet = self._make_packet(ServiceClient._REQ_PKT_STR, endpoint, params, entity)
+        packet = self._make_request_packet(Service._REQ_PKT_STR, endpoint, params, entity)
         future = Future()
         request_id = params['request_id']
         self._pending_requests[request_id] = future
         self._bus.send(packet)
         return future
 
-    def process_response(self, packet):
-        params = packet['params']
-        request_id = params['request_id']
-        has_result = 'result' in params
-        has_error = 'error' in params
+    def process_packet(self, packet):
+        if packet['type'] == Service._RES_PKT_STR:
+            self._process_response(packet)
+        elif packet['type'] == Service._PUB_PKT_STR:
+            self._process_publication(packet)
+        else:
+            print('Invalid packet', packet)
+
+
+    def _process_response(self, packet):
+        payload = packet['payload']
+        request_id = payload['request_id']
+        has_result = 'result' in payload
+        has_error = 'error' in payload
         future = self._pending_requests.pop(request_id)
         if has_result:
-            future.set_result(params['result'])
+            future.set_result(payload['result'])
         elif has_error:
             exception = RequestException()
-            exception.error = params['error']
+            exception.error = payload['error']
             future.set_exception(exception)
         else:
             print('Invalid response to request:', packet)
 
-    def _make_packet(self, packet_type, endpoint, params, entity):
+
+    def _process_publication(self, packet):
+        endpoint = packet['endpoint']
+        func = getattr(self, endpoint)
+        func(**packet['payload'])
+
+    def _make_request_packet(self, packet_type, endpoint, params, entity):
         packet = {'pid': unique_hex(),
                   'app': self.app_name,
                   'service': self.name,
+                  'version': self.version,
                   'entity': entity,
                   'endpoint': endpoint,
-                  'version': self.version,
                   'type': packet_type,
-                  'params': params}
+                  'payload': params}
         return packet
 
 
@@ -160,12 +175,26 @@ class ServiceHost(Service):
                service == self.name and \
                version == self.version
 
+    def _publish(self, publication_name, payload):
+        packet = self._make_publish_packet(Service._PUB_PKT_STR, publication_name, payload)
+        self._bus.send(packet)
+
     def _make_response_packet(self, request_id: str, from_id: str, entity:str, result:object):
         packet = {'pid': unique_hex(),
                   'to': from_id,
                   'entity': entity,
-                  'type': 'response',
-                  'params': {'request_id': request_id, 'result': result}}
+                  'type': Service._RES_PKT_STR,
+                  'payload': {'request_id': request_id, 'result': result}}
+        return packet
+
+    def _make_publish_packet(self, packet_type:str, publication_name:str, payload:dict):
+        packet = {'pid': unique_hex(),
+                  'app': self.app_name,
+                  'service': self.name,
+                  'version': self.version,
+                  'endpoint': publication_name,
+                  'type': packet_type,
+                  'payload': payload}
         return packet
 
 

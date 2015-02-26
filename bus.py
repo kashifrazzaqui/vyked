@@ -39,17 +39,22 @@ class Bus:
         auto dispatch method called from self.send()
         """
         app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
-        host, port, node_id = self._registry_client.resolve(app, service, version, entity)
+        node_id = self._registry_client.resolve(app, service, version, entity)
         packet['to'] = node_id
         client_protocol = self._client_protocols[node_id]
         client_protocol.send(packet)
 
 
-    def _message_sender(self, packet:dict):
+    def _publish_sender(self, packet:dict):
         """
         auto dispatch method called from self.send()
         """
-        pass
+        app, service, version = packet['app'], packet['service'], packet['version']
+        nodes = self._registry_client.resolve_publication(app, service, version)
+        for each in nodes:
+            packet['to'] = each.node_id
+            client_protocol = self._client_protocols[each.node_id]
+            client_protocol.send(packet)
 
     def host_receive(self, protocol:ServiceHostProtocol, packet:dict):
         if self._host.is_for_me(packet):
@@ -63,18 +68,14 @@ class Bus:
         if api_fn.is_api:
             from_node_id = packet['from']
             entity = packet['entity']
-            result_packet = api_fn(from_id=from_node_id, entity=entity, **packet['params'])
+            result_packet = api_fn(from_id=from_node_id, entity=entity, **packet['payload'])
             protocol.send(result_packet)
         else:
             print('no api found for packet: ', packet)
 
 
     def client_receive(self, service_client:ServiceClient, packet:dict):
-        func = getattr(self, '_' + packet['type'] + '_receiver')
-        func(packet, service_client)
-
-    def _response_receiver(self, packet, service_client):
-        service_client.process_response(packet)
+        service_client.process_packet(packet)
 
     def _stop(self, signame:str):
         print('\ngot signal {} - exiting'.format(signame))
