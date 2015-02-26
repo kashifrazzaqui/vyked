@@ -70,5 +70,4 @@ class RegistryClient:
             vendor_name = vendor['name']
             for address in vendor['addresses']:
                 self._available_services[vendor_name].append((address['host'], address['port'], address['node_id']))
-        print(self._available_services)
 
