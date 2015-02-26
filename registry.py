@@ -64,7 +64,7 @@ class Registry:
     def _register_service(self, packet:dict, registry_protocol):
         params = packet['params']
         service_name = self._get_full_service_name(params['app'], params["service"], params['version'])
-        dependencies = params['dependencies']
+        dependencies = params['vendors']
         service_entry = (params['host'], params['port'], params['node_id'])
         self._registered_services[service_name].append(service_entry)
         self._pending_services[service_name].append(params['node_id'])

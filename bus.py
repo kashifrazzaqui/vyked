@@ -127,9 +127,7 @@ class Bus:
     def _setup_registry_client(self, host_ip, host_port):
         self._registry_client = RegistryClient(self._loop, self._registry_host, self._registry_port, self)
         self._registry_client.connect()
-        service_names = [self._create_json_service_name(*service_client.properties) for service_client in
-                         self._service_clients]
-        self._registry_client.register(service_names, host_ip, host_port, *self._host.properties)
+        self._registry_client.register(self._service_clients, host_ip, host_port, *self._host.properties)
 
     @staticmethod
     def _create_json_service_name(app, service, version):

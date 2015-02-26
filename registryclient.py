@@ -18,15 +18,16 @@ class RegistryClient:
         self._available_services = defaultdict(list)
         self._assigned_services = {}
 
-    def register(self, dependencies, ip, port, app, service, version):
+    def register(self, vendors, ip, port, app, service, version):
         self._app = app
         self._service = service
         self._version = version
-        packet = self._make_registration_packet(ip, port, app, service, version, dependencies)
+        packet = self._make_registration_packet(ip, port, app, service, version, vendors)
         self._protocol.send(packet)
 
     def _protocol_factory(self):
         from jsonprotocol import RegistryClientProtocol
+
         p = RegistryClientProtocol(self)
         return p
 
@@ -47,7 +48,13 @@ class RegistryClient:
         entity_map = self._assigned_services.get(self._get_full_service_name(app, service, version))
         return entity_map.get(entity)
 
-    def _make_registration_packet(self, ip:str, port:str, app:str, service:str, version:str, dependencies):
+    def _make_registration_packet(self, ip:str, port:str, app:str, service:str, version:str, vendors):
+        vendors_list = []
+        for vendor in vendors:
+            vendor_dict = {'app': vendor.app_name,
+                           'service': vendor.name,
+                           'version': vendor.version}
+            vendors_list.append(vendor_dict)
         self._node_id = unique_hex()
         params = {'app': app,
                   'service': service,
@@ -55,7 +62,7 @@ class RegistryClient:
                   'host': ip,
                   'port': port,
                   'node_id': self._node_id,
-                  'dependencies': dependencies}
+                  'vendors': vendors_list}
         packet = {'pid': unique_hex(),
                   'type': 'register',
                   'params': params}
