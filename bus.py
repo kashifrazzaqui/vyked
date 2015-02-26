@@ -75,11 +75,7 @@ class Bus:
 
 
     def client_receive(self, service_client:ServiceClient, packet:dict):
-        func = getattr(self, '_' + packet['type'] + '_receiver')
-        func(packet, service_client)
-
-    def _response_receiver(self, packet, service_client):
-        service_client.process_response(packet)
+        service_client.process_packet(packet)
 
     def _stop(self, signame:str):
         print('\ngot signal {} - exiting'.format(signame))

@@ -16,6 +16,7 @@ def subscribe(func):
     wrapper.is_subscribe = True
     return wrapper
 
+
 def request(func):
     """
     use to request an api call from a specific endpoint
@@ -40,6 +41,7 @@ def publish(func):
     """
     publish the return value of this function as a message from this endpoint
     """
+
     def wrapper(*args, **kwargs):  # outgoing
         payload = func(*args, **kwargs)
         self = payload.pop('self')
@@ -78,6 +80,10 @@ def api(func):  # incoming
 
 
 class Service:
+    _PUB_PKT_STR = 'publish'
+    _REQ_PKT_STR = 'request'
+    _RES_PKT_STR = 'response'
+
     def __init__(self, service_name, service_version, app_name):
         self._service_name = service_name
         self._service_version = service_version
@@ -104,34 +110,47 @@ class Service:
 
 
 class ServiceClient(Service):
-    _REQ_PKT_STR = 'request'
-
     def __init__(self, service_name, service_version, app_name):
         super(ServiceClient, self).__init__(service_name, service_version, app_name)
         self._pending_requests = {}
 
     def _send_request(self, endpoint, entity, params):
-        packet = self._make_packet(ServiceClient._REQ_PKT_STR, endpoint, params, entity)
+        packet = self._make_request_packet(Service._REQ_PKT_STR, endpoint, params, entity)
         future = Future()
         request_id = params['request_id']
         self._pending_requests[request_id] = future
         self._bus.send(packet)
         return future
 
-    def process_response(self, packet):
-        params = packet['payload']
-        request_id = params['request_id']
-        has_result = 'result' in params
-        has_error = 'error' in params
+    def process_packet(self, packet):
+        if packet['type'] == Service._RES_PKT_STR:
+            self._process_response(packet)
+        elif packet['type'] == Service._PUB_PKT_STR:
+            self._process_publication(packet)
+        else:
+            print('Invalid packet', packet)
+
+
+    def _process_response(self, packet):
+        payload = packet['payload']
+        request_id = payload['request_id']
+        has_result = 'result' in payload
+        has_error = 'error' in payload
         future = self._pending_requests.pop(request_id)
         if has_result:
-            future.set_result(params['result'])
+            future.set_result(payload['result'])
         elif has_error:
             exception = RequestException()
-            exception.error = params['error']
+            exception.error = payload['error']
             future.set_exception(exception)
         else:
             print('Invalid response to request:', packet)
+
+
+    def _process_publication(self, packet):
+        endpoint = packet['endpoint']
+        func = getattr(self, endpoint)
+        func(**packet['payload'])
 
     def _make_request_packet(self, packet_type, endpoint, params, entity):
         packet = {'pid': unique_hex(),
@@ -146,8 +165,6 @@ class ServiceClient(Service):
 
 
 class ServiceHost(Service):
-    PUBLISH_PKT_STR = 'publish'
-
     def __init__(self, service_name, service_version, app_name):
         # TODO: to be multi-tenant make app_name a list
         super(ServiceHost, self).__init__(service_name, service_version, app_name)
@@ -159,14 +176,14 @@ class ServiceHost(Service):
                version == self.version
 
     def _publish(self, publication_name, payload):
-        packet = self._make_publish_packet(ServiceHost.PUBLISH_PKT_STR, publication_name, payload)
+        packet = self._make_publish_packet(Service._PUB_PKT_STR, publication_name, payload)
         self._bus.send(packet)
 
     def _make_response_packet(self, request_id: str, from_id: str, entity:str, result:object):
         packet = {'pid': unique_hex(),
                   'to': from_id,
                   'entity': entity,
-                  'type': 'response',
+                  'type': Service._RES_PKT_STR,
                   'payload': {'request_id': request_id, 'result': result}}
         return packet
 
@@ -179,7 +196,6 @@ class ServiceHost(Service):
                   'type': packet_type,
                   'payload': payload}
         return packet
-
 
 
 class RequestException(Exception):
