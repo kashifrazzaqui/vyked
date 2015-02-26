@@ -5,7 +5,7 @@ import os
 import signal
 from jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from registryclient import RegistryClient
-from services import ServiceClient, ServiceHost
+from services import TCPServiceClient, TCPServiceHost
 
 
 class Bus:
@@ -18,13 +18,13 @@ class Bus:
         self._host = None
         self._host_id = unique_hex()
 
-    def require(self, args:[ServiceClient]):
+    def require(self, args:[TCPServiceClient]):
         for each in args:
-            if isinstance(each, ServiceClient):
+            if isinstance(each, TCPServiceClient):
                 each.set_bus(self)
                 self._service_clients.append(each)
 
-    def serve(self, service_host:ServiceHost):
+    def serve(self, service_host:TCPServiceHost):
         self._host = service_host
 
     def send(self, packet:dict):
@@ -74,7 +74,7 @@ class Bus:
             print('no api found for packet: ', packet)
 
 
-    def client_receive(self, service_client:ServiceClient, packet:dict):
+    def client_receive(self, service_client:TCPServiceClient, packet:dict):
         service_client.process_packet(packet)
 
     def _stop(self, signame:str):

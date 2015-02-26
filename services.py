@@ -109,9 +109,9 @@ class Service:
         self._bus = bus
 
 
-class ServiceClient(Service):
+class TCPServiceClient(Service):
     def __init__(self, service_name, service_version, app_name):
-        super(ServiceClient, self).__init__(service_name, service_version, app_name)
+        super(TCPServiceClient, self).__init__(service_name, service_version, app_name)
         self._pending_requests = {}
 
     def _send_request(self, endpoint, entity, params):
@@ -164,10 +164,10 @@ class ServiceClient(Service):
         return packet
 
 
-class ServiceHost(Service):
+class TCPServiceHost(Service):
     def __init__(self, service_name, service_version, app_name):
         # TODO: to be multi-tenant make app_name a list
-        super(ServiceHost, self).__init__(service_name, service_version, app_name)
+        super(TCPServiceHost, self).__init__(service_name, service_version, app_name)
 
     def is_for_me(self, packet:dict):
         app, service, version = packet['app'], packet['service'], packet['version']

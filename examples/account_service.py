@@ -1,5 +1,5 @@
 from bus import Bus
-from services import ServiceHost, ServiceClient, api, publish, request, subscribe
+from services import TCPServiceHost, TCPServiceClient, api, publish, request, subscribe
 
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
@@ -11,7 +11,7 @@ ACCOUNTS_HOST = '127.0.0.1'
 ACCOUNTS_PORT = 4502
 
 
-class AccountService(ServiceHost):
+class AccountService(TCPServiceHost):
     def __init__(self):
         super(AccountService, self).__init__("AccountService", "1", "Example")
 
@@ -24,7 +24,7 @@ class AccountService(ServiceHost):
         return locals()
 
 
-class AccountClient(ServiceClient):
+class AccountClient(TCPServiceClient):
     @request
     def authenticate(self, user_name, password):
         return locals()
@@ -34,7 +34,7 @@ class AccountClient(ServiceClient):
         pass
 
 
-class IdentityClient(ServiceClient):
+class IdentityClient(TCPServiceClient):
     def __init__(self):
         super(IdentityClient, self).__init__("IdentityService", "1", "Example")
 

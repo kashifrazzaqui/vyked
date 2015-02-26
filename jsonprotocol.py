@@ -3,7 +3,7 @@ from jsonstreamer import ObjectStreamer
 import json
 from registry import Registry
 from registryclient import RegistryClient
-from services import ServiceClient
+from services import TCPServiceClient
 
 
 class JSONProtocol(asyncio.Protocol):
@@ -93,7 +93,7 @@ class ServiceClientProtocol(JSONProtocol):
         super(ServiceClientProtocol, self).__init__()
         self._bus = bus
 
-    def set_service_client(self, service_client:ServiceClient):
+    def set_service_client(self, service_client:TCPServiceClient):
         self._service_client = service_client
 
     def connection_made(self, transport):

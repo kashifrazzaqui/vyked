@@ -1,5 +1,5 @@
 from bus import Bus
-from services import ServiceHost, ServiceClient, api, publish, request, subscribe
+from services import TCPServiceHost, TCPServiceClient, api, publish, request, subscribe
 
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
@@ -7,7 +7,7 @@ REGISTRY_PORT = 4500
 IDENTITY_HOST = '127.0.0.1'
 IDENTITY_PORT = 4501
 
-class IdentityService(ServiceHost):
+class IdentityService(TCPServiceHost):
     def __init__(self):
         super(IdentityService, self).__init__("IdentityService", "1", "Example")
 
@@ -20,7 +20,7 @@ class IdentityService(ServiceHost):
         pass
 
 
-class IdentityClient(ServiceClient):
+class IdentityClient(TCPServiceClient):
     def __init__(self):
         super(IdentityClient, self).__init__("IdentityService", "1", "Example")
 
