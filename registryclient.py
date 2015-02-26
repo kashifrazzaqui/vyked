@@ -1,5 +1,6 @@
 from again.utils import unique_hex
 from collections import defaultdict
+from services import TCPServiceClient
 
 
 class RegistryClient:
@@ -24,6 +25,7 @@ class RegistryClient:
         self._version = version
         packet = self._make_registration_packet(ip, port, app, service, version, vendors)
         self._protocol.send(packet)
+        self._register_for_subscription(vendors, ip, port)
 
     def _protocol_factory(self):
         from jsonprotocol import RegistryClientProtocol
@@ -78,3 +80,26 @@ class RegistryClient:
             for address in vendor['addresses']:
                 self._available_services[vendor_name].append((address['host'], address['port'], address['node_id']))
 
+    def _register_for_subscription(self, vendors, ip, port):
+        subscription_packet = {
+            'type': 'subscribe',
+        }
+        params = {
+            'ip': ip,
+            'port': port
+        }
+        for vendor in vendors:
+            subscription_list = []
+            if isinstance(vendor, TCPServiceClient):
+                for each in dir(vendor):
+                    fn = getattr(vendor, each)
+                    if callable(fn) and getattr(fn, 'is_subscribe', False):
+                        subscription_list.append({
+                            'app': vendor.app_name,
+                            'service': vendor.name,
+                            'version': vendor.version,
+                            'endpoint': fn.__name__
+                        })
+            params['subscribe_to'] = subscription_list
+        subscription_packet['params'] = params
+        self._protocol.send(subscription_packet)
