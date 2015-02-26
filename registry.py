@@ -122,7 +122,6 @@ class Registry:
         for each in params['subscribe_to']:
             self._subscription_list[each['app']][each['service']][each['version']][each['endpoint']].append(
                 (params['ip'], params['port']))
-        print(self._subscription_list)
 
 
 if __name__ == '__main__':
