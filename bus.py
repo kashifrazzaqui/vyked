@@ -108,7 +108,7 @@ class Bus:
             self._loop.close()
 
     def registration_complete(self):
-        # self._create_service_clients()
+        self._create_service_clients()
 
     def _create_service_hosts(self, host_ip, host_port):
         # TODO: Create http server also
@@ -119,9 +119,7 @@ class Bus:
         for sc in self._service_clients:
             for host, port, node_id in self._registry_client.get_all_addresses(sc.properties):
                 coro = self._loop.create_connection(self._client_factory, host, port)
-                transport, protocol = self._loop.run_until_complete(coro)
-                protocol.set_service_client(sc)
-                self._client_protocols[node_id] = protocol
+                future = asyncio.async(coro)
 
     def _setup_registry_client(self, host_ip, host_port):
         self._registry_client = RegistryClient(self._loop, self._registry_host, self._registry_port, self)
