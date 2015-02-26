@@ -6,7 +6,8 @@ from again.utils import unique_hex
 # Service Client decorators
 def subscribe(func):
     """
-    use to listen for publications from a specific endpoint of a service
+    use to listen for publications from a specific endpoint of a service,
+    this method receives a publication from a remote service
     """
 
     def wrapper(*args, **kwargs):
