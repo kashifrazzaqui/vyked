@@ -16,6 +16,7 @@ class Registry:
         self._client_protocols = {}
         self._service_dependencies = {}
         self._service_protocols = {}
+        self._subscription_list = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
 
     def _rfactory(self):
         from jsonprotocol import RegistryProtocol
@@ -44,6 +45,8 @@ class Registry:
         request_type = packet['type']
         if request_type == 'register':
             self._register_service(packet, registry_protocol)
+        elif request_type == 'subscribe':
+            self._handle_subscription(packet)
 
     def _handle_pending_registrations(self):
         for service_name in self._pending_services:
@@ -113,6 +116,13 @@ class Registry:
     def _handle_service_connection(self, node_id, future):
         transport, protocol = future.result()
         self._service_protocols[node_id] = protocol
+
+    def _handle_subscription(self, packet):
+        params = packet['params']
+        for each in params['subscribe_to']:
+            self._subscription_list[each['app']][each['service']][each['version']][each['endpoint']].append(
+                (params['ip'], params['port']))
+        print(self._subscription_list)
 
 
 if __name__ == '__main__':

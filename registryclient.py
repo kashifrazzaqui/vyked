@@ -83,13 +83,13 @@ class RegistryClient:
     def _register_for_subscription(self, vendors, ip, port):
         subscription_packet = {
             'type': 'subscribe',
-        }
+            }
         params = {
             'ip': ip,
             'port': port
         }
+        subscription_list = []
         for vendor in vendors:
-            subscription_list = []
             if isinstance(vendor, TCPServiceClient):
                 for each in dir(vendor):
                     fn = getattr(vendor, each)
@@ -100,6 +100,6 @@ class RegistryClient:
                             'version': vendor.version,
                             'endpoint': fn.__name__
                         })
-            params['subscribe_to'] = subscription_list
+        params['subscribe_to'] = subscription_list
         subscription_packet['params'] = params
         self._protocol.send(subscription_packet)
