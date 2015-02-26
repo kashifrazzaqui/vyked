@@ -121,11 +121,18 @@ class Bus:
             for host, port, node_id in self._registry_client.get_all_addresses(sc.properties):
                 coro = self._loop.create_connection(self._client_factory, host, port)
                 future = asyncio.async(coro)
+                future.add_done_callback(partial(self._service_client_connection_callback, sc, node_id))
+
+    def _service_client_connection_callback(self, sc, node_id, future):
+        transport, protocol = future.result()
+        protocol.set_service_client(sc)
+        self._client_protocols[node_id] = protocol
 
     def _setup_registry_client(self, host_ip, host_port):
         self._registry_client = RegistryClient(self._loop, self._registry_host, self._registry_port, self)
         self._registry_client.connect()
-        service_names = [self._create_json_service_name(*service_client.properties) for service_client in self._service_clients]
+        service_names = [self._create_json_service_name(*service_client.properties) for service_client in
+                         self._service_clients]
         self._registry_client.register(service_names, host_ip, host_port, *self._host.properties)
 
     @staticmethod
