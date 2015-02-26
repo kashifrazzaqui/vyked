@@ -32,7 +32,6 @@ class Bus:
         func = getattr(self, '_' + packet['type'] + '_sender')
         func(packet)
 
-
     def _request_sender(self, packet:dict):
         """
         sends a request to a server from a ServiceClient
@@ -43,7 +42,6 @@ class Bus:
         packet['to'] = node_id
         client_protocol = self._client_protocols[node_id]
         client_protocol.send(packet)
-
 
     def _publish_sender(self, packet:dict):
         """
@@ -73,7 +71,6 @@ class Bus:
         else:
             print('no api found for packet: ', packet)
 
-
     def client_receive(self, service_client:TCPServiceClient, packet:dict):
         service_client.process_packet(packet)
 
@@ -86,7 +83,6 @@ class Bus:
 
     def _client_factory(self):
         return ServiceClientProtocol(self)
-
 
     def start(self, host_ip:str, host_port:int):
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))

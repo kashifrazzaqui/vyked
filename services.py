@@ -130,7 +130,6 @@ class TCPServiceClient(Service):
         else:
             print('Invalid packet', packet)
 
-
     def _process_response(self, packet):
         payload = packet['payload']
         request_id = payload['request_id']
@@ -145,7 +144,6 @@ class TCPServiceClient(Service):
             future.set_exception(exception)
         else:
             print('Invalid response to request:', packet)
-
 
     def _process_publication(self, packet):
         endpoint = packet['endpoint']

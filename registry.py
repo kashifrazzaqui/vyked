@@ -36,7 +36,6 @@ class Registry:
             self._loop.run_until_complete(self._server.wait_closed())
             self._loop.close()
 
-
     def _stop(self, signame:str):
         print('\ngot signal {} - exiting'.format(signame))
         self._loop.stop()
@@ -58,7 +57,7 @@ class Registry:
             nodes = self._pending_services[service_name]
             for node in nodes:
                 if should_activate:
-                    self._send_activated_packet(self._client_protocols[node], node,
+                    self._send_activated_packet(self._client_protocols[node],
                                                 self._service_dependencies[service_name])
                     nodes.remove(node)
 
@@ -75,17 +74,16 @@ class Registry:
             self._service_dependencies[service_name] = dependencies
         self._handle_pending_registrations()
 
-
     @staticmethod
     def _get_full_service_name(app:str, service:str, version:str):
         return "{}/{}/{}".format(app, service, version)
 
-    def _send_activated_packet(self, protocol, node, dependencies):
-        packet = self._make_activated_packet(node, dependencies)
+    def _send_activated_packet(self, protocol, dependencies):
+        packet = self._make_activated_packet(dependencies)
         protocol.send(packet)
         pass
 
-    def _make_activated_packet(self, node, vendors):
+    def _make_activated_packet(self, vendors):
         vendors_packet = []
         for vendor in vendors:
             vendor_packet = defaultdict(list)
@@ -115,6 +113,7 @@ class Registry:
     def _handle_service_connection(self, node_id, future):
         transport, protocol = future.result()
         self._service_protocols[node_id] = protocol
+
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'
