@@ -18,6 +18,7 @@ class Registry:
 
     def _rfactory(self):
         from jsonprotocol import RegistryProtocol
+
         return RegistryProtocol(self)
 
     def start(self):
@@ -56,7 +57,8 @@ class Registry:
             nodes = self._pending_services[service_name]
             for node in nodes:
                 if should_activate:
-                    self._send_activated_packet(node, self._service_protocols[node])
+                    self._send_activated_packet(self._service_protocols[node], node,
+                                                self._service_dependencies[service_name])
                     nodes.remove(node)
 
     def _register_service(self, packet:dict, registry_protocol):
@@ -76,16 +78,33 @@ class Registry:
     def _get_full_service_name(app:str, service:str, version:str):
         return "{}/{}/{}".format(app, service, version)
 
-    def _send_activated_packet(self, node:str, protocol):
-        packet = self._make_activated_packet()
+    def _send_activated_packet(self, protocol, node, dependencies):
+        packet = self._make_activated_packet(node, dependencies)
         protocol.send(packet)
         pass
 
-    @staticmethod
-    def _make_activated_packet():
+    def _make_activated_packet(self, node, vendors):
+        vendors_packet = []
+        for vendor in vendors:
+            vendor_packet = defaultdict(list)
+            vendor_name = self._get_full_service_name(vendor['app'], vendor['service'], vendor['version'])
+            for host, port, node in self._registered_services[vendor_name]:
+                vendor_node_packet = {
+                    'host': host,
+                    'port': port,
+                    'node_id': node
+                }
+                vendor_packet['name'] = vendor_name
+                vendor_packet['addresses'].append(vendor_node_packet)
+            vendors_packet.append(vendor_packet)
+        params = {
+            'vendors': vendors_packet
+        }
         packet = {'pid': unique_hex(),
-                  'type': 'registered'}
+                  'type': 'registered',
+                  'params': params}
         return packet
+
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'

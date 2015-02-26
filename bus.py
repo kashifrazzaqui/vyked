@@ -92,8 +92,7 @@ class Bus:
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
 
         self._create_service_hosts(host_ip, host_port)
-        self._setup_registry_client()
-        # self._create_service_clients()  this can only be done once register response has been received
+        self._setup_registry_client(host_ip, host_port)
 
         print('Serving on {}'.format(self._tcp_server.sockets[0].getsockname()))
         print("Event loop running forever, press CTRL+c to interrupt.")
@@ -108,6 +107,8 @@ class Bus:
             self._loop.run_until_complete(self._tcp_server.wait_closed())
             self._loop.close()
 
+    def registration_complete(self):
+        # self._create_service_clients()
 
     def _create_service_hosts(self, host_ip, host_port):
         # TODO: Create http server also
@@ -122,11 +123,11 @@ class Bus:
                 protocol.set_service_client(sc)
                 self._client_protocols[node_id] = protocol
 
-    def _setup_registry_client(self):
-        self._registry_client = RegistryClient(self._loop, self._registry_host, self._registry_port)
+    def _setup_registry_client(self, host_ip, host_port):
+        self._registry_client = RegistryClient(self._loop, self._registry_host, self._registry_port, self)
         self._registry_client.connect()
         service_names = [self._create_json_service_name(*service_client.properties) for service_client in self._service_clients]
-        self._registry_client.register(service_names, *self._host.properties)
+        self._registry_client.register(service_names, host_ip, host_port, *self._host.properties)
 
     @staticmethod
     def _create_json_service_name(app, service, version):
