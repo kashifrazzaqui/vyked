@@ -1,6 +1,7 @@
 from asyncio import Future
 
 from again.utils import unique_hex
+from functools import wraps
 
 
 # Service Client decorators
@@ -10,6 +11,7 @@ def subscribe(func):
     this method receives a publication from a remote service
     """
 
+    @wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
@@ -21,7 +23,7 @@ def request(func):
     """
     use to request an api call from a specific endpoint
     """
-
+    @wraps(func)
     def wrapper(*args, **kwargs):
         params = func(*args, **kwargs)
         self = params.pop('self')
@@ -41,7 +43,7 @@ def publish(func):
     """
     publish the return value of this function as a message from this endpoint
     """
-
+    @wraps(func)
     def wrapper(*args, **kwargs):  # outgoing
         payload = func(*args, **kwargs)
         self = payload.pop('self')
@@ -63,6 +65,7 @@ def api(func):  # incoming
         followed by kwargs
     """
 
+    @wraps(func)
     def wrapper(*args, **kwargs):
         self = args[0]
         rid = kwargs.pop('request_id')
