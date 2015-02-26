@@ -22,7 +22,7 @@ and a list of all its dependencies
         'from': <node_address>, # bus layer
 
         'pid': <guid>, # packet_id which is added at the service layer
-        'type': <message|request|response>, # added at the service layer
+        'type': <publish|request|response>, # added at the service layer
 
         'app': <app_name>,
         'service':<service_name>,

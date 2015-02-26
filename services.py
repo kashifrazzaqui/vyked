@@ -30,6 +30,7 @@ def request(func):
         future = self._send_request(endpoint=func.__name__, entity=entity, params=params)
         return future
 
+    wrapper.is_request = True
     return wrapper
 
 
@@ -37,16 +38,15 @@ def request(func):
 
 def publish(func):
     """
-    publish a message from this endpoint
+    publish the return value of this function as a message from this endpoint
     """
-
     def wrapper(*args, **kwargs):  # outgoing
-        params = func(*args, **kwargs)
-        self = params.pop('self')
-        entity = params.pop('entity')
-        sender = params.pop('sender')
-        self._publish(func.__name__, unique_hex(), entity, sender, params)
+        payload = func(*args, **kwargs)
+        self = payload.pop('self')
+        self._publish(func.__name__, payload)
         return None
+
+    wrapper.is_publish = True
 
     return wrapper
 
@@ -133,19 +133,21 @@ class ServiceClient(Service):
         else:
             print('Invalid response to request:', packet)
 
-    def _make_packet(self, packet_type, endpoint, params, entity):
+    def _make_request_packet(self, packet_type, endpoint, params, entity):
         packet = {'pid': unique_hex(),
                   'app': self.app_name,
                   'service': self.name,
+                  'version': self.version,
                   'entity': entity,
                   'endpoint': endpoint,
-                  'version': self.version,
                   'type': packet_type,
                   'payload': params}
         return packet
 
 
 class ServiceHost(Service):
+    PUBLISH_PKT_STR = 'publish'
+
     def __init__(self, service_name, service_version, app_name):
         # TODO: to be multi-tenant make app_name a list
         super(ServiceHost, self).__init__(service_name, service_version, app_name)
@@ -156,6 +158,10 @@ class ServiceHost(Service):
                service == self.name and \
                version == self.version
 
+    def _publish(self, publication_name, payload):
+        packet = self._make_publish_packet(ServiceHost.PUBLISH_PKT_STR, publication_name, payload)
+        self._bus.send(packet)
+
     def _make_response_packet(self, request_id: str, from_id: str, entity:str, result:object):
         packet = {'pid': unique_hex(),
                   'to': from_id,
@@ -163,6 +169,17 @@ class ServiceHost(Service):
                   'type': 'response',
                   'payload': {'request_id': request_id, 'result': result}}
         return packet
+
+    def _make_publish_packet(self, packet_type:str, publication_name:str, payload:dict):
+        packet = {'pid': unique_hex(),
+                  'app': self.app_name,
+                  'service': self.name,
+                  'version': self.version,
+                  'endpoint': publication_name,
+                  'type': packet_type,
+                  'payload': payload}
+        return packet
+
 
 
 class RequestException(Exception):

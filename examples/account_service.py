@@ -10,6 +10,7 @@ IDENTITY_PORT = 4501
 ACCOUNTS_HOST = '127.0.0.1'
 ACCOUNTS_PORT = 4502
 
+
 class AccountService(ServiceHost):
     def __init__(self):
         super(AccountService, self).__init__("AccountService", "1", "Example")
@@ -20,7 +21,7 @@ class AccountService(ServiceHost):
 
     @publish
     def logged_out(self, user_name):
-        pass
+        return locals()
 
 
 class AccountClient(ServiceClient):

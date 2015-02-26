@@ -39,17 +39,22 @@ class Bus:
         auto dispatch method called from self.send()
         """
         app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
-        host, port, node_id = self._registry_client.resolve(app, service, version, entity)
+        node_id = self._registry_client.resolve(app, service, version, entity)
         packet['to'] = node_id
         client_protocol = self._client_protocols[node_id]
         client_protocol.send(packet)
 
 
-    def _message_sender(self, packet:dict):
+    def _publish_sender(self, packet:dict):
         """
         auto dispatch method called from self.send()
         """
-        pass
+        app, service, version = packet['app'], packet['service'], packet['version']
+        nodes = self._registry_client.resolve_publication(app, service, version)
+        for each in nodes:
+            packet['to'] = each.node_id
+            client_protocol = self._client_protocols[each.node_id]
+            client_protocol.send(packet)
 
     def host_receive(self, protocol:ServiceHostProtocol, packet:dict):
         if self._host.is_for_me(packet):
