@@ -13,8 +13,9 @@ class Registry:
         self._registered_services = defaultdict(list)
         self._pending_services = defaultdict(list)
         self._service_states = {}
-        self._service_protocols = {}
+        self._client_protocols = {}
         self._service_dependencies = {}
+        self._service_protocols = {}
 
     def _rfactory(self):
         from jsonprotocol import RegistryProtocol
@@ -57,7 +58,7 @@ class Registry:
             nodes = self._pending_services[service_name]
             for node in nodes:
                 if should_activate:
-                    self._send_activated_packet(self._service_protocols[node], node,
+                    self._send_activated_packet(self._client_protocols[node], node,
                                                 self._service_dependencies[service_name])
                     nodes.remove(node)
 
@@ -68,7 +69,8 @@ class Registry:
         service_entry = (params['host'], params['port'], params['node_id'])
         self._registered_services[service_name].append(service_entry)
         self._pending_services[service_name].append(params['node_id'])
-        self._service_protocols[params['node_id']] = registry_protocol
+        self._client_protocols[params['node_id']] = registry_protocol
+        self._connect_to_service(params['host'], params['port'], params['node_id'])
         if self._service_dependencies.get(service_name) is None:
             self._service_dependencies[service_name] = dependencies
         self._handle_pending_registrations()
@@ -105,6 +107,14 @@ class Registry:
                   'params': params}
         return packet
 
+    def _connect_to_service(self, host, port, node_id):
+        coro = self._loop.create_connection(self._rfactory, host, port)
+        future = asyncio.async(coro)
+        future.add_done_callback(partial(self._handle_service_connection, node_id))
+
+    def _handle_service_connection(self, node_id, future):
+        transport, protocol = future.result()
+        self._service_protocols[node_id] = protocol
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'
