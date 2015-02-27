@@ -85,7 +85,7 @@ class ServiceHostProtocol(JSONProtocol):
         #TODO: think about what needs to be done here
 
     def on_element(self, element):
-        self._bus.host_receive(self, packet=element, protocol=self)
+        self._bus.host_receive(packet=element, protocol=self)
 
 
 class ServiceClientProtocol(JSONProtocol):
@@ -102,7 +102,7 @@ class ServiceClientProtocol(JSONProtocol):
         super(ServiceClientProtocol, self).connection_made(transport)
 
     def on_element(self, element):
-        self._bus.client_receive(self, packet=element, service_client=self._service_client)
+        self._bus.client_receive(packet=element, service_client=self._service_client)
 
 
 class RegistryProtocol(JSONProtocol):
