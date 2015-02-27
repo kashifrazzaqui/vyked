@@ -14,7 +14,7 @@ class Pinger:
 
     def pong_received(self, count):
         if self._count == count:
-            self._count = self._count + 1
+            self._count += 1
             if self._timer is not None:
                 self._timer.cancel()
         else:
