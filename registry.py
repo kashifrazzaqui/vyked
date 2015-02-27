@@ -51,6 +51,9 @@ class Registry:
         elif request_type == 'pong':
             self._handle_pong(packet['node_id'])
 
+    def handle_ping_timeout(self, node):
+        print("{} timed out".format(node))
+
     def _handle_pending_registrations(self):
         for service_name in self._pending_services:
             depends_on = self._service_dependencies[service_name]
@@ -119,9 +122,9 @@ class Registry:
     def _handle_service_connection(self, node_id, future):
         transport, protocol = future.result()
         self._service_protocols[node_id] = protocol
-        pinger = Pinger(self._loop, protocol, node_id)
+        pinger = Pinger(self, self._loop, protocol, node_id)
         self._pingers[node_id] = pinger
-        pinger.ping()
+        pinger.start_ping()
 
     def _handle_subscription(self, packet):
         params = packet['params']
@@ -131,7 +134,8 @@ class Registry:
 
     def _handle_pong(self, node_id):
         pinger = self._pingers[node_id]
-        pinger.ping()
+        pinger.pong_received()
+        pinger.start_ping()
 
 
 if __name__ == '__main__':
