@@ -49,9 +49,10 @@ class Registry:
         elif request_type == 'subscribe':
             self._handle_subscription(packet)
         elif request_type == 'pong':
-            self._handle_pong(packet['node_id'])
+            self._handle_pong(packet['node_id'], packet['count'])
 
     def handle_ping_timeout(self, node):
+        # TODO : deregister service
         print("{} timed out".format(node))
 
     def _handle_pending_registrations(self):
@@ -132,9 +133,9 @@ class Registry:
             self._subscription_list[each['app']][each['service']][each['version']][each['endpoint']].append(
                 (params['ip'], params['port']))
 
-    def _handle_pong(self, node_id):
+    def _handle_pong(self, node_id, count):
         pinger = self._pingers[node_id]
-        pinger.pong_received()
+        pinger.pong_received(count)
         pinger.start_ping()
 
 

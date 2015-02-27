@@ -137,11 +137,11 @@ class Bus:
         return {'app': app, 'service': service, 'version': version}
 
     def _handle_ping(self, packet, protocol):
-        pong_packet = self._make_pong_packet(packet['node_id'])
+        pong_packet = self._make_pong_packet(packet['node_id'], packet['count'])
         protocol.send(pong_packet)
 
-    def _make_pong_packet(self, node_id):
-        packet = {'type': 'pong', 'node_id': node_id}
+    def _make_pong_packet(self, node_id, count):
+        packet = {'type': 'pong', 'node_id': node_id, 'count': count}
         return packet
 
 if __name__ == '__main__':
