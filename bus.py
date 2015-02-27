@@ -54,12 +54,15 @@ class Bus:
             client_protocol = self._client_protocols[each.node_id]
             client_protocol.send(packet)
 
-    def host_receive(self, protocol:ServiceHostProtocol, packet:dict):
-        if self._host.is_for_me(packet):
-            func = getattr(self, '_' + packet['type'] + '_receiver')
-            func(packet, protocol)
+    def host_receive(self, packet:dict, protocol:ServiceHostProtocol):
+        if packet['type'] == 'ping':
+            self._handle_ping(packet, protocol)
         else:
-            print('wrongly routed packet: ', packet)
+            if self._host.is_for_me(packet):
+                func = getattr(self, '_' + packet['type'] + '_receiver')
+                func(packet, protocol)
+            else:
+                print('wrongly routed packet: ', packet)
 
     def _request_receiver(self, packet, protocol):
         api_fn = getattr(self._host, packet['endpoint'])
@@ -133,6 +136,13 @@ class Bus:
     def _create_json_service_name(app, service, version):
         return {'app': app, 'service': service, 'version': version}
 
+    def _handle_ping(self, packet, protocol):
+        pong_packet = self._make_pong_packet(packet['node_id'])
+        protocol.send(pong_packet)
+
+    def _make_pong_packet(self, node_id):
+        packet = {'type': 'pong', 'node_id': node_id}
+        return packet
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'

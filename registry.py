@@ -3,6 +3,7 @@ from functools import partial
 from collections import defaultdict
 import asyncio
 from again.utils import unique_hex
+from pinger import Pinger
 
 
 class Registry:
@@ -12,11 +13,11 @@ class Registry:
         self._loop = asyncio.get_event_loop()
         self._registered_services = defaultdict(list)
         self._pending_services = defaultdict(list)
-        self._service_states = {}
         self._client_protocols = {}
         self._service_dependencies = {}
         self._service_protocols = {}
         self._subscription_list = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
+        self._pingers = {}
 
     def _rfactory(self):
         from jsonprotocol import RegistryProtocol
@@ -47,6 +48,8 @@ class Registry:
             self._register_service(packet, registry_protocol)
         elif request_type == 'subscribe':
             self._handle_subscription(packet)
+        elif request_type == 'pong':
+            self._handle_pong(packet['node_id'])
 
     def _handle_pending_registrations(self):
         for service_name in self._pending_services:
@@ -116,12 +119,19 @@ class Registry:
     def _handle_service_connection(self, node_id, future):
         transport, protocol = future.result()
         self._service_protocols[node_id] = protocol
+        pinger = Pinger(self._loop, protocol, node_id)
+        self._pingers[node_id] = pinger
+        pinger.ping()
 
     def _handle_subscription(self, packet):
         params = packet['params']
         for each in params['subscribe_to']:
             self._subscription_list[each['app']][each['service']][each['version']][each['endpoint']].append(
                 (params['ip'], params['port']))
+
+    def _handle_pong(self, node_id):
+        pinger = self._pingers[node_id]
+        pinger.ping()
 
 
 if __name__ == '__main__':
