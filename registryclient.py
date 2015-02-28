@@ -1,3 +1,4 @@
+from asyncio import Future
 from again.utils import unique_hex
 from collections import defaultdict
 from services import TCPServiceClient
@@ -18,6 +19,7 @@ class RegistryClient:
         self._pending_requests = {}
         self._available_services = defaultdict(list)
         self._assigned_services = {}
+        self._subscription_list = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
 
     def register(self, vendors, ip, port, app, service, version):
         self._app = app
@@ -41,6 +43,8 @@ class RegistryClient:
         if packet['type'] == "registered":
             self.cache_vendors(packet['params']['vendors'])
             self._bus.registration_complete()
+        elif packet['type'] == 'subscription_list':
+            self._handle_subscription_list(packet)
 
     def get_all_addresses(self, full_service_name):
         return self._available_services.get(
@@ -86,7 +90,8 @@ class RegistryClient:
             }
         params = {
             'ip': ip,
-            'port': port
+            'port': port,
+            'node_id': self._node_id
         }
         subscription_list = []
         for vendor in vendors:
@@ -103,3 +108,25 @@ class RegistryClient:
         params['subscribe_to'] = subscription_list
         subscription_packet['params'] = params
         self._protocol.send(subscription_packet)
+
+    def resolve_publication(self, app, service, version, endpoint):
+        future = Future()
+        request_id = unique_hex()
+        packet = {'type': 'resolve_publication', 'request_id': request_id}
+        params = {
+            'app': app,
+            'service': service,
+            'version': version,
+            'endpoint': endpoint
+        }
+        packet['params'] = params
+        self._pending_requests[request_id] = future
+        self._protocol.send(packet)
+        return future
+
+    def _handle_subscription_list(self, packet):
+        future = self._pending_requests.pop(packet['request_id'])
+        future.set_result(packet['nodes'])
+
+
+

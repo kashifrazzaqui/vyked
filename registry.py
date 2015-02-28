@@ -50,6 +50,8 @@ class Registry:
             self._handle_subscription(packet)
         elif request_type == 'pong':
             self._handle_pong(packet['node_id'], packet['count'])
+        elif request_type == 'resolve_publication':
+            self._resolve_publication(packet, registry_protocol)
 
     def handle_ping_timeout(self, node):
         # TODO : deregister service
@@ -131,12 +133,19 @@ class Registry:
         params = packet['params']
         for each in params['subscribe_to']:
             self._subscription_list[each['app']][each['service']][each['version']][each['endpoint']].append(
-                (params['ip'], params['port']))
+                (params['ip'], params['port'], params['node_id']))
 
     def _handle_pong(self, node_id, count):
         pinger = self._pingers[node_id]
         pinger.pong_received(count)
         pinger.start_ping()
+
+    def _resolve_publication(self, packet, protocol):
+        params = packet['params']
+        app, service, version, endpoint = params['app'], params['service'], params['version'], params['endpoint']
+        nodes = [node for ip, port, node in self._subscription_list[app][service][version][endpoint]]
+        result = {'type': 'subscription_list', 'request_id': packet['request_id'], 'nodes': nodes}
+        protocol.send(result)
 
 
 if __name__ == '__main__':

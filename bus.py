@@ -47,12 +47,16 @@ class Bus:
         """
         auto dispatch method called from self.send()
         """
-        app, service, version = packet['app'], packet['service'], packet['version']
-        nodes = self._registry_client.resolve_publication(app, service, version)
-        for each in nodes:
-            packet['to'] = each.node_id
-            client_protocol = self._client_protocols[each.node_id]
-            client_protocol.send(packet)
+        app, service, version, endpoint = packet['app'], packet['service'], packet['version'], packet['endpoint']
+        future = self._registry_client.resolve_publication(app, service, version, endpoint)
+
+        def fun(fut):
+            for node in fut.result():
+                packet['to'] = node
+                client_protocol = self._client_protocols[node]
+                client_protocol.send(packet)
+
+        future.add_done_callback(fun)
 
     def host_receive(self, packet:dict, protocol:ServiceHostProtocol):
         if packet['type'] == 'ping':
@@ -143,6 +147,7 @@ class Bus:
     def _make_pong_packet(self, node_id, count):
         packet = {'type': 'pong', 'node_id': node_id, 'count': count}
         return packet
+
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'

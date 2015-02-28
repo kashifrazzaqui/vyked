@@ -44,9 +44,9 @@ def publish(func):
     publish the return value of this function as a message from this endpoint
     """
     @wraps(func)
-    def wrapper(*args, **kwargs):  # outgoing
-        payload = func(*args, **kwargs)
-        self = payload.pop('self')
+    def wrapper(self, *args, **kwargs):  # outgoing
+        print("self is {} {}".format(self, *args))
+        payload = func(self, *args, **kwargs)
         self._publish(func.__name__, payload)
         return None
 
