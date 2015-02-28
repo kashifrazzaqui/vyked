@@ -143,7 +143,8 @@ class Registry:
     def _resolve_publication(self, packet, protocol):
         params = packet['params']
         app, service, version, endpoint = params['app'], params['service'], params['version'], params['endpoint']
-        nodes = [node for ip, port, node in self._subscription_list[app][service][version][endpoint]]
+        nodes = [{'ip': ip, 'port': port, 'node_id': node} for ip, port, node in
+                 self._subscription_list[app][service][version][endpoint]]
         result = {'type': 'subscription_list', 'request_id': packet['request_id'], 'nodes': nodes}
         protocol.send(result)
 

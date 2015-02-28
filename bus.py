@@ -50,17 +50,28 @@ class Bus:
         app, service, version, endpoint = packet['app'], packet['service'], packet['version'], packet['endpoint']
         future = self._registry_client.resolve_publication(app, service, version, endpoint)
 
+        def send_publish_packet(publish_packet, f):
+            transport, protocol = f.result()
+            protocol.send(publish_packet)
+            transport.close()
+
         def fun(fut):
             for node in fut.result():
-                packet['to'] = node
-                client_protocol = self._client_protocols[node]
-                client_protocol.send(packet)
+                packet['to'] = node['node_id']
+                coro = self._loop.create_connection(self._host_factory, node['ip'], node['port'])
+                connect_future = asyncio.async(coro)
+                connect_future.add_done_callback(partial(send_publish_packet, packet))
 
         future.add_done_callback(fun)
 
     def host_receive(self, packet:dict, protocol:ServiceHostProtocol):
         if packet['type'] == 'ping':
             self._handle_ping(packet, protocol)
+        elif packet['type'] == 'publish':
+            client = [sc for sc in self._service_clients if (
+                sc.name == packet['service'] and sc.app_name == packet['app'] and sc.version == packet['version'])][0]
+            func = getattr(client, packet['endpoint'])
+            func(packet['payload'])
         else:
             if self._host.is_for_me(packet):
                 func = getattr(self, '_' + packet['type'] + '_receiver')

@@ -45,7 +45,6 @@ def publish(func):
     """
     @wraps(func)
     def wrapper(self, *args, **kwargs):  # outgoing
-        print("self is {} {}".format(self, *args))
         payload = func(self, *args, **kwargs)
         self._publish(func.__name__, payload)
         return None
