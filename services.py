@@ -24,8 +24,8 @@ def request(func):
     use to request an api call from a specific endpoint
     """
     @wraps(func)
-    def wrapper(*args, **kwargs):
-        params = func(*args, **kwargs)
+    def wrapper(self, *args, **kwargs):
+        params = func(self, *args, **kwargs)
         self = params.pop('self')
         entity = params.pop('entity')
         request_id = unique_hex()
@@ -72,9 +72,9 @@ def api(func):  # incoming
         from_id = kwargs.pop('from_id')
         result = None
         if len(kwargs):
-            result = func(kwargs, request_id=rid, entity=entity)
+            result = func(self, **kwargs)
         else:
-            result = func(request_id=rid, entity=entity)
+            result = func()
         return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result)
 
     wrapper.is_api = True

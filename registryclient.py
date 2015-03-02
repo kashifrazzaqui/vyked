@@ -1,4 +1,5 @@
 from asyncio import Future
+import random
 from again.utils import unique_hex
 from collections import defaultdict
 from services import TCPServiceClient
@@ -18,7 +19,7 @@ class RegistryClient:
         self._node_id = None
         self._pending_requests = {}
         self._available_services = defaultdict(list)
-        self._assigned_services = {}
+        self._assigned_services = defaultdict(lambda: defaultdict(list))
         self._subscription_list = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
 
     def register(self, vendors, ip, port, app, service, version):
@@ -51,8 +52,18 @@ class RegistryClient:
             self._get_full_service_name(full_service_name[0], full_service_name[1], full_service_name[2]))
 
     def resolve(self, app: str, service: str, version: str, entity:str):
-        entity_map = self._assigned_services.get(self._get_full_service_name(app, service, version))
-        return entity_map.get(entity)
+        service_name = self._get_full_service_name(app, service, version)
+        entity_map = self._assigned_services.get(service_name)
+        if entity_map is None:
+            self._assigned_services[service_name] = {}
+        entity_map = self._assigned_services.get(service_name)
+        if entity in entity_map:
+            return entity_map[entity]
+        else:
+            services = self._available_services[service_name]
+            host, port, node_id = random.choice(services)
+            entity_map[entity] = node_id
+            return node_id
 
     def _make_registration_packet(self, ip:str, port:str, app:str, service:str, version:str, vendors):
         vendors_list = []
