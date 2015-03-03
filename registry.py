@@ -65,11 +65,9 @@ class Registry:
         self._service_protocols.pop(node_id)
         self._client_protocols.pop(node_id)
 
-
     def handle_ping_timeout(self, node_id):
         print("{} timed out".format(node_id))
         self.deregister_service(node_id)
-
 
     def _handle_pending_registrations(self):
         for service_name in self._pending_services:
