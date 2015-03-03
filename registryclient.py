@@ -61,9 +61,12 @@ class RegistryClient:
             return entity_map[entity]
         else:
             services = self._available_services[service_name]
-            host, port, node_id = random.choice(services)
-            entity_map[entity] = node_id
-            return node_id
+            if len(services):
+                host, port, node_id = random.choice(services)
+                entity_map[entity] = node_id
+                return node_id
+            else:
+                return None
 
     def _make_registration_packet(self, ip:str, port:str, app:str, service:str, version:str, vendors):
         vendors_list = []

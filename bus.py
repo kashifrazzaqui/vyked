@@ -15,6 +15,7 @@ class Bus:
         self._loop = asyncio.get_event_loop()
         self._client_protocols = {}
         self._service_clients = []
+        self._pending_requests = []
         self._host = None
         self._host_id = unique_hex()
 
@@ -37,11 +38,7 @@ class Bus:
         sends a request to a server from a ServiceClient
         auto dispatch method called from self.send()
         """
-        app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
-        node_id = self._registry_client.resolve(app, service, version, entity)
-        packet['to'] = node_id
-        client_protocol = self._client_protocols[node_id]
-        client_protocol.send(packet)
+        self._pending_requests.append(packet)
 
     def _publish_sender(self, packet:dict):
         """
@@ -123,7 +120,8 @@ class Bus:
             self._loop.close()
 
     def registration_complete(self):
-        self._create_service_clients()
+        future = self._create_service_clients()
+        future.add_done_callback(self._clear_request_queue)
 
     def _create_service_hosts(self, host_ip, host_port):
         # TODO: Create http server also
@@ -131,11 +129,14 @@ class Bus:
         self._tcp_server = self._loop.run_until_complete(host_coro)
 
     def _create_service_clients(self):
+        futures = []
         for sc in self._service_clients:
             for host, port, node_id in self._registry_client.get_all_addresses(sc.properties):
                 coro = self._loop.create_connection(self._client_factory, host, port)
                 future = asyncio.async(coro)
                 future.add_done_callback(partial(self._service_client_connection_callback, sc, node_id))
+                futures.append(future)
+        return asyncio.gather(*futures, return_exceptions=False)
 
     def _service_client_connection_callback(self, sc, node_id, future):
         transport, protocol = future.result()
@@ -158,6 +159,15 @@ class Bus:
     def _make_pong_packet(self, node_id, count):
         packet = {'type': 'pong', 'node_id': node_id, 'count': count}
         return packet
+
+    def _clear_request_queue(self, future):
+        for packet in self._pending_requests:
+            app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
+            node_id = self._registry_client.resolve(app, service, version, entity)
+            if node_id is not None:
+                client_protocol = self._client_protocols[node_id]
+                packet['to'] = node_id
+                client_protocol.send(packet)
 
 
 if __name__ == '__main__':
