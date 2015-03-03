@@ -55,9 +55,13 @@ class Registry:
 
     def deregister_service(self, node_id):
         for service, nodes in self._registered_services.items():
-            for host, port, node in nodes:
-                if node == node_id:
+            service_present = False
+            for node in nodes:
+                if node[2] == node_id:
                     nodes.remove(node)
+                    service_present = True
+            if service_present:
+                self._notify_consumers(service, node_id)
         self._service_protocols.pop(node_id)
         self._client_protocols.pop(node_id)
 
@@ -157,6 +161,22 @@ class Registry:
                  self._subscription_list[app][service][version][endpoint]]
         result = {'type': 'subscription_list', 'request_id': packet['request_id'], 'nodes': nodes}
         protocol.send(result)
+
+    def _notify_consumers(self, vendor, node_id):
+        for service, vendors in self._service_dependencies.items():
+            for each in vendors:
+                vendor_name = self._get_full_service_name(each['app'], each['service'], each['version'])
+                if vendor == vendor_name:
+                    for host, port, node in self._registered_services[service]:
+                        packet = self._make_deregister_packet(node_id, each)
+                        protocol = self._client_protocols[node]
+                        protocol.send(packet)
+
+    def _make_deregister_packet(self, node_id, vendor):
+        packet = {'type': 'deregister'}
+        params = {'node_id': node_id, 'vendor': vendor}
+        packet['params'] = params
+        return packet
 
 
 if __name__ == '__main__':
