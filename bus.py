@@ -39,6 +39,7 @@ class Bus:
         auto dispatch method called from self.send()
         """
         self._pending_requests.append(packet)
+        self._clear_request_queue()
 
     def _publish_sender(self, packet:dict):
         """
@@ -121,7 +122,11 @@ class Bus:
 
     def registration_complete(self):
         future = self._create_service_clients()
-        future.add_done_callback(self._clear_request_queue)
+
+        def fun(future):
+            self._clear_request_queue()
+
+        future.add_done_callback(fun)
 
     def _create_service_hosts(self, host_ip, host_port):
         host_coro = self._loop.create_server(self._host_factory, host_ip, host_port)
@@ -159,7 +164,7 @@ class Bus:
         packet = {'type': 'pong', 'node_id': node_id, 'count': count}
         return packet
 
-    def _clear_request_queue(self, future):
+    def _clear_request_queue(self):
         for packet in self._pending_requests:
             app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
             node_id = self._registry_client.resolve(app, service, version, entity)
