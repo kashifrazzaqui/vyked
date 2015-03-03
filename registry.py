@@ -53,9 +53,15 @@ class Registry:
         elif request_type == 'resolve_publication':
             self._resolve_publication(packet, registry_protocol)
 
-    def handle_ping_timeout(self, node):
-        # TODO : deregister service
-        print("{} timed out".format(node))
+    def handle_ping_timeout(self, node_id):
+        print("{} timed out".format(node_id))
+        for service, nodes in self._registered_services.items():
+            for host, port, node in nodes:
+                if node == node_id:
+                    nodes.remove(node)
+        self._service_protocols.pop(node_id)
+        self._client_protocols.pop(node_id)
+
 
     def _handle_pending_registrations(self):
         for service_name in self._pending_services:
