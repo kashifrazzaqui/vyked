@@ -39,6 +39,7 @@ class JSONProtocol(asyncio.Protocol):
         string = json.dumps(packet) + ','
         if self._connected:
             self._transport.write(string.encode())
+            print('Data sent: {}'.format(string))
         else:
             self._pending_data.append(packet)
             print('Appended data: {}'.format(self._pending_data))
@@ -49,7 +50,7 @@ class JSONProtocol(asyncio.Protocol):
 
     def data_received(self, byte_data):
         string_data = byte_data.decode()
-        print("Data received {}".format(string_data))
+        print('Data received: {}'.format(string_data))
         self._obj_streamer.consume(string_data)
 
     def on_object_stream_start(self):

@@ -124,7 +124,6 @@ class Bus:
         future.add_done_callback(self._clear_request_queue)
 
     def _create_service_hosts(self, host_ip, host_port):
-        # TODO: Create http server also
         host_coro = self._loop.create_server(self._host_factory, host_ip, host_port)
         self._tcp_server = self._loop.run_until_complete(host_coro)
 
