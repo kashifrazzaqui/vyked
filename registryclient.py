@@ -40,9 +40,11 @@ class RegistryClient:
         self._transport, self._protocol = self._loop.run_until_complete(coro)
 
     def receive(self, packet:dict, registry_protocol):
-        if packet['type'] == "registered":
+        if packet['type'] == 'registered':
             self.cache_vendors(packet['params']['vendors'])
             self._bus.registration_complete()
+        elif packet['type'] == 'deregister':
+            self._handle_deregistration(packet)
         elif packet['type'] == 'subscription_list':
             self._handle_subscription_list(packet)
 
@@ -140,6 +142,24 @@ class RegistryClient:
     def _handle_subscription_list(self, packet):
         future = self._pending_requests.pop(packet['request_id'])
         future.set_result(packet['nodes'])
+
+    def _handle_deregistration(self, packet):
+        params = packet['params']
+        vendor = params['vendor']
+        node = params['node_id']
+        vendor_name = self._get_full_service_name(vendor['app'], vendor['service'], vendor['version'])
+        for each in self._available_services[vendor_name]:
+            if each[2] == node:
+                self._available_services[vendor_name].remove(each)
+        entity_map = self._assigned_services.get(vendor_name)
+        print(self._assigned_services)
+        if entity_map is not None:
+            for entity, node_id in entity_map.items():
+                if node == node_id:
+                    entity_map.pop(entity)
+
+
+
 
 
 
