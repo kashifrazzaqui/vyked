@@ -172,6 +172,7 @@ class Bus:
                 client_protocol = self._client_protocols[node_id]
                 packet['to'] = node_id
                 client_protocol.send(packet)
+                self._pending_requests.remove(packet)
 
 
 if __name__ == '__main__':

@@ -62,6 +62,11 @@ class Registry:
                     service_present = True
             if service_present:
                 self._notify_consumers(service, node_id)
+                if not len(nodes):
+                    for consumer in self._get_consumers(service):
+                        self._pending_services[consumer] = [node_id for host, port, node_id in
+                                                            self._registered_services[consumer]]
+
         self._service_protocols.pop(node_id)
         self._client_protocols.pop(node_id)
 
@@ -160,15 +165,21 @@ class Registry:
         result = {'type': 'subscription_list', 'request_id': packet['request_id'], 'nodes': nodes}
         protocol.send(result)
 
-    def _notify_consumers(self, vendor, node_id):
+    def _get_consumers(self, vendor):
+        consumers = []
         for service, vendors in self._service_dependencies.items():
             for each in vendors:
                 vendor_name = self._get_full_service_name(each['app'], each['service'], each['version'])
                 if vendor == vendor_name:
-                    for host, port, node in self._registered_services[service]:
-                        packet = self._make_deregister_packet(node_id, each)
-                        protocol = self._client_protocols[node]
-                        protocol.send(packet)
+                    consumers.append(service)
+        return consumers
+
+    def _notify_consumers(self, vendor, node_id):
+        for consumer in self._get_consumers(vendor):
+            for host, port, node in self._registered_services[consumer]:
+                packet = self._make_deregister_packet(node_id, vendor)
+                protocol = self._client_protocols[node]
+                protocol.send(packet)
 
     def _make_deregister_packet(self, node_id, vendor):
         packet = {'type': 'deregister'}

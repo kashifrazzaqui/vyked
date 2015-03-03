@@ -147,16 +147,17 @@ class RegistryClient:
         params = packet['params']
         vendor = params['vendor']
         node = params['node_id']
-        vendor_name = self._get_full_service_name(vendor['app'], vendor['service'], vendor['version'])
-        for each in self._available_services[vendor_name]:
+        for each in self._available_services[vendor]:
             if each[2] == node:
-                self._available_services[vendor_name].remove(each)
-        entity_map = self._assigned_services.get(vendor_name)
-        print(self._assigned_services)
+                self._available_services[vendor].remove(each)
+        entity_map = self._assigned_services.get(vendor)
         if entity_map is not None:
+            stale_entities = []
             for entity, node_id in entity_map.items():
                 if node == node_id:
-                    entity_map.pop(entity)
+                    stale_entities.append(entity)
+            for entity in stale_entities:
+                entity_map.pop(entity)
 
 
 
