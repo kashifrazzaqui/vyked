@@ -20,7 +20,6 @@ class RegistryClient:
         self._pending_requests = {}
         self._available_services = defaultdict(list)
         self._assigned_services = defaultdict(lambda: defaultdict(list))
-        self._subscription_list = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
 
     def register(self, vendors, ip, port, app, service, version):
         self._app = app
