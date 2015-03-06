@@ -90,6 +90,7 @@ class Service:
         self._service_name = service_name
         self._service_version = service_version
         self._app_name = app_name
+        self._bus = None
 
     @property
     def name(self):
@@ -107,7 +108,12 @@ class Service:
     def properties(self):
         return self.app_name, self.name, self.version
 
-    def set_bus(self, bus):
+    @property
+    def bus(self):
+        return self._bus
+
+    @bus.setter
+    def bus(self, bus):
         self._bus = bus
 
 
@@ -162,6 +168,7 @@ class TCPServiceClient(Service):
                   'type': packet_type,
                   'payload': params}
         return packet
+
 
 
 class TCPServiceHost(Service):

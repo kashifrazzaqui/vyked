@@ -1,8 +1,10 @@
-from again.utils import unique_hex
 import asyncio
 from functools import partial
 import os
 import signal
+
+from again.utils import unique_hex
+
 from jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from registryclient import RegistryClient
 from services import TCPServiceClient, TCPServiceHost
@@ -22,7 +24,7 @@ class Bus:
     def require(self, args:[TCPServiceClient]):
         for each in args:
             if isinstance(each, TCPServiceClient):
-                each.set_bus(self)
+                each.bus = self
                 self._service_clients.append(each)
 
     def serve(self, service_host:TCPServiceHost):
