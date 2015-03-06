@@ -105,7 +105,7 @@ class Service:
 
     @property
     def properties(self):
-        return (self.app_name, self.name, self.version)
+        return self.app_name, self.name, self.version
 
     def set_bus(self, bus):
         self._bus = bus
