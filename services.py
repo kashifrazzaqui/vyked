@@ -1,4 +1,4 @@
-from asyncio import Future
+from asyncio import Future, get_event_loop
 
 from again.utils import unique_hex
 from functools import wraps
@@ -81,6 +81,8 @@ def api(func):  # incoming
     return wrapper
 
 
+
+
 class Service:
     _PUB_PKT_STR = 'publish'
     _REQ_PKT_STR = 'request'
@@ -116,8 +118,16 @@ class Service:
     def bus(self, bus):
         self._bus = bus
 
+    @staticmethod
+    def time_future(future:Future, timeout:int):
+        def timer_callback(f):
+            if not f.done() and not f.cancelled():
+                f.set_exception(TimeoutError())
+        get_event_loop().call_later(timeout, timer_callback, future)
 
 class TCPServiceClient(Service):
+    REQUEST_TIMEOUT_SECS = 10
+
     def __init__(self, service_name, service_version, app_name):
         super(TCPServiceClient, self).__init__(service_name, service_version, app_name)
         self._pending_requests = {}
@@ -128,6 +138,7 @@ class TCPServiceClient(Service):
         request_id = params['request_id']
         self._pending_requests[request_id] = future
         self._bus.send(packet)
+        Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
 
     def process_packet(self, packet):
