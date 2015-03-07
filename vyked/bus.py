@@ -173,9 +173,11 @@ class Bus:
             app = web.Application(loop=self._loop)
             routes = self._http_host.get_routes()
             for method, path, handler in routes:
-                app.router.add(method, path, handler)
+                app.router.add_route(method, path, handler)
             if routes:
-                return self._loop.create_server(app.make_handler(), host_ip, host_port)
+                handler = app.make_handler()
+                http_coro = self._loop.create_server(handler, host_ip, host_port)
+                return self._loop.run_until_complete(http_coro)
 
 
     def _create_service_clients(self):
