@@ -109,15 +109,26 @@ class Bus:
     def _client_factory(self):
         return ServiceClientProtocol(self)
 
+    def is_tcp_ronin(self):
+        return self._tcp_host and not self._tcp_host.ronin
+
+    def is_http_ronin(self):
+        return self._http_host and not self._http_host.ronin
+
     def start(self):
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
 
         self._tcp_server = self._create_tcp_service_host()
         self._http_server = self._create_http_service_host()
-        self._setup_registry_client()
-        tcp_host_ip, tcp_host_port = self._tcp_host.socket_address
-        self._registry_client.register(self._service_clients, tcp_host_ip, tcp_host_port, *self._tcp_host.properties)
+
+        if self._tcp_host and not self.is_tcp_ronin():
+            self._setup_registry_client()
+
+        #TODO: All the ronin conditional logic needs refactor and completion
+        if self._tcp_host and not self.is_tcp_ronin():
+            tcp_host_ip, tcp_host_port = self._tcp_host.socket_address
+            self._registry_client.register(self._service_clients, tcp_host_ip, tcp_host_port, *self._tcp_host.properties)
         # TODO: register should also register for http
 
         if self._tcp_server:

@@ -188,10 +188,19 @@ class ServiceHost(Service):
         super(ServiceHost, self).__init__(service_name, service_version, app_name)
         self._ip = host_ip
         self._port = host_port
+        self._ronin = False
 
     @property
     def socket_address(self):
         return self._ip, self._port
+
+    @property
+    def ronin(self):
+        return self._ronin
+
+    @ronin.setter
+    def ronin(self, value:bool):
+        self._ronin = value
 
 
 class TCPServiceHost(ServiceHost):
