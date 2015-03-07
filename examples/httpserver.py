@@ -1,3 +1,6 @@
+from asyncio import coroutine
+import aiohttp
+
 from aiohttp.web import Response, Request
 
 from vyked.services import HTTPServiceHost
@@ -15,8 +18,10 @@ class Hello(HTTPServiceHost):
     def get_routes(self) -> list:
         return [('GET', '/', self.root), ('GET', '/{name}', self.person)]
 
+    @coroutine
     def root(self, request:Request) -> Response:
-        result = 'Hello World!'
+        response = yield from aiohttp.request('get', 'https://github.com/timeline.json')
+        result = yield from response.text()
         return Response(body=result.encode())
 
     def person(self, request:Request) -> Response:
