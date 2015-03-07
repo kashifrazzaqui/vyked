@@ -1,9 +1,9 @@
 import asyncio
 from jsonstreamer import ObjectStreamer
 import json
-from registry import Registry
-from registryclient import RegistryClient
-from services import TCPServiceClient
+from vyked.registry import Registry
+from vyked.registryclient import RegistryClient
+from vyked.services import TCPServiceClient
 
 
 class JSONProtocol(asyncio.Protocol):

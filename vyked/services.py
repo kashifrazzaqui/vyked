@@ -1,5 +1,4 @@
 from asyncio import Future, get_event_loop
-from aiohttp import web
 
 from again.utils import unique_hex
 from functools import wraps

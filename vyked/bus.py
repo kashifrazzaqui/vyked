@@ -6,9 +6,9 @@ import signal
 from again.utils import unique_hex
 from aiohttp import web
 
-from jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
-from registryclient import RegistryClient
-from services import TCPServiceClient, TCPServiceHost, HTTPServiceHost
+from vyked.jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
+from vyked.registryclient import RegistryClient
+from vyked.services import TCPServiceClient, TCPServiceHost, HTTPServiceHost
 
 
 class Bus:
@@ -120,8 +120,10 @@ class Bus:
         self._registry_client.register(self._service_clients, tcp_host_ip, tcp_host_port, *self._tcp_host.properties)
         # TODO: register should also register for http
 
-        print('Serving TCP on {}'.format(self._tcp_server.sockets[0].getsockname()))
-        print('Serving HTTP on {}'.format(self._http_server.sockets[0].getsockname()))
+        if self._tcp_server:
+            print('Serving TCP on {}'.format(self._tcp_server.sockets[0].getsockname()))
+        if self._http_server:
+            print('Serving HTTP on {}'.format(self._http_server.sockets[0].getsockname()))
         print("Event loop running forever, press CTRL+c to interrupt.")
         print("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
 
@@ -130,10 +132,14 @@ class Bus:
         except Exception as e:
             print(e)
         finally:
-            self._tcp_server.close()
-            self._loop.run_until_complete(self._tcp_server.wait_closed())
-            self._http_server.close()
-            self._loop.run_until_complete(self._http_server.wait_closed())
+            if self._tcp_server:
+                self._tcp_server.close()
+                self._loop.run_until_complete(self._tcp_server.wait_closed())
+
+            if self._http_server:
+                self._http_server.close()
+                self._loop.run_until_complete(self._http_server.wait_closed())
+
             self._loop.close()
 
     def registration_complete(self):

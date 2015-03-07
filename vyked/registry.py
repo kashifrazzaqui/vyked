@@ -3,7 +3,7 @@ from functools import partial
 from collections import defaultdict
 import asyncio
 from again.utils import unique_hex
-from pinger import Pinger
+from vyked.pinger import Pinger
 
 
 class Registry:
@@ -20,7 +20,7 @@ class Registry:
         self._pingers = {}
 
     def _rfactory(self):
-        from jsonprotocol import RegistryProtocol
+        from vyked.jsonprotocol import RegistryProtocol
 
         return RegistryProtocol(self)
 

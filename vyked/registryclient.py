@@ -2,7 +2,7 @@ from asyncio import Future
 import random
 from again.utils import unique_hex
 from collections import defaultdict
-from services import TCPServiceClient
+from vyked.services import TCPServiceClient
 
 
 class RegistryClient:
@@ -30,7 +30,7 @@ class RegistryClient:
         self._register_for_subscription(vendors, ip, port)
 
     def _protocol_factory(self):
-        from jsonprotocol import RegistryClientProtocol
+        from vyked.jsonprotocol import RegistryClientProtocol
 
         p = RegistryClientProtocol(self)
         return p
