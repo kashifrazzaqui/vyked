@@ -4,10 +4,11 @@ import os
 import signal
 
 from again.utils import unique_hex
+from aiohttp import web
 
 from jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from registryclient import RegistryClient
-from services import TCPServiceClient, TCPServiceHost
+from services import TCPServiceClient, TCPServiceHost, HTTPServiceHost
 
 
 class Bus:
@@ -18,7 +19,10 @@ class Bus:
         self._client_protocols = {}
         self._service_clients = []
         self._pending_requests = []
-        self._host = None
+        self._tcp_host = None
+        self._http_host = None
+        self._tcp_server = None
+        self._http_server = None
         self._host_id = unique_hex()
 
     def require(self, args:[TCPServiceClient]):
@@ -27,8 +31,11 @@ class Bus:
                 each.bus = self
                 self._service_clients.append(each)
 
-    def serve(self, service_host:TCPServiceHost):
-        self._host = service_host
+    def serve_tcp(self, service_host:TCPServiceHost):
+        self._tcp_host = service_host
+
+    def serve_http(self, service_host:HTTPServiceHost):
+        self._http_host = service_host
 
     def send(self, packet:dict):
         packet['from'] = self._host_id
@@ -73,14 +80,14 @@ class Bus:
             func = getattr(client, packet['endpoint'])
             func(packet['payload'])
         else:
-            if self._host.is_for_me(packet):
+            if self._tcp_host.is_for_me(packet):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
                 func(packet, protocol)
             else:
                 print('wrongly routed packet: ', packet)
 
     def _request_receiver(self, packet, protocol):
-        api_fn = getattr(self._host, packet['endpoint'])
+        api_fn = getattr(self._tcp_host, packet['endpoint'])
         if api_fn.is_api:
             from_node_id = packet['from']
             entity = packet['entity']
@@ -102,14 +109,19 @@ class Bus:
     def _client_factory(self):
         return ServiceClientProtocol(self)
 
-    def start(self, host_ip:str, host_port:int):
+    def start(self):
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
 
-        self._create_service_hosts(host_ip, host_port)
-        self._setup_registry_client(host_ip, host_port)
+        self._tcp_server = self._create_tcp_service_host()
+        self._http_server = self._create_http_service_host()
+        self._setup_registry_client()
+        tcp_host_ip, tcp_host_port = self._tcp_host.socket_address
+        self._registry_client.register(self._service_clients, tcp_host_ip, tcp_host_port, *self._tcp_host.properties)
+        # TODO: register should also register for http
 
-        print('Serving on {}'.format(self._tcp_server.sockets[0].getsockname()))
+        print('Serving TCP on {}'.format(self._tcp_server.sockets[0].getsockname()))
+        print('Serving HTTP on {}'.format(self._http_server.sockets[0].getsockname()))
         print("Event loop running forever, press CTRL+c to interrupt.")
         print("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
 
@@ -120,19 +132,34 @@ class Bus:
         finally:
             self._tcp_server.close()
             self._loop.run_until_complete(self._tcp_server.wait_closed())
+            self._http_server.close()
+            self._loop.run_until_complete(self._http_server.wait_closed())
             self._loop.close()
 
     def registration_complete(self):
-        future = self._create_service_clients()
+        f = self._create_service_clients()
 
-        def fun(future):
+        def fun(f):
             self._clear_request_queue()
 
-        future.add_done_callback(fun)
+        f.add_done_callback(fun)
 
-    def _create_service_hosts(self, host_ip, host_port):
-        host_coro = self._loop.create_server(self._host_factory, host_ip, host_port)
-        self._tcp_server = self._loop.run_until_complete(host_coro)
+    def _create_tcp_service_host(self):
+        if self._tcp_host:
+            host_ip, host_port = self._tcp_host.socket_address
+            host_coro = self._loop.create_server(self._host_factory, host_ip, host_port)
+            return self._loop.run_until_complete(host_coro)
+
+    def _create_http_service_host(self):
+        if self._http_host:
+            host_ip, host_port = self._http_host.socket_address
+            app = web.Application(loop=self._loop)
+            routes = self._http_host.get_routes()
+            for method, path, handler in routes:
+                app.router.add(method, path, handler)
+            if routes:
+                return self._loop.create_server(app.make_handler(), host_ip, host_port)
+
 
     def _create_service_clients(self):
         futures = []
@@ -149,10 +176,9 @@ class Bus:
         protocol.set_service_client(sc)
         self._client_protocols[node_id] = protocol
 
-    def _setup_registry_client(self, host_ip, host_port):
+    def _setup_registry_client(self):
         self._registry_client = RegistryClient(self._loop, self._registry_host, self._registry_port, self)
         self._registry_client.connect()
-        self._registry_client.register(self._service_clients, host_ip, host_port, *self._host.properties)
 
     @staticmethod
     def _create_json_service_name(app, service, version):
@@ -183,4 +209,4 @@ if __name__ == '__main__':
     HOST_IP = '127.0.0.1'
     HOST_PORT = 8000
     bus = Bus(REGISTRY_HOST, REGISTRY_PORT)
-    bus.start(HOST_IP, HOST_PORT)
+    bus.start()

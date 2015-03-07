@@ -1,4 +1,5 @@
 from asyncio import Future, get_event_loop
+from aiohttp import web
 
 from again.utils import unique_hex
 from functools import wraps
@@ -183,9 +184,15 @@ class TCPServiceClient(Service):
 
 
 class TCPServiceHost(Service):
-    def __init__(self, service_name, service_version, app_name):
+    def __init__(self, service_name, service_version, app_name, host_ip, host_port):
         # TODO: to be multi-tenant make app_name a list
         super(TCPServiceHost, self).__init__(service_name, service_version, app_name)
+        self.ip = host_ip
+        self.port = host_port
+
+    @property
+    def socket_address(self):
+        return self.ip, self.port
 
     def is_for_me(self, packet:dict):
         app, service, version = packet['app'], packet['service'], packet['version']
@@ -218,3 +225,22 @@ class TCPServiceHost(Service):
 
 class RequestException(Exception):
     pass
+
+
+class HTTPServiceHost(Service):
+
+    def __init__(self, service_name, service_version, app_name, host_ip, host_port):
+        # TODO: to be multi-tenant make app_name a list
+        super(HTTPServiceHost, self).__init__(service_name, service_version, app_name)
+        self.ip = host_ip
+        self.port = host_port
+
+    @property
+    def socket_address(self):
+        return self.ip, self.port
+
+    def get_routes(self):
+        """
+        :return: A list of 3-tuples - (HTTP method name, path, handler_function)
+        """
+        raise NotImplementedError()
