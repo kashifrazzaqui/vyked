@@ -1,7 +1,7 @@
 from asyncio import Future, get_event_loop
+from functools import wraps
 
 from again.utils import unique_hex
-from functools import wraps
 
 
 # Service Client decorators
@@ -23,6 +23,7 @@ def request(func):
     """
     use to request an api call from a specific endpoint
     """
+
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         params = func(self, *args, **kwargs)
@@ -43,6 +44,7 @@ def publish(func):
     """
     publish the return value of this function as a message from this endpoint
     """
+
     @wraps(func)
     def wrapper(self, *args, **kwargs):  # outgoing
         payload = func(self, *args, **kwargs)
@@ -79,8 +81,6 @@ def api(func):  # incoming
 
     wrapper.is_api = True
     return wrapper
-
-
 
 
 class Service:
@@ -123,7 +123,9 @@ class Service:
         def timer_callback(f):
             if not f.done() and not f.cancelled():
                 f.set_exception(TimeoutError())
+
         get_event_loop().call_later(timeout, timer_callback, future)
+
 
 class TCPServiceClient(Service):
     REQUEST_TIMEOUT_SECS = 10
@@ -181,17 +183,21 @@ class TCPServiceClient(Service):
         return packet
 
 
-
-class TCPServiceHost(Service):
+class ServiceHost(Service):
     def __init__(self, service_name, service_version, app_name, host_ip, host_port):
-        # TODO: to be multi-tenant make app_name a list
-        super(TCPServiceHost, self).__init__(service_name, service_version, app_name)
-        self.ip = host_ip
-        self.port = host_port
+        super(ServiceHost, self).__init__(service_name, service_version, app_name)
+        self._ip = host_ip
+        self._port = host_port
 
     @property
     def socket_address(self):
-        return self.ip, self.port
+        return self._ip, self._port
+
+
+class TCPServiceHost(ServiceHost):
+    def __init__(self, service_name, service_version, app_name, host_ip, host_port):
+        # TODO: to be multi-tenant make app_name a list
+        super(TCPServiceHost, self).__init__(service_name, service_version, app_name, host_ip, host_port)
 
     def is_for_me(self, packet:dict):
         app, service, version = packet['app'], packet['service'], packet['version']
@@ -226,17 +232,10 @@ class RequestException(Exception):
     pass
 
 
-class HTTPServiceHost(Service):
-
+class HTTPServiceHost(ServiceHost):
     def __init__(self, service_name, service_version, app_name, host_ip, host_port):
         # TODO: to be multi-tenant make app_name a list
-        super(HTTPServiceHost, self).__init__(service_name, service_version, app_name)
-        self.ip = host_ip
-        self.port = host_port
-
-    @property
-    def socket_address(self):
-        return self.ip, self.port
+        super(HTTPServiceHost, self).__init__(service_name, service_version, app_name, host_ip, host_port)
 
     def get_routes(self):
         """
