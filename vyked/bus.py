@@ -122,13 +122,14 @@ class Bus:
         self._tcp_server = self._create_tcp_service_host()
         self._http_server = self._create_http_service_host()
 
-        if self._tcp_host and not self.is_tcp_ronin():
+        if self.is_tcp_ronin():
             self._setup_registry_client()
 
-        #TODO: All the ronin conditional logic needs refactor and completion
-        if self._tcp_host and not self.is_tcp_ronin():
+        # TODO: All the ronin conditional logic needs refactor and completion
+        if self.is_tcp_ronin():
             tcp_host_ip, tcp_host_port = self._tcp_host.socket_address
-            self._registry_client.register(self._service_clients, tcp_host_ip, tcp_host_port, *self._tcp_host.properties)
+            self._registry_client.register(self._service_clients, tcp_host_ip, tcp_host_port,
+                                           *self._tcp_host.properties)
         # TODO: register should also register for http
 
         if self._tcp_server:
