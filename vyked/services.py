@@ -23,12 +23,11 @@ def request(func):
     """
     use to request an api call from a specific endpoint
     """
-
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         params = func(self, *args, **kwargs)
         self = params.pop('self')
-        entity = params.pop('entity')
+        entity = params.pop('entity', None)
         request_id = unique_hex()
         params['request_id'] = request_id
         future = self._send_request(endpoint=func.__name__, entity=entity, params=params)

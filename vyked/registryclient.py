@@ -52,22 +52,30 @@ class RegistryClient:
         return self._available_services.get(
             self._get_full_service_name(full_service_name[0], full_service_name[1], full_service_name[2]))
 
+    def get_random_service(self, service_name):
+        services = self._available_services[service_name]
+        if len(services):
+            host, port, node_id = random.choice(services)
+            return node_id
+        else:
+            return None
+
     def resolve(self, app: str, service: str, version: str, entity:str):
         service_name = self._get_full_service_name(app, service, version)
-        entity_map = self._assigned_services.get(service_name)
-        if entity_map is None:
-            self._assigned_services[service_name] = {}
-        entity_map = self._assigned_services.get(service_name)
-        if entity in entity_map:
-            return entity_map[entity]
-        else:
-            services = self._available_services[service_name]
-            if len(services):
-                host, port, node_id = random.choice(services)
-                entity_map[entity] = node_id
-                return node_id
+        if entity is not None:
+            entity_map = self._assigned_services.get(service_name)
+            if entity_map is None:
+                self._assigned_services[service_name] = {}
+            entity_map = self._assigned_services.get(service_name)
+            if entity in entity_map:
+                return entity_map[entity]
             else:
-                return None
+                node_id = self.get_random_service(service_name)
+                if node_id is not None:
+                    entity_map[entity] = node_id
+                return node_id
+        else:
+            return self.get_random_service(service_name)
 
     def _make_registration_packet(self, ip:str, port:str, app:str, service:str, version:str, vendors):
         vendors_list = []
