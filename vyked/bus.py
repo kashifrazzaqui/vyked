@@ -4,7 +4,7 @@ import os
 import signal
 
 from again.utils import unique_hex
-from aiohttp import web
+from aiohttp.web import Application, Response
 
 from vyked.jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from vyked.registryclient import RegistryClient
@@ -80,7 +80,7 @@ class Bus:
             func = getattr(client, packet['endpoint'])
             func(packet['payload'])
         else:
-            if self._tcp_host.is_for_me(packet):
+            if self._tcp_host.is_for_me(packet['app'], packet['service'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
                 func(packet, protocol)
             else:
@@ -168,18 +168,27 @@ class Bus:
             host_coro = self._loop.create_server(self._host_factory, host_ip, host_port)
             return self._loop.run_until_complete(host_coro)
 
+    def verify(self, func):
+        def verified_func(*args, **kwargs):
+            query_dict = args[0].GET
+            print(query_dict)
+            if self._http_host.is_for_me(query_dict['app'], query_dict['service'], query_dict['version']):
+                return func(*args, **kwargs)
+            else:
+                return Response(body="wrongly routed request".encode())
+        return verified_func
+
     def _create_http_service_host(self):
         if self._http_host:
             host_ip, host_port = self._http_host.socket_address
-            app = web.Application(loop=self._loop)
+            app = Application(loop=self._loop)
             routes = self._http_host.get_routes()
             for method, path, handler in routes:
-                app.router.add_route(method, path, handler)
+                app.router.add_route(method, path, self.verify(handler))
             if routes:
                 handler = app.make_handler()
                 http_coro = self._loop.create_server(handler, host_ip, host_port)
                 return self._loop.run_until_complete(http_coro)
-
 
     def _create_service_clients(self):
         futures = []

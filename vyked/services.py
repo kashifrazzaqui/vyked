@@ -189,6 +189,11 @@ class ServiceHost(Service):
         self._port = host_port
         self._ronin = False
 
+    def is_for_me(self, app, service, version):
+        return app == self.app_name and \
+               service == self.name and \
+               int(version) == self.version
+
     @property
     def socket_address(self):
         return self._ip, self._port
@@ -206,12 +211,6 @@ class TCPServiceHost(ServiceHost):
     def __init__(self, service_name, service_version, app_name, host_ip, host_port):
         # TODO: to be multi-tenant make app_name a list
         super(TCPServiceHost, self).__init__(service_name, service_version, app_name, host_ip, host_port)
-
-    def is_for_me(self, packet:dict):
-        app, service, version = packet['app'], packet['service'], packet['version']
-        return app == self.app_name and \
-               service == self.name and \
-               version == self.version
 
     def _publish(self, publication_name, payload):
         packet = self._make_publish_packet(Service._PUB_PKT_STR, publication_name, payload)
