@@ -171,7 +171,6 @@ class Bus:
     def verify(self, func):
         def verified_func(*args, **kwargs):
             query_dict = args[0].GET
-            print(query_dict)
             if self._http_host.is_for_me(query_dict['app'], query_dict['service'], query_dict['version']):
                 return func(*args, **kwargs)
             else:
