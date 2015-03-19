@@ -3,8 +3,28 @@ from functools import wraps
 
 from again.utils import unique_hex
 
+import aiohttp
 
 # Service Client decorators
+
+
+def http_request(func):
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        params = func(self, *args, **kwargs)
+        method = params.pop('method')
+        url = params.pop('url')
+        query_params = params.pop('params', {})
+        query_params['app'] = self._app_name
+        query_params['version'] = self._service_version
+        query_params['service'] = self._service_name
+        response = yield from aiohttp.request(method, url, params=query_params, **kwargs)
+        return response
+
+    return wrapper
+
+
 def subscribe(func):
     """
     use to listen for publications from a specific endpoint of a service,
@@ -249,3 +269,8 @@ class HTTPServiceHost(ServiceHost):
         :return: A list of 3-tuples - (HTTP method name, path, handler_function)
         """
         raise NotImplementedError()
+
+
+class HTTPServiceClient(Service):
+    def __init__(self, service_name, service_version, app_name):
+        super(HTTPServiceClient, self).__init__(service_name, service_version, app_name)
