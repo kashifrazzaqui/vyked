@@ -1,5 +1,5 @@
 from vyked.services import HTTPServiceClient
-from vyked.services import http_request
+from vyked.services import get
 
 import asyncio
 
@@ -8,11 +8,12 @@ class Hello(HTTPServiceClient):
     def __init__(self):
         super(Hello, self).__init__('Hello', 1, 'test')
 
-    @http_request
+    @get
     def person(self, name):
         method = 'get'
         url = 'http://127.0.0.1:7890/{}'.format(name)
         params = {'key': 'value'}
+        headers = {'Content-Type', 'application/json'}
         return locals()
 
 

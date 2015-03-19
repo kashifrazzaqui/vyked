@@ -8,12 +8,8 @@ import aiohttp
 # Service Client decorators
 
 
-def http_request(func):
-
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
+def make_http_call(func, self, args, kwargs, method):
         params = func(self, *args, **kwargs)
-        method = params.pop('method')
         url = params.pop('url')
         query_params = params.pop('params', {})
         query_params['app'] = self._app_name
@@ -22,6 +18,60 @@ def http_request(func):
         response = yield from aiohttp.request(method, url, params=query_params, **kwargs)
         return response
 
+
+def get(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        return make_http_call(func, self, args, kwargs, 'get')
+    return wrapper
+
+
+def head(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        return make_http_call(func, self, args, kwargs, 'head')
+    return wrapper
+
+
+def options(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        return make_http_call(func, self, args, kwargs, 'options')
+    return wrapper
+
+
+def patch(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        return make_http_call(func, self, args, kwargs, 'patch')
+    return wrapper
+
+
+def post(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        return make_http_call(func, self, args, kwargs, 'post')
+    return wrapper
+
+
+def put(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        return make_http_call(func, self, args, kwargs, 'put')
+    return wrapper
+
+
+def trace(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        return make_http_call(func, self, args, kwargs, 'trace')
+    return wrapper
+
+
+def delete(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        return make_http_call(func, self, args, kwargs, 'delete')
     return wrapper
 
 
