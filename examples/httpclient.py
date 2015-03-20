@@ -10,9 +10,8 @@ class Hello(HTTPServiceClient):
 
     @get
     def person(self, url):
-        method = 'get'
         params = {'key': 'value'}
-        headers = {'Content-Type', 'application/json'}
+        headers = {'Content-Type': 'application/json'}
         return locals()
 
 
