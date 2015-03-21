@@ -47,8 +47,8 @@ class Bus:
         path = params.pop('path')
         query_params = params.pop('params', {})
         query_params['app'] = app
-        query_params['version'] = service
-        query_params['service'] = version
+        query_params['version'] = version
+        query_params['service'] = service
         data = params.pop('data', None)
         headers = params.pop('headers', None)
         cookies = params.pop('cookies', None)
