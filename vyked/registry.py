@@ -98,7 +98,8 @@ class Registry:
         self._registered_services[service_name].append(service_entry)
         self._pending_services[service_name].append(params['node_id'])
         self._client_protocols[params['node_id']] = registry_protocol
-        self._connect_to_service(params['host'], params['port'], params['node_id'])
+        if params['type'] == 'tcp':
+            self._connect_to_service(params['host'], params['port'], params['node_id'])
         if self._service_dependencies.get(service_name) is None:
             self._service_dependencies[service_name] = dependencies
         self._handle_pending_registrations()

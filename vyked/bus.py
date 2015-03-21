@@ -4,11 +4,12 @@ import os
 import signal
 
 from again.utils import unique_hex
+import aiohttp
 from aiohttp.web import Application, Response
 
 from vyked.jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from vyked.registryclient import RegistryClient
-from vyked.services import TCPServiceClient, TCPServiceHost, HTTPServiceHost
+from vyked.services import TCPServiceClient, TCPServiceHost, HTTPServiceHost, HTTPServiceClient
 
 
 class Bus:
@@ -25,9 +26,9 @@ class Bus:
         self._http_server = None
         self._host_id = unique_hex()
 
-    def require(self, args:[TCPServiceClient]):
+    def require(self, args):
         for each in args:
-            if isinstance(each, TCPServiceClient):
+            if isinstance(each, TCPServiceClient) or isinstance(each, HTTPServiceClient):
                 each.bus = self
                 self._service_clients.append(each)
 
@@ -41,6 +42,43 @@ class Bus:
         packet['from'] = self._host_id
         func = getattr(self, '_' + packet['type'] + '_sender')
         func(packet)
+
+    def send_http_request(self, app, service, version, method, entity, params):
+        path = params.pop('path')
+        query_params = params.pop('params', {})
+        query_params['app'] = app
+        query_params['version'] = service
+        query_params['service'] = version
+        data = params.pop('data', None)
+        headers = params.pop('headers', None)
+        cookies = params.pop('cookies', None)
+        files = params.pop('files', None)
+        auth = params.pop('auth', None)
+        allow_redirects = params.pop('allow_redirects', True)
+        max_redirects = params.pop('max_redirects', 10)
+        encoding = params.pop('encoding', 'utf-8')
+        http_version = params.pop('version', aiohttp.HttpVersion11)
+        compress = params.pop('compress', None)
+        chunked = params.pop('chunked', None)
+        expect100 = params.pop('expect100', False)
+        connector = params.pop('connector', None)
+        loop = params.pop('loop', None)
+        read_until_eof = params.pop('read_until_eof', True)
+        request_class = params.pop('request_class', None)
+        response_class = params.pop('response_class', None)
+        host, port, node_id = self._registry_client.resolve(app, service, version, entity)
+        # TODO : find a better method create the url
+        url = 'http://{}:{}{}'.format(host, port, path)
+        response = yield from aiohttp.request(method, url, params=query_params, data=data, headers=headers,
+                                              cookies=cookies,
+                                              files=files, auth=auth, allow_redirects=allow_redirects,
+                                              max_redirects=max_redirects, encoding=encoding, version=http_version,
+                                              compress=compress, chunked=chunked, expect100=expect100,
+                                              connector=connector,
+                                              loop=loop, read_until_eof=read_until_eof, request_class=request_class,
+                                              response_class=response_class)
+        return response
+
 
     def _request_sender(self, packet:dict):
         """
@@ -122,15 +160,19 @@ class Bus:
         self._tcp_server = self._create_tcp_service_host()
         self._http_server = self._create_http_service_host()
 
-        if self.is_tcp_ronin():
+        if self.is_tcp_ronin() or self.is_http_ronin():
             self._setup_registry_client()
 
         # TODO: All the ronin conditional logic needs refactor and completion
         if self.is_tcp_ronin():
             tcp_host_ip, tcp_host_port = self._tcp_host.socket_address
-            self._registry_client.register(self._service_clients, tcp_host_ip, tcp_host_port,
-                                           *self._tcp_host.properties)
-        # TODO: register should also register for http
+            self._registry_client.register_tcp(self._service_clients, tcp_host_ip, tcp_host_port,
+                                               *self._tcp_host.properties)
+
+        if self.is_http_ronin():
+            ip, port = self._http_host.socket_address
+            self._registry_client.register_http(self._service_clients, ip, port,
+                                                *self._http_host.properties)
 
         if self._tcp_server:
             print('Serving TCP on {}'.format(self._tcp_server.sockets[0].getsockname()))
@@ -155,12 +197,13 @@ class Bus:
             self._loop.close()
 
     def registration_complete(self):
-        f = self._create_service_clients()
+        if self._tcp_host:
+            f = self._create_service_clients()
 
-        def fun(f):
-            self._clear_request_queue()
+            def fun(f):
+                self._clear_request_queue()
 
-        f.add_done_callback(fun)
+            f.add_done_callback(fun)
 
     def _create_tcp_service_host(self):
         if self._tcp_host:
@@ -175,6 +218,7 @@ class Bus:
                 return func(*args, **kwargs)
             else:
                 return Response(body="wrongly routed request".encode())
+
         return verified_func
 
     def _create_http_service_host(self):

@@ -3,48 +3,22 @@ from functools import wraps
 
 from again.utils import unique_hex
 
-import aiohttp
 
 # Service Client decorators
 
-def make_http_call(func, self, args, kwargs, method):
+
+def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
-    params.pop('self')
-    url = params.pop('url')
-    query_params = params.pop('params', {})
-    query_params['app'] = self._app_name
-    query_params['version'] = self._service_version
-    query_params['service'] = self._service_name
-    data = params.pop('data', None)
-    headers = params.pop('headers', None)
-    cookies = params.pop('cookies', None)
-    files = params.pop('files', None)
-    auth = params.pop('auth', None)
-    allow_redirects = params.pop('allow_redirects', True)
-    max_redirects = params.pop('max_redirects', 10)
-    encoding = params.pop('encoding', 'utf-8')
-    version = params.pop('version', aiohttp.HttpVersion11)
-    compress = params.pop('conpress', None)
-    chunked = params.pop('chunked', None)
-    expect100 = params.pop('expect100', False)
-    connector = params.pop('connector', None)
-    loop = params.pop('loop', None)
-    read_until_eof = params.pop('read_until_eof', True)
-    request_class = params.pop('request_class', None)
-    response_class = params.pop('response_class', None)
-    response = yield from aiohttp.request(method, url, params=query_params, data=data, headers=headers, cookies=cookies,
-                                          files=files, auth=auth, allow_redirects=allow_redirects,
-                                          max_redirects=max_redirects, encoding=encoding, version=version,
-                                          compress=compress, chunked=chunked, expect100=expect100, connector=connector,
-                                          loop=loop, read_until_eof=read_until_eof, request_class=request_class,
-                                          response_class=response_class)
+    entity = params.pop('entity', None)
+    self = params.pop('self')
+    response = yield from self._send_http_request(method, entity, params)
     return response
 
 
 def get(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        return make_http_call(func, self, args, kwargs, 'get')
+        return make_request(func, self, args, kwargs, 'get')
 
     return wrapper
 
@@ -52,7 +26,7 @@ def get(func):
 def head(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        return make_http_call(func, self, args, kwargs, 'head')
+        return make_request(func, self, args, kwargs, 'head')
 
     return wrapper
 
@@ -60,7 +34,7 @@ def head(func):
 def options(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        return make_http_call(func, self, args, kwargs, 'options')
+        return make_request(func, self, args, kwargs, 'options')
 
     return wrapper
 
@@ -68,7 +42,7 @@ def options(func):
 def patch(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        return make_http_call(func, self, args, kwargs, 'patch')
+        return make_request(func, self, args, kwargs, 'patch')
 
     return wrapper
 
@@ -76,7 +50,7 @@ def patch(func):
 def post(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        return make_http_call(func, self, args, kwargs, 'post')
+        return make_request(func, self, args, kwargs, 'post')
 
     return wrapper
 
@@ -84,7 +58,7 @@ def post(func):
 def put(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        return make_http_call(func, self, args, kwargs, 'put')
+        return make_request(func, self, args, kwargs, 'put')
 
     return wrapper
 
@@ -92,7 +66,7 @@ def put(func):
 def trace(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        return make_http_call(func, self, args, kwargs, 'trace')
+        return make_request(func, self, args, kwargs, 'trace')
 
     return wrapper
 
@@ -100,7 +74,7 @@ def trace(func):
 def delete(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        return make_http_call(func, self, args, kwargs, 'delete')
+        return make_request(func, self, args, kwargs, 'delete')
 
     return wrapper
 
@@ -355,3 +329,8 @@ class HTTPServiceHost(ServiceHost):
 class HTTPServiceClient(Service):
     def __init__(self, service_name, service_version, app_name):
         super(HTTPServiceClient, self).__init__(service_name, service_version, app_name)
+
+    def _send_http_request(self, method, entity, params):
+        response = yield from self._bus.send_http_request(self.app_name, self.name, self.version, method, entity,
+                                                          params)
+        return response

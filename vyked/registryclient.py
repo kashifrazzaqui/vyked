@@ -4,7 +4,6 @@ from again.utils import unique_hex
 from collections import defaultdict
 from vyked.services import TCPServiceClient
 
-
 class RegistryClient:
     def __init__(self, loop, host, port, bus):
         self._bus = bus
@@ -21,12 +20,18 @@ class RegistryClient:
         self._available_services = defaultdict(list)
         self._assigned_services = defaultdict(lambda: defaultdict(list))
 
-    def register(self, vendors, ip, port, app, service, version):
+    def _register_service(self, app, ip, port, service, vendors, version, type):
         self._app = app
         self._service = service
         self._version = version
-        packet = self._make_registration_packet(ip, port, app, service, version, vendors)
+        packet = self._make_registration_packet(ip, port, app, service, version, vendors, type)
         self._protocol.send(packet)
+
+    def register_http(self, vendors, ip, port, app, service, version):
+        self._register_service(app, ip, port, service, vendors, version, 'http')
+
+    def register_tcp(self, vendors, ip, port, app, service, version):
+        self._register_service(app, ip, port, service, vendors, version, 'tcp')
         self._register_for_subscription(vendors, ip, port)
 
     def _protocol_factory(self):
@@ -55,8 +60,7 @@ class RegistryClient:
     def get_random_service(self, service_name):
         services = self._available_services[service_name]
         if len(services):
-            host, port, node_id = random.choice(services)
-            return node_id
+            return random.choice(services)
         else:
             return None
 
@@ -70,14 +74,14 @@ class RegistryClient:
             if entity in entity_map:
                 return entity_map[entity]
             else:
-                node_id = self.get_random_service(service_name)
+                host, port, node_id = self.get_random_service(service_name)
                 if node_id is not None:
-                    entity_map[entity] = node_id
-                return node_id
+                    entity_map[entity] = host, port, node_id
+                return host, port, node_id
         else:
             return self.get_random_service(service_name)
 
-    def _make_registration_packet(self, ip:str, port:str, app:str, service:str, version:str, vendors):
+    def _make_registration_packet(self, ip:str, port:str, app:str, service:str, version:str, vendors, type:str):
         vendors_list = []
         for vendor in vendors:
             vendor_dict = {'app': vendor.app_name,
@@ -91,7 +95,8 @@ class RegistryClient:
                   'host': ip,
                   'port': port,
                   'node_id': self._node_id,
-                  'vendors': vendors_list}
+                  'vendors': vendors_list,
+                  'type': type}
         packet = {'pid': unique_hex(),
                   'type': 'register',
                   'params': params}
@@ -110,7 +115,7 @@ class RegistryClient:
     def _register_for_subscription(self, vendors, ip, port):
         subscription_packet = {
             'type': 'subscribe',
-            }
+        }
         params = {
             'ip': ip,
             'port': port,
