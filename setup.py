@@ -6,6 +6,6 @@ setup(name='vyked',
       author_email='kashif.razzaqui@gmail.com',
       url='https://github.com/kashifrazzaqui/vyked',
       description='A micro-service framework for Python',
-      packages=['vyked'], requires=['again', 'aiohttp', 'redis']
+      packages=['vyked'], requires=['again', 'aiohttp']
 )
 
