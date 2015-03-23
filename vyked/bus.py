@@ -79,7 +79,6 @@ class Bus:
                                               response_class=response_class)
         return response
 
-
     def _request_sender(self, packet:dict):
         """
         sends a request to a server from a ServiceClient
@@ -88,13 +87,11 @@ class Bus:
         self._pending_requests.append(packet)
         self._clear_request_queue()
 
-    def _publish_sender(self, packet:dict):
-        """
-        auto dispatch method called from self.send()
-        """
-        app, service, version, endpoint = packet['app'], packet['service'], packet['version'], packet['endpoint']
-        future = self._registry_client.resolve_publication(app, service, version, endpoint)
+    def _message_sub_sender(self, packet: dict):
+        packet['ip'], packet['port'] = self._tcp_host.socket_address
+        self._registry_client.subscribe_for_message(packet)
 
+    def _publish(self, future, packet):
         def send_publish_packet(publish_packet, f):
             transport, protocol = f.result()
             protocol.send(publish_packet)
@@ -109,7 +106,21 @@ class Bus:
 
         future.add_done_callback(fun)
 
-    def host_receive(self, packet:dict, protocol:ServiceHostProtocol):
+    def _publish_sender(self, packet: dict):
+        """
+        auto dispatch method called from self.send()
+        """
+        app, service, version, endpoint = packet['app'], packet['service'], packet['version'], packet['endpoint']
+        future = self._registry_client.resolve_publication(app, service, version, endpoint)
+        self._publish(future, packet)
+
+    def _message_pub_sender(self, packet: dict):
+        app, service, version, endpoint, entity = packet['app'], packet['service'], packet['version'], packet[
+            'endpoint'], packet['entity']
+        future = self._registry_client.resolve_message_publication(app, service, version, endpoint, entity)
+        self._publish(future, packet)
+
+    def host_receive(self, packet:dict, protocol: ServiceHostProtocol):
         if packet['type'] == 'ping':
             self._handle_ping(packet, protocol)
         elif packet['type'] == 'publish':

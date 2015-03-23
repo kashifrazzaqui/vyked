@@ -17,6 +17,8 @@ class Registry:
         self._service_dependencies = {}
         self._service_protocols = {}
         self._subscription_list = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
+        self._message_sub_list = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list)))))
         self._pingers = {}
 
     def _rfactory(self):
@@ -48,10 +50,14 @@ class Registry:
             self._register_service(packet, registry_protocol)
         elif request_type == 'subscribe':
             self._handle_subscription(packet)
+        elif request_type == 'message_sub':
+            self._subscribe_for_message(packet)
         elif request_type == 'pong':
             self._handle_pong(packet['node_id'], packet['count'])
         elif request_type == 'resolve_publication':
             self._resolve_publication(packet, registry_protocol)
+        elif request_type == 'resolve_message_publication':
+            self._resolve_message_publication(packet, registry_protocol)
 
     def deregister_service(self, node_id):
         for service, nodes in self._registered_services.items():
@@ -166,6 +172,15 @@ class Registry:
         result = {'type': 'subscription_list', 'request_id': packet['request_id'], 'nodes': nodes}
         protocol.send(result)
 
+    def _resolve_message_publication(self, packet, protocol):
+        params = packet['params']
+        app, service, version, endpoint, entity = params['app'], params['service'], params['version'], params[
+            'endpoint'], params['entity']
+        nodes = [{'ip': ip, 'port': port, 'node_id': node} for ip, port, node in
+                 self._message_sub_list[app][service][version][endpoint][entity]]
+        result = {'type': 'message_subscription_list', 'request_id': packet['request_id'], 'nodes': nodes}
+        protocol.send(result)
+
     def _get_consumers(self, vendor):
         consumers = []
         for service, vendors in self._service_dependencies.items():
@@ -187,6 +202,12 @@ class Registry:
         params = {'node_id': node_id, 'vendor': vendor}
         packet['params'] = params
         return packet
+
+    def _subscribe_for_message(self, packet):
+        app, service, version, endpoint, entity = packet['app'], packet['service'], packet['version'], packet[
+            'endpoint'], packet['entity']
+        ip, port, node_id = packet['ip'], packet['port'], packet['node_id']
+        self._message_sub_list[app][service][version][endpoint][entity].append((ip, port, node_id))
 
 
 if __name__ == '__main__':

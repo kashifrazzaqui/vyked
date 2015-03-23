@@ -4,6 +4,7 @@ from again.utils import unique_hex
 from collections import defaultdict
 from vyked.services import TCPServiceClient
 
+
 class RegistryClient:
     def __init__(self, loop, host, port, bus):
         self._bus = bus
@@ -34,6 +35,10 @@ class RegistryClient:
         self._register_service(app, ip, port, service, vendors, version, 'tcp')
         self._register_for_subscription(vendors, ip, port)
 
+    def subscribe_for_message(self, packet):
+        packet['node_id'] = self._node_id
+        self._protocol.send(packet)
+
     def _protocol_factory(self):
         from vyked.jsonprotocol import RegistryClientProtocol
 
@@ -51,6 +56,8 @@ class RegistryClient:
         elif packet['type'] == 'deregister':
             self._handle_deregistration(packet)
         elif packet['type'] == 'subscription_list':
+            self._handle_subscription_list(packet)
+        elif packet['type'] == 'message_subscription_list':
             self._handle_subscription_list(packet)
 
     def get_all_addresses(self, full_service_name):
@@ -146,6 +153,22 @@ class RegistryClient:
             'service': service,
             'version': version,
             'endpoint': endpoint
+        }
+        packet['params'] = params
+        self._pending_requests[request_id] = future
+        self._protocol.send(packet)
+        return future
+
+    def resolve_message_publication(self, app, service, version, endpoint, entity):
+        future = Future()
+        request_id = unique_hex()
+        packet = {'type': 'resolve_message_publication', 'request_id': request_id}
+        params = {
+            'app': app,
+            'service': service,
+            'version': version,
+            'endpoint': endpoint,
+            'entity': entity
         }
         packet['params'] = params
         self._pending_requests[request_id] = future

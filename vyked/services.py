@@ -112,6 +112,22 @@ def request(func):
     return wrapper
 
 
+def message_sub(func):
+    """
+    use to listen for publications from a specific endpoint of a service,
+    this method receives a publication from a remote service
+    """
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        params = func(self, *args, **kwargs)
+        entity = params.pop('entity')
+        self._send_message_sub(endpoint=func.__name__, entity=entity)
+
+    wrapper.is_directed_subscribe = True
+    return wrapper
+
+
 # Service Host Decorators
 
 def publish(func):
@@ -123,6 +139,23 @@ def publish(func):
     def wrapper(self, *args, **kwargs):  # outgoing
         payload = func(self, *args, **kwargs)
         self._publish(func.__name__, payload)
+        return None
+
+    wrapper.is_publish = True
+
+    return wrapper
+
+
+def message_pub(func):
+    """
+    publish the return value of this function as a message from this endpoint
+    """
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):  # outgoing
+        payload = func(self, *args, **kwargs)
+        entity = payload.pop('entity')
+        self._message(func.__name__, payload, entity)
         return None
 
     wrapper.is_publish = True
@@ -161,6 +194,8 @@ class Service:
     _PUB_PKT_STR = 'publish'
     _REQ_PKT_STR = 'request'
     _RES_PKT_STR = 'response'
+    _MSG_PUB_PKT_STR = 'message_pub'
+    _MSG_SUB_PKT_STR = 'message_sub'
 
     def __init__(self, service_name, service_version, app_name):
         self._service_name = service_name
@@ -209,13 +244,17 @@ class TCPServiceClient(Service):
         self._pending_requests = {}
 
     def _send_request(self, endpoint, entity, params):
-        packet = self._make_request_packet(Service._REQ_PKT_STR, endpoint, params, entity)
+        packet = self._make_packet(Service._REQ_PKT_STR, endpoint, params, entity)
         future = Future()
         request_id = params['request_id']
         self._pending_requests[request_id] = future
         self._bus.send(packet)
         Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
+
+    def _send_message_sub(self, endpoint, entity):
+        packet = self._make_packet(Service._MSG_SUB_PKT_STR, endpoint, None, entity)
+        self._bus.send(packet)
 
     def process_packet(self, packet):
         if packet['type'] == Service._RES_PKT_STR:
@@ -245,7 +284,7 @@ class TCPServiceClient(Service):
         func = getattr(self, endpoint)
         func(**packet['payload'])
 
-    def _make_request_packet(self, packet_type, endpoint, params, entity):
+    def _make_packet(self, packet_type, endpoint, params, entity):
         packet = {'pid': unique_hex(),
                   'app': self.app_name,
                   'service': self.name,
@@ -291,7 +330,12 @@ class TCPServiceHost(ServiceHost):
         packet = self._make_publish_packet(Service._PUB_PKT_STR, publication_name, payload)
         self._bus.send(packet)
 
-    def _make_response_packet(self, request_id: str, from_id: str, entity:str, result:object):
+    def _message(self, message_name, payload, entity):
+        packet = self._make_publish_packet(Service._MSG_PUB_PKT_STR, message_name, payload)
+        packet['entity'] = entity
+        self._bus.send(packet)
+
+    def _make_response_packet(self, request_id: str, from_id: str, entity: str, result: object):
         packet = {'pid': unique_hex(),
                   'to': from_id,
                   'entity': entity,
@@ -299,7 +343,7 @@ class TCPServiceHost(ServiceHost):
                   'payload': {'request_id': request_id, 'result': result}}
         return packet
 
-    def _make_publish_packet(self, packet_type:str, publication_name:str, payload:dict):
+    def _make_publish_packet(self, packet_type: str, publication_name: str, payload: dict):
         packet = {'pid': unique_hex(),
                   'app': self.app_name,
                   'service': self.name,

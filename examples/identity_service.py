@@ -7,6 +7,7 @@ REGISTRY_PORT = 4500
 IDENTITY_HOST = '127.0.0.1'
 IDENTITY_PORT = 4501
 
+
 class IdentityService(TCPServiceHost):
     def __init__(self, ip, port):
         super(IdentityService, self).__init__("IdentityService", "1", "Example", ip, port)
