@@ -1,5 +1,5 @@
 from vyked.bus import Bus
-from vyked.services import TCPServiceHost, TCPServiceClient, api, publish, request, subscribe
+from vyked.services import TCPApplicationService, TCPServiceClient, api, publish, request, subscribe
 
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
@@ -8,7 +8,7 @@ IDENTITY_HOST = '127.0.0.1'
 IDENTITY_PORT = 4501
 
 
-class IdentityService(TCPServiceHost):
+class IdentityService(TCPApplicationService):
     def __init__(self, ip, port):
         super(IdentityService, self).__init__("IdentityService", "1", "Example", ip, port)
 

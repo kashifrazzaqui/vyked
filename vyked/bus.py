@@ -9,7 +9,7 @@ from aiohttp.web import Application, Response
 
 from vyked.jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from vyked.registryclient import RegistryClient
-from vyked.services import TCPServiceClient, TCPServiceHost, HTTPServiceHost, HTTPServiceClient
+from vyked.services import TCPServiceClient, HTTPServiceClient
 
 
 class Bus:
@@ -32,10 +32,10 @@ class Bus:
                 each.bus = self
                 self._service_clients.append(each)
 
-    def serve_tcp(self, service_host:TCPServiceHost):
+    def serve_tcp(self, service_host):
         self._tcp_host = service_host
 
-    def serve_http(self, service_host:HTTPServiceHost):
+    def serve_http(self, service_host):
         self._http_host = service_host
 
     def send(self, packet:dict):

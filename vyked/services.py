@@ -296,9 +296,9 @@ class TCPServiceClient(Service):
         return packet
 
 
-class ServiceHost(Service):
+class _ServiceHost(Service):
     def __init__(self, service_name, service_version, app_name, host_ip, host_port):
-        super(ServiceHost, self).__init__(service_name, service_version, app_name)
+        super(_ServiceHost, self).__init__(service_name, service_version, app_name)
         self._ip = host_ip
         self._port = host_port
         self._ronin = False
@@ -321,10 +321,10 @@ class ServiceHost(Service):
         self._ronin = value
 
 
-class TCPServiceHost(ServiceHost):
+class _TCPServiceHost(_ServiceHost):
     def __init__(self, service_name, service_version, app_name, host_ip, host_port):
         # TODO: to be multi-tenant make app_name a list
-        super(TCPServiceHost, self).__init__(service_name, service_version, app_name, host_ip, host_port)
+        super(_TCPServiceHost, self).__init__(service_name, service_version, app_name, host_ip, host_port)
 
     def _publish(self, publication_name, payload):
         packet = self._make_publish_packet(Service._PUB_PKT_STR, publication_name, payload)
@@ -358,15 +358,42 @@ class RequestException(Exception):
     pass
 
 
-class HTTPServiceHost(ServiceHost):
+class _HTTPServiceHost(_ServiceHost):
     def __init__(self, service_name, service_version, app_name, host_ip, host_port):
         # TODO: to be multi-tenant make app_name a list
-        super(HTTPServiceHost, self).__init__(service_name, service_version, app_name, host_ip, host_port)
+        super(_HTTPServiceHost, self).__init__(service_name, service_version, app_name, host_ip, host_port)
 
     def get_routes(self):
         """
         :return: A list of 3-tuples - (HTTP method name, path, handler_function)
         """
+        raise NotImplementedError()
+
+
+class TCPApplicationService(_TCPServiceHost):
+    pass
+
+
+class TCPDomainService(_TCPServiceHost):
+    pass
+
+
+class TCPInfraService(_TCPServiceHost):
+    pass
+
+
+class HTTPApplicationService(_HTTPServiceHost):
+    def get_routes(self):
+        raise NotImplementedError()
+
+
+class HTTPDomainService(_HTTPServiceHost):
+    def get_routes(self):
+        raise NotImplementedError()
+
+
+class HTTPInfraService(_HTTPServiceHost):
+    def get_routes(self):
         raise NotImplementedError()
 
 

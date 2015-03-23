@@ -3,7 +3,7 @@ import aiohttp
 
 from aiohttp.web import Response, Request
 
-from vyked.services import HTTPServiceHost
+from vyked.services import HTTPApplicationService
 from vyked.bus import Bus
 
 
@@ -11,7 +11,7 @@ REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
 
 
-class Hello(HTTPServiceHost):
+class Hello(HTTPApplicationService):
     def __init__(self):
         super(Hello, self).__init__('Hello', 1, 'test', '127.0.0.1', '7890')
 

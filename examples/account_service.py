@@ -1,5 +1,5 @@
-from bus import Bus
-from services import TCPServiceHost, TCPServiceClient, api, publish, request, subscribe
+from vyked.bus import Bus
+from vyked.services import TCPApplicationService, TCPServiceClient, api, publish, request, subscribe
 
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
@@ -11,7 +11,7 @@ ACCOUNTS_HOST = '127.0.0.1'
 ACCOUNTS_PORT = 4502
 
 
-class AccountService(TCPServiceHost):
+class AccountService(TCPApplicationService):
     def __init__(self):
         super(AccountService, self).__init__("AccountService", "1", "Example")
 
