@@ -1,6 +1,6 @@
 from vyked.bus import Bus
 from vyked.services import TCPApplicationService, TCPServiceClient, api, publish, request, subscribe
-from asyncio import sleep
+from asyncio import coroutine, sleep
 
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
@@ -14,6 +14,7 @@ class IdentityService(TCPApplicationService):
         super(IdentityService, self).__init__("IdentityService", 1, "Example", ip, port)
 
     @api
+    @coroutine
     def create(self, user_name, password):
         result = yield from self._create_user_name(user_name, password)
         return result

@@ -1,4 +1,4 @@
-from asyncio import Future, get_event_loop, coroutine
+from asyncio import Future, get_event_loop, coroutine, iscoroutinefunction
 from functools import wraps
 
 from again.utils import unique_hex
@@ -181,9 +181,16 @@ def api(func):  # incoming
         from_id = kwargs.pop('from_id')
         result = None
         if len(kwargs):
-            result = yield from func(self, **kwargs)
+            if iscoroutinefunction(func):
+                result = yield from func(self, **kwargs)
+            else:
+                result = func(self, **kwargs)
         else:
-            result = yield from func()
+            if iscoroutinefunction(func):
+                result = yield from func()
+            else:
+                result = func()
+
         return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result)
 
     wrapper.is_api = True
