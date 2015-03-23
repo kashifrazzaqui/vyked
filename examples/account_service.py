@@ -1,5 +1,6 @@
 from vyked.bus import Bus
 from vyked.services import TCPApplicationService, TCPServiceClient, api, publish, request, subscribe
+import asyncio
 
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
@@ -12,8 +13,8 @@ ACCOUNTS_PORT = 4502
 
 
 class AccountService(TCPApplicationService):
-    def __init__(self):
-        super(AccountService, self).__init__("AccountService", "1", "Example")
+    def __init__(self, host, port):
+        super(AccountService, self).__init__("AccountService", 1, "Example", host, port)
 
     @api
     def authenticate(self, user_name, password):
@@ -36,7 +37,7 @@ class AccountClient(TCPServiceClient):
 
 class IdentityClient(TCPServiceClient):
     def __init__(self):
-        super(IdentityClient, self).__init__("IdentityService", "1", "Example")
+        super(IdentityClient, self).__init__("IdentityService", 1, "Example")
 
     @request
     def create(self, user_name, password):
@@ -49,11 +50,12 @@ class IdentityClient(TCPServiceClient):
 
 def setup_accounts_service():
     bus = Bus(REGISTRY_HOST, REGISTRY_PORT)
-    accounts_service = AccountService()
+    accounts_service = AccountService(ACCOUNTS_HOST, ACCOUNTS_PORT)
     identity_client = IdentityClient()
-    bus.serve(accounts_service)
     bus.require([identity_client])
-    bus.start(ACCOUNTS_HOST, ACCOUNTS_PORT)
+    bus.serve_tcp(accounts_service)
+    asyncio.get_event_loop().call_later(5, identity_client.create, 'ankit', 'test@123')
+    bus.start()
 
 
 if __name__ == '__main__':

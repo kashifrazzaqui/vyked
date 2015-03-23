@@ -79,7 +79,7 @@ class Bus:
                                               response_class=response_class)
         return response
 
-    def _request_sender(self, packet:dict):
+    def _request_sender(self, packet: dict):
         """
         sends a request to a server from a ServiceClient
         auto dispatch method called from self.send()
@@ -120,7 +120,7 @@ class Bus:
         future = self._registry_client.resolve_message_publication(app, service, version, endpoint, entity)
         self._publish(future, packet)
 
-    def host_receive(self, packet:dict, protocol: ServiceHostProtocol):
+    def host_receive(self, packet: dict, protocol: ServiceHostProtocol):
         if packet['type'] == 'ping':
             self._handle_ping(packet, protocol)
         elif packet['type'] == 'publish':
@@ -140,8 +140,13 @@ class Bus:
         if api_fn.is_api:
             from_node_id = packet['from']
             entity = packet['entity']
-            result_packet = api_fn(from_id=from_node_id, entity=entity, **packet['payload'])
-            protocol.send(result_packet)
+            future = asyncio.async(api_fn(from_id=from_node_id, entity=entity, **packet['payload']))
+
+            def send_result(f):
+                result_packet = f.result()
+                protocol.send(result_packet)
+
+            future.add_done_callback(send_result)
         else:
             print('no api found for packet: ', packet)
 
@@ -278,7 +283,8 @@ class Bus:
     def _clear_request_queue(self):
         for packet in self._pending_requests:
             app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
-            node_id = self._registry_client.resolve(app, service, version, entity)
+            node = self._registry_client.resolve(app, service, version, entity)
+            node_id = node[2]
             if node_id is not None:
                 client_protocol = self._client_protocols[node_id]
                 packet['to'] = node_id

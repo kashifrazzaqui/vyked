@@ -1,4 +1,4 @@
-from asyncio import Future, get_event_loop
+from asyncio import Future, get_event_loop, coroutine
 from functools import wraps
 
 from again.utils import unique_hex
@@ -172,7 +172,7 @@ def api(func):  # incoming
         - entity (partition/routing key)
         followed by kwargs
     """
-
+    @coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
         self = args[0]
@@ -181,9 +181,9 @@ def api(func):  # incoming
         from_id = kwargs.pop('from_id')
         result = None
         if len(kwargs):
-            result = func(self, **kwargs)
+            result = yield from func(self, **kwargs)
         else:
-            result = func()
+            result = yield from func()
         return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result)
 
     wrapper.is_api = True
