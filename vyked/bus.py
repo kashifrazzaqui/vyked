@@ -2,14 +2,18 @@ import asyncio
 from functools import partial
 import os
 import signal
+import json
 
 from again.utils import unique_hex
 import aiohttp
+import shelve
 from aiohttp.web import Application, Response
 
 from vyked.jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from vyked.registryclient import RegistryClient
 from vyked.services import TCPServiceClient, HTTPServiceClient
+
+PUB_STORE = os.path.join(os.curdir, 'publish.store')
 
 
 class Bus:
@@ -20,7 +24,7 @@ class Bus:
         self._client_protocols = {}
         self._service_clients = []
         self._pending_requests = []
-        self._unacked_publish = {}
+        self._unacked_publish = shelve.open(PUB_STORE, protocol=json, writeback=True)
         self._tcp_host = None
         self._http_host = None
         self._tcp_server = None
