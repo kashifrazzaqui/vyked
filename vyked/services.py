@@ -351,8 +351,7 @@ class _TCPServiceHost(_ServiceHost):
         return packet
 
     def _make_publish_packet(self, packet_type: str, publication_name: str, payload: dict):
-        packet = {'pid': unique_hex(),
-                  'app': self.app_name,
+        packet = {'app': self.app_name,
                   'service': self.name,
                   'version': self.version,
                   'endpoint': publication_name,

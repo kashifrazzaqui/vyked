@@ -20,6 +20,7 @@ class Bus:
         self._client_protocols = {}
         self._service_clients = []
         self._pending_requests = []
+        self._unacked_publish = {}
         self._tcp_host = None
         self._http_host = None
         self._tcp_server = None
@@ -94,6 +95,9 @@ class Bus:
     def _publish(self, future, packet):
         def send_publish_packet(publish_packet, f):
             transport, protocol = f.result()
+            pid = unique_hex()
+            packet['pid'] = pid
+            self._unacked_publish[pid] = packet
             protocol.send(publish_packet)
             transport.close()
 
@@ -123,11 +127,15 @@ class Bus:
     def host_receive(self, packet: dict, protocol: ServiceHostProtocol):
         if packet['type'] == 'ping':
             self._handle_ping(packet, protocol)
+        elif packet['type'] == 'ack':
+            pid = packet['pid']
+            self._unacked_publish.pop(pid)
         elif packet['type'] == 'publish':
             client = [sc for sc in self._service_clients if (
                 sc.name == packet['service'] and sc.app_name == packet['app'] and sc.version == packet['version'])][0]
             func = getattr(client, packet['endpoint'])
             func(packet['payload'])
+            self.send_ack(protocol, packet['pid'])
         else:
             if self._tcp_host.is_for_me(packet['app'], packet['service'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
@@ -291,6 +299,10 @@ class Bus:
                 client_protocol.send(packet)
                 self._pending_requests.remove(packet)
 
+    @staticmethod
+    def send_ack(protocol, pid):
+        packet = {'type': 'ack', 'pid': pid}
+        protocol.send(packet)
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'
