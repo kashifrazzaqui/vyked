@@ -99,15 +99,15 @@ class Bus:
     def _publish(self, future, packet):
         def send_publish_packet(publish_packet, f):
             transport, protocol = f.result()
-            pid = unique_hex()
-            packet['pid'] = pid
-            self._unacked_publish[pid] = packet
             protocol.send(publish_packet)
             transport.close()
 
         def fun(fut):
             for node in fut.result():
                 packet['to'] = node['node_id']
+                pid = unique_hex()
+                packet['pid'] = pid
+                self._unacked_publish[pid] = packet
                 coro = self._loop.create_connection(self._host_factory, node['ip'], node['port'])
                 connect_future = asyncio.async(coro)
                 connect_future.add_done_callback(partial(send_publish_packet, packet))
