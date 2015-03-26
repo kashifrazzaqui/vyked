@@ -3,8 +3,8 @@ import aiohttp
 
 from aiohttp.web import Response, Request
 
-from vyked.services import HTTPApplicationService
-from vyked.bus import Bus
+from vyked import HTTPApplicationService
+from vyked import Bus
 
 
 REGISTRY_HOST = '127.0.0.1'

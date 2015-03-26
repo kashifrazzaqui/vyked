@@ -1,6 +1,8 @@
-from vyked.bus import Bus
-from vyked.services import TCPApplicationService, TCPServiceClient, api, publish, request, subscribe
 from asyncio import coroutine, sleep
+
+from vyked import Bus
+from vyked import TCPApplicationService, api, publish
+
 
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500

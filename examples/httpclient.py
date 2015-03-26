@@ -1,8 +1,7 @@
-from vyked.services import HTTPServiceClient
-from vyked.services import get
+from vyked import HTTPServiceClient
+from vyked import get
 
 import asyncio
-
 
 class Hello(HTTPServiceClient):
     def __init__(self):
