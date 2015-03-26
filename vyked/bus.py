@@ -9,9 +9,9 @@ import aiohttp
 import shelve
 from aiohttp.web import Application, Response
 
-from vyked.jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
-from vyked.registryclient import RegistryClient
-from vyked.services import TCPServiceClient, HTTPServiceClient
+from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
+from .registryclient import RegistryClient
+from .services import TCPServiceClient, HTTPServiceClient
 
 PUB_STORE = os.path.join(os.curdir, 'publish.store')
 

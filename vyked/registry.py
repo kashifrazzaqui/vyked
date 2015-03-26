@@ -3,7 +3,7 @@ from functools import partial
 from collections import defaultdict
 import asyncio
 from again.utils import unique_hex
-from vyked.pinger import Pinger
+from .pinger import Pinger
 
 
 class Registry:
