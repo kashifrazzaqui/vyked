@@ -197,7 +197,7 @@ def api(func):  # incoming
     return wrapper
 
 
-class Service:
+class _Service:
     _PUB_PKT_STR = 'publish'
     _REQ_PKT_STR = 'request'
     _RES_PKT_STR = 'response'
@@ -243,7 +243,7 @@ class Service:
         get_event_loop().call_later(timeout, timer_callback, future)
 
 
-class TCPServiceClient(Service):
+class TCPServiceClient(_Service):
     REQUEST_TIMEOUT_SECS = 10
 
     def __init__(self, service_name, service_version, app_name):
@@ -251,22 +251,22 @@ class TCPServiceClient(Service):
         self._pending_requests = {}
 
     def _send_request(self, endpoint, entity, params):
-        packet = self._make_packet(Service._REQ_PKT_STR, endpoint, params, entity)
+        packet = self._make_packet(_Service._REQ_PKT_STR, endpoint, params, entity)
         future = Future()
         request_id = params['request_id']
         self._pending_requests[request_id] = future
         self._bus.send(packet)
-        Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
+        _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
 
     def _send_message_sub(self, endpoint, entity):
-        packet = self._make_packet(Service._MSG_SUB_PKT_STR, endpoint, None, entity)
+        packet = self._make_packet(_Service._MSG_SUB_PKT_STR, endpoint, None, entity)
         self._bus.send(packet)
 
     def process_packet(self, packet):
-        if packet['type'] == Service._RES_PKT_STR:
+        if packet['type'] == _Service._RES_PKT_STR:
             self._process_response(packet)
-        elif packet['type'] == Service._PUB_PKT_STR:
+        elif packet['type'] == _Service._PUB_PKT_STR:
             self._process_publication(packet)
         else:
             print('Invalid packet', packet)
@@ -303,7 +303,7 @@ class TCPServiceClient(Service):
         return packet
 
 
-class _ServiceHost(Service):
+class _ServiceHost(_Service):
     def __init__(self, service_name, service_version, app_name, host_ip, host_port):
         super(_ServiceHost, self).__init__(service_name, service_version, app_name)
         self._ip = host_ip
@@ -334,11 +334,11 @@ class _TCPServiceHost(_ServiceHost):
         super(_TCPServiceHost, self).__init__(service_name, service_version, app_name, host_ip, host_port)
 
     def _publish(self, publication_name, payload):
-        packet = self._make_publish_packet(Service._PUB_PKT_STR, publication_name, payload)
+        packet = self._make_publish_packet(_Service._PUB_PKT_STR, publication_name, payload)
         self._bus.send(packet)
 
     def _message(self, message_name, payload, entity):
-        packet = self._make_publish_packet(Service._MSG_PUB_PKT_STR, message_name, payload)
+        packet = self._make_publish_packet(_Service._MSG_PUB_PKT_STR, message_name, payload)
         packet['entity'] = entity
         self._bus.send(packet)
 
@@ -346,7 +346,7 @@ class _TCPServiceHost(_ServiceHost):
         packet = {'pid': unique_hex(),
                   'to': from_id,
                   'entity': entity,
-                  'type': Service._RES_PKT_STR,
+                  'type': _Service._RES_PKT_STR,
                   'payload': {'request_id': request_id, 'result': result}}
         return packet
 
@@ -403,7 +403,7 @@ class HTTPInfraService(_HTTPServiceHost):
         raise NotImplementedError()
 
 
-class HTTPServiceClient(Service):
+class HTTPServiceClient(_Service):
     def __init__(self, service_name, service_version, app_name):
         super(HTTPServiceClient, self).__init__(service_name, service_version, app_name)
 
