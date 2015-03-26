@@ -1,7 +1,9 @@
 from asyncio import Future
 import random
-from again.utils import unique_hex
 from collections import defaultdict
+
+from again.utils import unique_hex
+
 from .services import TCPServiceClient
 
 

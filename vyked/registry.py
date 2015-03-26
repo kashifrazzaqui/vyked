@@ -1,8 +1,10 @@
 import signal
+import asyncio
 from functools import partial
 from collections import defaultdict
-import asyncio
+
 from again.utils import unique_hex
+
 from .pinger import Pinger
 
 

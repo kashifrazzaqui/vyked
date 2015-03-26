@@ -1,6 +1,8 @@
 import asyncio
-from jsonstreamer import ObjectStreamer
 import json
+
+from jsonstreamer import ObjectStreamer
+
 from .registry import Registry
 from .registryclient import RegistryClient
 from .services import TCPServiceClient

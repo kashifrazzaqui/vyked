@@ -3,10 +3,10 @@ from functools import partial
 import os
 import signal
 import json
+import shelve
 
 from again.utils import unique_hex
 import aiohttp
-import shelve
 from aiohttp.web import Application, Response
 
 from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
