@@ -2,6 +2,7 @@ from logging import Handler
 from queue import Queue
 import sys
 from threading import Thread
+import logging
 
 
 def patch_async_emit(handler : Handler):
@@ -24,3 +25,14 @@ def patch_async_emit(handler : Handler):
     thread.start()
     handler.emit = async_emit
     return handler
+
+
+def setup():
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+
+    handler = patch_async_emit(logging.StreamHandler())
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+

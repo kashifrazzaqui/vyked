@@ -1,11 +1,14 @@
-import logging
 from vyked.utils.log import patch_async_emit
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+__all__ = ['TCPServiceClient', 'TCPApplicationService', 'TCPDomainService', 'TCPInfraService', 'HTTPServiceClient',
+           'HTTPApplicationService', 'HTTPDomainService', 'HTTPInfraService', 'Entity', 'Value', 'Aggregate', 'Factory',
+           'Repository', 'Bus', 'Registry', 'log']
 
-handler = patch_async_emit(logging.StreamHandler())
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+from .services import (TCPServiceClient, TCPApplicationService, TCPDomainService, TCPInfraService, HTTPServiceClient,
+                       HTTPApplicationService, HTTPDomainService, HTTPInfraService)
+from .model import (Entity, Value, Aggregate, Factory, Repository)
+from .bus import Bus
+from .registry import Registry
+from .utils import log
 
+log.setup()
