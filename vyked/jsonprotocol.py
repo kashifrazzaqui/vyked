@@ -35,7 +35,7 @@ class JSONProtocol(asyncio.Protocol):
         self._connected = False
         print('Peer closed the connection')
 
-    def send(self, packet:'dict'):
+    def send(self, packet: dict):
         string = json.dumps(packet) + ','
         if self._connected:
             self._transport.write(string.encode())
