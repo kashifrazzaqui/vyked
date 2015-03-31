@@ -33,7 +33,7 @@ class Bus:
 
     def require(self, args):
         for each in args:
-            if isinstance(each, TCPServiceClient) or isinstance(each, HTTPServiceClient):
+            if isinstance(each, (TCPServiceClient, HTTPServiceClient)):
                 each.bus = self
                 self._service_clients.append(each)
 
