@@ -172,6 +172,7 @@ def api(func):  # incoming
         - entity (partition/routing key)
         followed by kwargs
     """
+
     @coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -365,15 +366,20 @@ class RequestException(Exception):
 
 
 class _HTTPServiceHost(_ServiceHost):
-    def __init__(self, service_name, service_version, app_name, host_ip, host_port):
+    def __init__(self, service_name, service_version, app_name, host_ip, host_port, ssl_context=None):
         # TODO: to be multi-tenant make app_name a list
         super(_HTTPServiceHost, self).__init__(service_name, service_version, app_name, host_ip, host_port)
+        self._ssl_context = ssl_context
 
     def get_routes(self):
         """
         :return: A list of 3-tuples - (HTTP method name, path, handler_function)
         """
         raise NotImplementedError()
+
+    @property
+    def ssl_context(self):
+        return self._ssl_context
 
 
 class TCPApplicationService(_TCPServiceHost):

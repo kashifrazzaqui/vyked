@@ -252,13 +252,14 @@ class Bus:
     def _create_http_service_host(self):
         if self._http_host:
             host_ip, host_port = self._http_host.socket_address
+            ssl_context = self._http_host.ssl_context
             app = Application(loop=self._loop)
             routes = self._http_host.get_routes()
             for method, path, handler in routes:
                 app.router.add_route(method, path, self.verify(handler))
             if routes:
                 handler = app.make_handler()
-                http_coro = self._loop.create_server(handler, host_ip, host_port)
+                http_coro = self._loop.create_server(handler, host_ip, host_port, ssl=ssl_context)
                 return self._loop.run_until_complete(http_coro)
 
     def _create_service_clients(self):
