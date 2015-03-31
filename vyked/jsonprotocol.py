@@ -73,6 +73,7 @@ class JSONProtocol(asyncio.Protocol):
         print('Pair {}'.format(pair))
         raise RuntimeError('Received a key-value pair object - expected elements only')
 
+
 class ServiceHostProtocol(JSONProtocol):
     def __init__(self, bus):
         super(ServiceHostProtocol, self).__init__()
@@ -85,7 +86,7 @@ class ServiceHostProtocol(JSONProtocol):
 
     def connection_lost(self, exc):
         super(ServiceHostProtocol, self).connection_lost(exc)
-        #TODO: think about what needs to be done here
+        # TODO: think about what needs to be done here
 
     def on_element(self, element):
         self._bus.host_receive(packet=element, protocol=self)
@@ -109,7 +110,6 @@ class ServiceClientProtocol(JSONProtocol):
 
 
 class RegistryProtocol(JSONProtocol):
-
     def __init__(self, registry:Registry):
         super(RegistryProtocol, self).__init__()
         self._registry = registry
@@ -118,14 +118,13 @@ class RegistryProtocol(JSONProtocol):
         peername = transport.get_extra_info('peername')
         print('Connected from {}'.format(peername))
         super(RegistryProtocol, self).connection_made(transport)
-        #TODO: pass protocol to registry
+        # TODO: pass protocol to registry
 
     def on_element(self, element):
         self._registry.receive(packet=element, registry_protocol=self)
 
 
 class RegistryClientProtocol(JSONProtocol):
-
     def __init__(self, registry_client:RegistryClient):
         super(RegistryClientProtocol, self).__init__()
         self._registry_client = registry_client
