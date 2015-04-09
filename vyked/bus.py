@@ -2,8 +2,6 @@ import asyncio
 from functools import partial
 import os
 import signal
-import json
-import shelve
 
 from again.utils import unique_hex
 import aiohttp
@@ -24,7 +22,8 @@ class Bus:
         self._client_protocols = {}
         self._service_clients = []
         self._pending_requests = []
-        self._unacked_publish = shelve.open(PUB_STORE, protocol=json, writeback=True)
+        # TODO : replace with shelve
+        self._unacked_publish = {}
         self._tcp_host = None
         self._http_host = None
         self._tcp_server = None
