@@ -46,14 +46,14 @@ class Registry:
         print('\ngot signal {} - exiting'.format(signame))
         self._loop.stop()
 
-    def receive(self, packet:dict, registry_protocol):
+    def receive(self, packet:dict, registry_protocol, transport):
         request_type = packet['type']
         if request_type == 'register':
-            self._register_service(packet, registry_protocol)
+            self._register_service(packet, registry_protocol, *transport.get_extra_info('peername'))
         elif request_type == 'subscribe':
-            self._handle_subscription(packet)
+            self._handle_subscription(packet, *transport.get_extra_info('peername'))
         elif request_type == 'message_sub':
-            self._subscribe_for_message(packet)
+            self._subscribe_for_message(packet, *transport.get_extra_info('peername'))
         elif request_type == 'pong':
             self._handle_pong(packet['node_id'], packet['count'])
         elif request_type == 'resolve_publication':
@@ -98,16 +98,16 @@ class Registry:
                                                 self._service_dependencies[service_name])
                     nodes.remove(node)
 
-    def _register_service(self, packet:dict, registry_protocol):
+    def _register_service(self, packet:dict, registry_protocol, host, port):
         params = packet['params']
         service_name = self._get_full_service_name(params['app'], params["service"], params['version'])
         dependencies = params['vendors']
-        service_entry = (params['host'], params['port'], params['node_id'])
+        service_entry = (host, params['port'], params['node_id'])
         self._registered_services[service_name].append(service_entry)
         self._pending_services[service_name].append(params['node_id'])
         self._client_protocols[params['node_id']] = registry_protocol
         if params['type'] == 'tcp':
-            self._connect_to_service(params['host'], params['port'], params['node_id'])
+            self._connect_to_service(host, params['port'], params['node_id'])
         if self._service_dependencies.get(service_name) is None:
             self._service_dependencies[service_name] = dependencies
         self._handle_pending_registrations()
@@ -155,11 +155,11 @@ class Registry:
         self._pingers[node_id] = pinger
         pinger.start_ping()
 
-    def _handle_subscription(self, packet):
+    def _handle_subscription(self, packet, host, port):
         params = packet['params']
         for each in params['subscribe_to']:
             self._subscription_list[each['app']][each['service']][each['version']][each['endpoint']].append(
-                (params['ip'], params['port'], params['node_id']))
+                (host, params['port'], params['node_id']))
 
     def _handle_pong(self, node_id, count):
         pinger = self._pingers[node_id]
@@ -205,15 +205,15 @@ class Registry:
         packet['params'] = params
         return packet
 
-    def _subscribe_for_message(self, packet):
+    def _subscribe_for_message(self, packet, host, port):
         app, service, version, endpoint, entity = packet['app'], packet['service'], packet['version'], packet[
             'endpoint'], packet['entity']
         ip, port, node_id = packet['ip'], packet['port'], packet['node_id']
-        self._message_sub_list[app][service][version][endpoint][entity].append((ip, port, node_id))
+        self._message_sub_list[app][service][version][endpoint][entity].append((host, port, node_id))
 
 
 if __name__ == '__main__':
-    REGISTRY_HOST = '127.0.0.1'
+    REGISTRY_HOST = None
     REGISTRY_PORT = 4500
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT)
     registry.start()

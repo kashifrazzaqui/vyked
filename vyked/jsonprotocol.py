@@ -116,12 +116,13 @@ class RegistryProtocol(JSONProtocol):
 
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
+        self._transport = transport
         print('Connected from {}'.format(peername))
         super(RegistryProtocol, self).connection_made(transport)
         # TODO: pass protocol to registry
 
     def on_element(self, element):
-        self._registry.receive(packet=element, registry_protocol=self)
+        self._registry.receive(packet=element, registry_protocol=self, transport=self._transport)
 
 
 class RegistryClientProtocol(JSONProtocol):
