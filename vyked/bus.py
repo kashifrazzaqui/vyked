@@ -296,8 +296,8 @@ class Bus:
         for packet in self._pending_requests:
             app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
             node = self._registry_client.resolve(app, service, version, entity)
-            node_id = node[2]
-            if node_id is not None:
+            if node is not None:
+                node_id = node[2]
                 client_protocol = self._client_protocols[node_id]
                 packet['to'] = node_id
                 client_protocol.send(packet)
