@@ -181,6 +181,7 @@ class Bus:
         return self._http_host and not self._http_host.ronin
 
     def start(self):
+        self._set_process_name()
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
 
@@ -307,6 +308,14 @@ class Bus:
     def send_ack(protocol, pid):
         packet = {'type': 'ack', 'pid': pid}
         protocol.send(packet)
+
+    def _set_process_name(self):
+        from setproctitle import setproctitle
+        if self._tcp_host:
+            setproctitle('{}_{}_{}'.format(self._tcp_host.app_name, self._tcp_host.name, self._tcp_host.version))
+        elif self._http_host:
+            setproctitle('{}_{}_{}'.format(self._tcp_host.app_name, self._tcp_host.name, self._tcp_host.version))
+
 
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'

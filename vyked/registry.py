@@ -213,6 +213,8 @@ class Registry:
 
 
 if __name__ == '__main__':
+    from setproctitle import setproctitle
+    setproctitle("registry")
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT)
