@@ -25,7 +25,6 @@ class Registry:
 
     def _rfactory(self):
         from vyked.jsonprotocol import RegistryProtocol
-
         return RegistryProtocol(self)
 
     def start(self):
