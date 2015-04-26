@@ -193,9 +193,9 @@ class Registry:
         return consumers
 
     def _notify_consumers(self, vendor, node_id):
+        packet = self._make_deregister_packet(node_id, vendor)
         for consumer in self._get_consumers(vendor):
             for host, port, node in self._registered_services[consumer]:
-                packet = self._make_deregister_packet(node_id, vendor)
                 protocol = self._client_protocols[node]
                 protocol.send(packet)
 
