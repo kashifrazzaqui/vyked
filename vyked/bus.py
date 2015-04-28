@@ -21,6 +21,7 @@ class Bus:
         self._loop = asyncio.get_event_loop()
         self._client_protocols = {}
         self._service_clients = []
+        self._death_listeners = set()
         self._pending_requests = []
         # TODO : replace with shelve
         self._unacked_publish = {}
@@ -35,6 +36,9 @@ class Bus:
             if isinstance(each, (TCPServiceClient, HTTPServiceClient)):
                 each.bus = self
                 self._service_clients.append(each)
+
+    def add_death_listener(self, app:str, service:str, version:str):
+        self._death_listeners.add((app, service, version))
 
     def serve_tcp(self, service_host):
         self._tcp_host = service_host
@@ -226,6 +230,8 @@ class Bus:
 
     def registration_complete(self):
         if self._tcp_host:
+            for app, service, version in self._death_listeners:
+                self._registry_client.add_service_death_listener(app, service, version)
             f = self._create_service_clients()
 
             def fun(f):
@@ -311,6 +317,7 @@ class Bus:
 
     def _set_process_name(self):
         from setproctitle import setproctitle
+
         if self._tcp_host:
             setproctitle('{}_{}_{}'.format(self._tcp_host.app_name, self._tcp_host.name, self._tcp_host.version))
         elif self._http_host:

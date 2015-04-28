@@ -18,6 +18,7 @@ class Registry:
         self._client_protocols = {}
         self._service_dependencies = {}
         self._service_protocols = {}
+        self._dead_service_listeners = defaultdict(list)
         self._subscription_list = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
         self._message_sub_list = defaultdict(
             lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list)))))
@@ -59,6 +60,8 @@ class Registry:
             self._resolve_publication(packet, registry_protocol)
         elif request_type == 'resolve_message_publication':
             self._resolve_message_publication(packet, registry_protocol)
+        elif request_type == 'service_death_sub':
+            self._add_service_death_listener(packet)
 
     def deregister_service(self, node_id):
         for service, nodes in self._registered_services.items():
@@ -69,6 +72,8 @@ class Registry:
                     service_present = True
             if service_present:
                 self._notify_consumers(service, node_id)
+                self._remove_service_death_listener(node_id)
+                self._notify_service_death_listeners(service, node_id)
                 if not len(nodes):
                     for consumer in self._get_consumers(service):
                         self._pending_services[consumer] = [node_id for host, port, node_id in
@@ -112,7 +117,7 @@ class Registry:
         self._handle_pending_registrations()
 
     @staticmethod
-    def _get_full_service_name(app:str, service:str, version:str):
+    def _get_full_service_name(app:str, service:str, version):
         return "{}/{}/{}".format(app, service, version)
 
     def _send_activated_packet(self, protocol, dependencies):
@@ -210,6 +215,28 @@ class Registry:
         ip, port, node_id = packet['ip'], packet['port'], packet['node_id']
         self._message_sub_list[app][service][version][endpoint][entity].append((host, port, node_id))
 
+    def _add_service_death_listener(self, packet):
+        app, service, version, node = packet['app'], packet['service'], packet['version'], packet['node']
+        params = packet['params']
+        service_name = self._get_full_service_name(params['app'], params['service'], params['version'])
+        self._dead_service_listeners[service_name].append(node)
+
+    def _remove_service_death_listener(self, node_id):
+        for service, listeners in self._dead_service_listeners.items():
+            if node_id in listeners:
+                listeners.remove()
+
+    def _notify_service_death_listeners(self, service, node_id):
+        for node in self._dead_service_listeners[service]:
+            protocol = self._client_protocols[node]
+            protocol.send(self._make_service_dead_packet(service, node_id))
+
+    @staticmethod
+    def _make_service_dead_packet(service, node_id):
+        params = {'node_id': node_id, 'app': service.split('/')[0], 'service': service.split('/')[1],
+                  'version': service.split('/')[2]}
+        packet = {'type': 'service_dead', 'params': params}
+        return packet
 
 if __name__ == '__main__':
     from setproctitle import setproctitle

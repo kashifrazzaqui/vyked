@@ -30,6 +30,10 @@ class RegistryClient:
         packet = self._make_registration_packet(ip, port, app, service, version, vendors, type)
         self._protocol.send(packet)
 
+    def add_service_death_listener(self, app, service, version):
+        packet = self._make_death_subscription_packet(app, service, version, self._node_id)
+        self._protocol.send(packet)
+
     def register_http(self, vendors, ip, port, app, service, version):
         self._register_service(app, ip, port, service, vendors, version, 'http')
 
@@ -110,6 +114,22 @@ class RegistryClient:
                   'type': 'register',
                   'params': params}
         return packet
+
+    def _make_death_subscription_packet(self, app:str, service:str, version:str, node_id:str):
+        params = {
+            'app': app,
+            'service': service,
+            'version': version}
+        packet = {
+            'pid': unique_hex(),
+            'type': 'service_death_sub',
+            'app': self._app,
+            'service': self._service,
+            'version': self._version,
+            'params': params,
+            'node': node_id}
+        return packet
+
 
     @staticmethod
     def _get_full_service_name(app, service, version):
