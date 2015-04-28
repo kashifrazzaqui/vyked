@@ -62,6 +62,8 @@ class Registry:
             self._resolve_message_publication(packet, registry_protocol)
         elif request_type == 'service_death_sub':
             self._add_service_death_listener(packet)
+        elif request_type == 'get_instances':
+            self._get_service_instances(packet, registry_protocol)
 
     def deregister_service(self, node_id):
         for service, nodes in self._registered_services.items():
@@ -237,6 +239,17 @@ class Registry:
                   'version': service.split('/')[2]}
         packet = {'type': 'service_dead', 'params': params}
         return packet
+
+    def _get_service_instances(self, packet, registry_protocol):
+        params = packet['params']
+        app, service, version = params['app'], params['service'], params['version']
+        service_name = self._get_full_service_name(app, service, version)
+        instances = []
+        if service_name in self._registered_services:
+            instances = [{'host': host, 'port': port, 'node': node} for host, port, node in self._registered_services[service_name]]
+        instance_packet_params = {'app': app, 'service': service, 'version': version, 'instances': instances}
+        instance_packet = {'type': 'instances', 'params': instance_packet_params}
+        registry_protocol.send(instance_packet)
 
 if __name__ == '__main__':
     from setproctitle import setproctitle
