@@ -251,7 +251,7 @@ class Bus:
             if self._http_host.is_for_me(query_dict['app'], query_dict['service'], query_dict['version']):
                 return func(*args, **kwargs)
             else:
-                return Response(body="wrongly routed request".encode())
+                return Response(status=400, body="wrongly routed request".encode())
 
         return verified_func
 
