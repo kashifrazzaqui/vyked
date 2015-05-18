@@ -9,7 +9,7 @@ from aiohttp.web import Application, Response
 
 from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from .registryclient import RegistryClient
-from .services import TCPServiceClient, HTTPServiceClient
+from .services import TCPServiceClient, HTTPServiceClient, HTTPApplicationService
 
 PUB_STORE = os.path.join(os.curdir, 'publish.store')
 
@@ -191,7 +191,6 @@ class Bus:
 
         self._tcp_server = self._create_tcp_service_host()
         self._http_server = self._create_http_service_host()
-
         if self.is_tcp_ronin() or self.is_http_ronin():
             self._setup_registry_client()
 
@@ -248,10 +247,15 @@ class Bus:
     def verify(self, func):
         def verified_func(*args, **kwargs):
             query_dict = args[0].GET
-            if self._http_host.is_for_me(query_dict['app'], query_dict['service'], query_dict['version']):
+            if isinstance(self._http_host, HTTPApplicationService):
                 return func(*args, **kwargs)
-            else:
-                return Response(status=400, body="wrongly routed request".encode())
+            try:
+                if self._http_host.is_for_me(query_dict['app'], query_dict['service'], query_dict['version']):
+                    return func(*args, **kwargs)
+                else:
+                    return Response(status=421, body="421 wrongly routed request".encode())
+            except KeyError:
+                return Response(status=400, body="400 bad request".encode())
 
         return verified_func
 
