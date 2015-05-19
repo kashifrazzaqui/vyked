@@ -28,7 +28,7 @@ def patch_async_emit(handler : Handler):
 
 
 def setup():
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
     handler = patch_async_emit(logging.StreamHandler())
