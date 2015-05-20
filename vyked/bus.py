@@ -249,14 +249,13 @@ class Bus:
             query_dict = args[0].GET
             if isinstance(self._http_host, HTTPApplicationService):
                 return func(*args, **kwargs)
-            try:
+            if 'service' in query_dict and 'version' in query_dict:
                 if self._http_host.is_for_me(query_dict['service'], query_dict['version']):
                     return func(*args, **kwargs)
                 else:
                     return Response(status=421, body="421 wrongly routed request".encode())
-            except KeyError:
+            else:
                 return Response(status=400, body="400 bad request".encode())
-
         return verified_func
 
     def _create_http_service_host(self):
