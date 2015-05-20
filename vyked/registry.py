@@ -19,13 +19,13 @@ class Registry:
         self._service_dependencies = {}
         self._service_protocols = {}
         self._dead_service_listeners = defaultdict(list)
-        self._subscription_list = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
-        self._message_sub_list = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list)))))
+        self._subscription_list = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        self._message_sub_list = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
         self._pingers = {}
 
     def _rfactory(self):
         from vyked.jsonprotocol import RegistryProtocol
+
         return RegistryProtocol(self)
 
     def start(self):
@@ -93,8 +93,8 @@ class Registry:
             depends_on = self._service_dependencies[service_name]
             should_activate = True
             for dependency in depends_on:
-                if self._registered_services.get(self._get_full_service_name(dependency["app"], dependency["service"],
-                                                                             dependency["version"])) is None:
+                if self._registered_services.get(
+                        self._get_full_service_name(dependency["service"], dependency["version"])) is None:
                     should_activate = False
                     break
             nodes = self._pending_services[service_name]
@@ -106,7 +106,7 @@ class Registry:
 
     def _register_service(self, packet:dict, registry_protocol, host, port):
         params = packet['params']
-        service_name = self._get_full_service_name(params['app'], params["service"], params['version'])
+        service_name = self._get_full_service_name(params["service"], params['version'])
         dependencies = params['vendors']
         service_entry = (host, params['port'], params['node_id'])
         self._registered_services[service_name].append(service_entry)
@@ -119,8 +119,8 @@ class Registry:
         self._handle_pending_registrations()
 
     @staticmethod
-    def _get_full_service_name(app:str, service:str, version):
-        return "{}/{}/{}".format(app, service, version)
+    def _get_full_service_name(service: str, version):
+        return "{}/{}".format(service, version)
 
     def _send_activated_packet(self, protocol, dependencies):
         packet = self._make_activated_packet(dependencies)
@@ -131,7 +131,7 @@ class Registry:
         vendors_packet = []
         for vendor in vendors:
             vendor_packet = defaultdict(list)
-            vendor_name = self._get_full_service_name(vendor['app'], vendor['service'], vendor['version'])
+            vendor_name = self._get_full_service_name(vendor['service'], vendor['version'])
             for host, port, node in self._registered_services[vendor_name]:
                 vendor_node_packet = {
                     'host': host,
@@ -164,7 +164,7 @@ class Registry:
     def _handle_subscription(self, packet, host, port):
         params = packet['params']
         for each in params['subscribe_to']:
-            self._subscription_list[each['app']][each['service']][each['version']][each['endpoint']].append(
+            self._subscription_list[each['service']][each['version']][each['endpoint']].append(
                 (host, params['port'], params['node_id']))
 
     def _handle_pong(self, node_id, count):
@@ -174,18 +174,17 @@ class Registry:
 
     def _resolve_publication(self, packet, protocol):
         params = packet['params']
-        app, service, version, endpoint = params['app'], params['service'], params['version'], params['endpoint']
+        service, version, endpoint = params['service'], params['version'], params['endpoint']
         nodes = [{'ip': ip, 'port': port, 'node_id': node} for ip, port, node in
-                 self._subscription_list[app][service][version][endpoint]]
+                 self._subscription_list[service][version][endpoint]]
         result = {'type': 'subscription_list', 'request_id': packet['request_id'], 'nodes': nodes}
         protocol.send(result)
 
     def _resolve_message_publication(self, packet, protocol):
         params = packet['params']
-        app, service, version, endpoint, entity = params['app'], params['service'], params['version'], params[
-            'endpoint'], params['entity']
+        service, version, endpoint, entity = params['service'], params['version'], params['endpoint'], params['entity']
         nodes = [{'ip': ip, 'port': port, 'node_id': node} for ip, port, node in
-                 self._message_sub_list[app][service][version][endpoint][entity]]
+                 self._message_sub_list[service][version][endpoint][entity]]
         result = {'type': 'message_subscription_list', 'request_id': packet['request_id'], 'nodes': nodes}
         protocol.send(result)
 
@@ -193,7 +192,7 @@ class Registry:
         consumers = []
         for service, vendors in self._service_dependencies.items():
             for each in vendors:
-                vendor_name = self._get_full_service_name(each['app'], each['service'], each['version'])
+                vendor_name = self._get_full_service_name(each['service'], each['version'])
                 if vendor == vendor_name:
                     consumers.append(service)
         return consumers
@@ -212,15 +211,15 @@ class Registry:
         return packet
 
     def _subscribe_for_message(self, packet, host, port):
-        app, service, version, endpoint, entity = packet['app'], packet['service'], packet['version'], packet[
+        service, version, endpoint, entity = packet['service'], packet['version'], packet[
             'endpoint'], packet['entity']
         ip, port, node_id = packet['ip'], packet['port'], packet['node_id']
-        self._message_sub_list[app][service][version][endpoint][entity].append((host, port, node_id))
+        self._message_sub_list[service][version][endpoint][entity].append((host, port, node_id))
 
     def _add_service_death_listener(self, packet):
-        app, service, version, node = packet['app'], packet['service'], packet['version'], packet['node']
+        service, version, node = packet['service'], packet['version'], packet['node']
         params = packet['params']
-        service_name = self._get_full_service_name(params['app'], params['service'], params['version'])
+        service_name = self._get_full_service_name(params['service'], params['version'])
         self._dead_service_listeners[service_name].append(node)
 
     def _remove_service_death_listener(self, node_id):
@@ -235,24 +234,26 @@ class Registry:
 
     @staticmethod
     def _make_service_dead_packet(service, node_id):
-        params = {'node_id': node_id, 'app': service.split('/')[0], 'service': service.split('/')[1],
-                  'version': service.split('/')[2]}
+        params = {'node_id': node_id, 'service': service.split('/')[0], 'version': service.split('/')[1]}
         packet = {'type': 'service_dead', 'params': params}
         return packet
 
     def _get_service_instances(self, packet, registry_protocol):
         params = packet['params']
-        app, service, version = params['app'], params['service'], params['version']
-        service_name = self._get_full_service_name(app, service, version)
+        service, version = params['service'], params['version']
+        service_name = self._get_full_service_name(service, version)
         instances = []
         if service_name in self._registered_services:
-            instances = [{'host': host, 'port': port, 'node': node} for host, port, node in self._registered_services[service_name]]
-        instance_packet_params = {'app': app, 'service': service, 'version': version, 'instances': instances}
+            instances = [{'host': host, 'port': port, 'node': node} for host, port, node in
+                         self._registered_services[service_name]]
+        instance_packet_params = {'service': service, 'version': version, 'instances': instances}
         instance_packet = {'type': 'instances', 'params': instance_packet_params}
         registry_protocol.send(instance_packet)
 
+
 if __name__ == '__main__':
     from setproctitle import setproctitle
+
     setproctitle("registry")
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500

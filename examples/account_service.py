@@ -14,7 +14,7 @@ ACCOUNTS_PORT = 4502
 
 class AccountService(TCPApplicationService):
     def __init__(self, host, port):
-        super(AccountService, self).__init__("AccountService", 1, "Example", host, port)
+        super(AccountService, self).__init__("AccountService", 1, host, port)
 
     @api
     def authenticate(self, user_name, password):
@@ -37,10 +37,11 @@ class AccountClient(TCPServiceClient):
 
 class IdentityClient(TCPServiceClient):
     def __init__(self):
-        super(IdentityClient, self).__init__("IdentityService", 1, "Example")
+        super(IdentityClient, self).__init__("IdentityService", 1)
 
     @request
     def create(self, user_name, password):
+        app_name = 'accounts'
         return locals()
 
     @subscribe

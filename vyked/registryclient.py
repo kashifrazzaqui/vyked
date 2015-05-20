@@ -15,7 +15,6 @@ class RegistryClient:
         self._port = port
         self._transport = None
         self._protocol = None
-        self._app = None
         self._service = None
         self._version = None
         self._node_id = None
@@ -23,26 +22,25 @@ class RegistryClient:
         self._available_services = defaultdict(list)
         self._assigned_services = defaultdict(lambda: defaultdict(list))
 
-    def _register_service(self, app, ip, port, service, vendors, version, type):
-        self._app = app
+    def _register_service(self, ip, port, service, vendors, version, type):
         self._service = service
         self._version = version
-        packet = self._make_registration_packet(ip, port, app, service, version, vendors, type)
+        packet = self._make_registration_packet(ip, port, service, version, vendors, type)
         self._protocol.send(packet)
 
-    def add_service_death_listener(self, app, service, version):
-        packet = self._make_death_subscription_packet(app, service, version, self._node_id)
+    def add_service_death_listener(self, service, version):
+        packet = self._make_death_subscription_packet(service, version, self._node_id)
         self._protocol.send(packet)
 
-    def get_instances(self, app, service, version):
-        packet = self._make_get_instance_packet(app, service, version)
+    def get_instances(self, service, version):
+        packet = self._make_get_instance_packet(service, version)
         self._protocol.send(packet)
 
-    def register_http(self, vendors, ip, port, app, service, version):
-        self._register_service(app, ip, port, service, vendors, version, 'http')
+    def register_http(self, vendors, ip, port, service, version):
+        self._register_service(ip, port, service, vendors, version, 'http')
 
-    def register_tcp(self, vendors, ip, port, app, service, version):
-        self._register_service(app, ip, port, service, vendors, version, 'tcp')
+    def register_tcp(self, vendors, ip, port, service, version):
+        self._register_service(ip, port, service, vendors, version, 'tcp')
         self._register_for_subscription(vendors, ip, port)
 
     def subscribe_for_message(self, packet):
@@ -72,7 +70,7 @@ class RegistryClient:
 
     def get_all_addresses(self, full_service_name):
         return self._available_services.get(
-            self._get_full_service_name(full_service_name[0], full_service_name[1], full_service_name[2]))
+            self._get_full_service_name(full_service_name[0], full_service_name[1]))
 
     def get_random_service(self, service_name):
         services = self._available_services[service_name]
@@ -81,8 +79,8 @@ class RegistryClient:
         else:
             return None
 
-    def resolve(self, app: str, service: str, version: str, entity:str):
-        service_name = self._get_full_service_name(app, service, version)
+    def resolve(self, service: str, version: str, entity:str):
+        service_name = self._get_full_service_name(service, version)
         if entity is not None:
             entity_map = self._assigned_services.get(service_name)
             if entity_map is None:
@@ -98,16 +96,14 @@ class RegistryClient:
         else:
             return self.get_random_service(service_name)
 
-    def _make_registration_packet(self, ip:str, port:str, app:str, service:str, version:str, vendors, type:str):
+    def _make_registration_packet(self, ip:str, port:str, service:str, version:str, vendors, type:str):
         vendors_list = []
         for vendor in vendors:
-            vendor_dict = {'app': vendor.app_name,
-                           'service': vendor.name,
+            vendor_dict = {'service': vendor.name,
                            'version': vendor.version}
             vendors_list.append(vendor_dict)
         self._node_id = unique_hex()
-        params = {'app': app,
-                  'service': service,
+        params = {'service': service,
                   'version': version,
                   'host': ip,
                   'port': port,
@@ -119,38 +115,30 @@ class RegistryClient:
                   'params': params}
         return packet
 
-    def _make_death_subscription_packet(self, app:str, service:str, version:str, node_id:str):
-        params = {
-            'app': app,
-            'service': service,
-            'version': version}
-        packet = {
-            'pid': unique_hex(),
-            'type': 'service_death_sub',
-            'app': self._app,
-            'service': self._service,
-            'version': self._version,
-            'params': params,
-            'node': node_id}
+    def _make_death_subscription_packet(self, service:str, version:str, node_id:str):
+        params = {'service': service,
+                  'version': version}
+        packet = {'pid': unique_hex(),
+                  'type': 'service_death_sub',
+                  'service': self._service,
+                  'version': self._version,
+                  'params': params,
+                  'node': node_id}
         return packet
 
-    def _make_get_instance_packet(self, app, service, version):
-        params = {
-            'app': app,
-            'service': service,
-            'version': version}
-        packet = {
-            'pid': unique_hex(),
-            'type': 'get_instances',
-            'app': self._app,
-            'service': self._service,
-            'version': self._version,
-            'params': params}
+    def _make_get_instance_packet(self, service, version):
+        params = {'service': service,
+                  'version': version}
+        packet = {'pid': unique_hex(),
+                  'type': 'get_instances',
+                  'service': self._service,
+                  'version': self._version,
+                  'params': params}
         return packet
 
     @staticmethod
-    def _get_full_service_name(app, service, version):
-        return "{}/{}/{}".format(app, service, version)
+    def _get_full_service_name(service, version):
+        return "{}/{}".format(service, version)
 
     def cache_vendors(self, vendors):
         for vendor in vendors:
@@ -174,7 +162,6 @@ class RegistryClient:
                     fn = getattr(vendor, each)
                     if callable(fn) and getattr(fn, 'is_subscribe', False):
                         subscription_list.append({
-                            'app': vendor.app_name,
                             'service': vendor.name,
                             'version': vendor.version,
                             'endpoint': fn.__name__
@@ -183,12 +170,11 @@ class RegistryClient:
         subscription_packet['params'] = params
         self._protocol.send(subscription_packet)
 
-    def resolve_publication(self, app, service, version, endpoint):
+    def resolve_publication(self, service, version, endpoint):
         future = Future()
         request_id = unique_hex()
         packet = {'type': 'resolve_publication', 'request_id': request_id}
         params = {
-            'app': app,
             'service': service,
             'version': version,
             'endpoint': endpoint
@@ -198,12 +184,11 @@ class RegistryClient:
         self._protocol.send(packet)
         return future
 
-    def resolve_message_publication(self, app, service, version, endpoint, entity):
+    def resolve_message_publication(self, service, version, endpoint, entity):
         future = Future()
         request_id = unique_hex()
         packet = {'type': 'resolve_message_publication', 'request_id': request_id}
         params = {
-            'app': app,
             'service': service,
             'version': version,
             'endpoint': endpoint,

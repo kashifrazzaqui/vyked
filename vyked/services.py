@@ -10,8 +10,12 @@ from again.utils import unique_hex
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
     entity = params.pop('entity', None)
+    try:
+        app_name = params.pop('app_name')
+    except KeyError:
+        raise RuntimeError('App name must be specified')
     self = params.pop('self')
-    response = yield from self._send_http_request(method, entity, params)
+    response = yield from self._send_http_request(app_name, method, entity, params)
     return response
 
 
@@ -103,9 +107,13 @@ def request(func):
         params = func(self, *args, **kwargs)
         self = params.pop('self')
         entity = params.pop('entity', None)
+        try:
+            app_name = params.pop('app_name')
+        except KeyError:
+            raise RuntimeError('App name must be specified')
         request_id = unique_hex()
         params['request_id'] = request_id
-        future = self._send_request(endpoint=func.__name__, entity=entity, params=params)
+        future = self._send_request(app_name, endpoint=func.__name__, entity=entity, params=params)
         return future
 
     wrapper.is_request = True
@@ -122,7 +130,11 @@ def message_sub(func):
     def wrapper(self, *args, **kwargs):
         params = func(self, *args, **kwargs)
         entity = params.pop('entity')
-        self._send_message_sub(endpoint=func.__name__, entity=entity)
+        try:
+            app_name = params.pop('app_name')
+        except KeyError:
+            raise RuntimeError('App name must be specified')
+        self._send_message_sub(app_name, endpoint=func.__name__, entity=entity)
 
     wrapper.is_directed_subscribe = True
     return wrapper
@@ -180,7 +192,6 @@ def api(func):  # incoming
         rid = kwargs.pop('request_id')
         entity = kwargs.pop('entity')
         from_id = kwargs.pop('from_id')
-        result = None
         if len(kwargs):
             if iscoroutinefunction(func):
                 result = yield from func(self, **kwargs)
@@ -205,10 +216,9 @@ class _Service:
     _MSG_PUB_PKT_STR = 'message_pub'
     _MSG_SUB_PKT_STR = 'message_sub'
 
-    def __init__(self, service_name, service_version, app_name):
+    def __init__(self, service_name, service_version):
         self._service_name = service_name
         self._service_version = service_version
-        self._app_name = app_name
         self._bus = None
 
     @property
@@ -220,12 +230,8 @@ class _Service:
         return self._service_version
 
     @property
-    def app_name(self):
-        return self._app_name
-
-    @property
     def properties(self):
-        return self.app_name, self.name, self.version
+        return self.name, self.version
 
     @property
     def bus(self):
@@ -247,12 +253,12 @@ class _Service:
 class TCPServiceClient(_Service):
     REQUEST_TIMEOUT_SECS = 10
 
-    def __init__(self, service_name, service_version, app_name):
-        super(TCPServiceClient, self).__init__(service_name, service_version, app_name)
+    def __init__(self, service_name, service_version):
+        super(TCPServiceClient, self).__init__(service_name, service_version)
         self._pending_requests = {}
 
-    def _send_request(self, endpoint, entity, params):
-        packet = self._make_packet(_Service._REQ_PKT_STR, endpoint, params, entity)
+    def _send_request(self, app_name, endpoint, entity, params):
+        packet = self._make_packet(app_name, _Service._REQ_PKT_STR, endpoint, params, entity)
         future = Future()
         request_id = params['request_id']
         self._pending_requests[request_id] = future
@@ -260,8 +266,8 @@ class TCPServiceClient(_Service):
         _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
 
-    def _send_message_sub(self, endpoint, entity):
-        packet = self._make_packet(_Service._MSG_SUB_PKT_STR, endpoint, None, entity)
+    def _send_message_sub(self, app_name, endpoint, entity):
+        packet = self._make_packet(app_name, _Service._MSG_SUB_PKT_STR, endpoint, None, entity)
         self._bus.send(packet)
 
     def process_packet(self, packet):
@@ -292,9 +298,9 @@ class TCPServiceClient(_Service):
         func = getattr(self, endpoint)
         func(**packet['payload'])
 
-    def _make_packet(self, packet_type, endpoint, params, entity):
+    def _make_packet(self, app_name, packet_type, endpoint, params, entity):
         packet = {'pid': unique_hex(),
-                  'app': self.app_name,
+                  'app': app_name,
                   'service': self.name,
                   'version': self.version,
                   'entity': entity,
@@ -305,16 +311,14 @@ class TCPServiceClient(_Service):
 
 
 class _ServiceHost(_Service):
-    def __init__(self, service_name, service_version, app_name, host_ip, host_port):
-        super(_ServiceHost, self).__init__(service_name, service_version, app_name)
+    def __init__(self, service_name, service_version, host_ip, host_port):
+        super(_ServiceHost, self).__init__(service_name, service_version)
         self._ip = host_ip
         self._port = host_port
         self._ronin = False
 
-    def is_for_me(self, app, service, version):
-        return app == self.app_name and \
-               service == self.name and \
-               int(version) == self.version
+    def is_for_me(self, service, version):
+        return service == self.name and int(version) == self.version
 
     @property
     def socket_address(self):
@@ -330,9 +334,9 @@ class _ServiceHost(_Service):
 
 
 class _TCPServiceHost(_ServiceHost):
-    def __init__(self, service_name, service_version, app_name, host_ip, host_port):
+    def __init__(self, service_name, service_version, host_ip, host_port):
         # TODO: to be multi-tenant make app_name a list
-        super(_TCPServiceHost, self).__init__(service_name, service_version, app_name, host_ip, host_port)
+        super(_TCPServiceHost, self).__init__(service_name, service_version, host_ip, host_port)
 
     def _publish(self, publication_name, payload):
         packet = self._make_publish_packet(_Service._PUB_PKT_STR, publication_name, payload)
@@ -352,8 +356,7 @@ class _TCPServiceHost(_ServiceHost):
         return packet
 
     def _make_publish_packet(self, packet_type: str, publication_name: str, payload: dict):
-        packet = {'app': self.app_name,
-                  'service': self.name,
+        packet = {'service': self.name,
                   'version': self.version,
                   'endpoint': publication_name,
                   'type': packet_type,
@@ -366,9 +369,8 @@ class RequestException(Exception):
 
 
 class _HTTPServiceHost(_ServiceHost):
-    def __init__(self, service_name, service_version, app_name, host_ip, host_port, ssl_context=None):
-        # TODO: to be multi-tenant make app_name a list
-        super(_HTTPServiceHost, self).__init__(service_name, service_version, app_name, host_ip, host_port)
+    def __init__(self, service_name, service_version, host_ip, host_port, ssl_context=None):
+        super(_HTTPServiceHost, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context
 
     def get_routes(self):
@@ -410,10 +412,10 @@ class HTTPInfraService(_HTTPServiceHost):
 
 
 class HTTPServiceClient(_Service):
-    def __init__(self, service_name, service_version, app_name):
-        super(HTTPServiceClient, self).__init__(service_name, service_version, app_name)
+    def __init__(self, service_name, service_version):
+        super(HTTPServiceClient, self).__init__(service_name, service_version)
 
-    def _send_http_request(self, method, entity, params):
-        response = yield from self._bus.send_http_request(self.app_name, self.name, self.version, method, entity,
+    def _send_http_request(self, app_name, method, entity, params):
+        response = yield from self._bus.send_http_request(app_name, self.name, self.version, method, entity,
                                                           params)
         return response

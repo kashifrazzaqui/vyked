@@ -13,7 +13,7 @@ IDENTITY_PORT = 4501
 
 class IdentityService(TCPApplicationService):
     def __init__(self, ip, port):
-        super(IdentityService, self).__init__("IdentityService", 1, "Example", ip, port)
+        super(IdentityService, self).__init__("IdentityService", 1, ip, port)
 
     @api
     @coroutine

@@ -74,7 +74,7 @@ class Bus:
         read_until_eof = params.pop('read_until_eof', True)
         request_class = params.pop('request_class', None)
         response_class = params.pop('response_class', None)
-        host, port, node_id = self._registry_client.resolve(app, service, version, entity)
+        host, port, node_id = self._registry_client.resolve(service, version, entity)
         # TODO : find a better method create the url
         url = 'http://{}:{}{}'.format(host, port, path)
         response = yield from aiohttp.request(method, url, params=query_params, data=data, headers=headers,
@@ -122,13 +122,13 @@ class Bus:
         auto dispatch method called from self.send()
         """
         app, service, version, endpoint = packet['app'], packet['service'], packet['version'], packet['endpoint']
-        future = self._registry_client.resolve_publication(app, service, version, endpoint)
+        future = self._registry_client.resolve_publication(service, version, endpoint)
         self._publish(future, packet)
 
     def _message_pub_sender(self, packet: dict):
         app, service, version, endpoint, entity = packet['app'], packet['service'], packet['version'], packet[
             'endpoint'], packet['entity']
-        future = self._registry_client.resolve_message_publication(app, service, version, endpoint, entity)
+        future = self._registry_client.resolve_message_publication(service, version, endpoint, entity)
         self._publish(future, packet)
 
     def host_receive(self, packet: dict, protocol: ServiceHostProtocol):
@@ -139,12 +139,12 @@ class Bus:
             self._unacked_publish.pop(pid)
         elif packet['type'] == 'publish':
             client = [sc for sc in self._service_clients if (
-                sc.name == packet['service'] and sc.app_name == packet['app'] and sc.version == packet['version'])][0]
+                sc.name == packet['service'] and sc.version == packet['version'])][0]
             func = getattr(client, packet['endpoint'])
             func(packet['payload'])
             self.send_ack(protocol, packet['pid'])
         else:
-            if self._tcp_host.is_for_me(packet['app'], packet['service'], packet['version']):
+            if self._tcp_host.is_for_me(packet['service'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
                 func(packet, protocol)
             else:
@@ -250,7 +250,7 @@ class Bus:
             if isinstance(self._http_host, HTTPApplicationService):
                 return func(*args, **kwargs)
             try:
-                if self._http_host.is_for_me(query_dict['app'], query_dict['service'], query_dict['version']):
+                if self._http_host.is_for_me(query_dict['service'], query_dict['version']):
                     return func(*args, **kwargs)
                 else:
                     return Response(status=421, body="421 wrongly routed request".encode())
@@ -306,7 +306,7 @@ class Bus:
     def _clear_request_queue(self):
         for packet in self._pending_requests:
             app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
-            node = self._registry_client.resolve(app, service, version, entity)
+            node = self._registry_client.resolve(service, version, entity)
             if node is not None:
                 node_id = node[2]
                 client_protocol = self._client_protocols[node_id]
@@ -323,9 +323,9 @@ class Bus:
         from setproctitle import setproctitle
 
         if self._tcp_host:
-            setproctitle('{}_{}_{}'.format(self._tcp_host.app_name, self._tcp_host.name, self._tcp_host.version))
+            setproctitle('{}_{}'.format(self._tcp_host.name, self._tcp_host.version))
         elif self._http_host:
-            setproctitle('{}_{}_{}'.format(self._http_host.app_name, self._http_host.name, self._http_host.version))
+            setproctitle('{}_{}'.format(self._http_host.name, self._http_host.version))
 
 
 if __name__ == '__main__':

@@ -3,6 +3,7 @@ from vyked import get
 
 import asyncio
 
+
 class Hello(HTTPServiceClient):
     def __init__(self):
         super(Hello, self).__init__('Hello', 1, 'test')
