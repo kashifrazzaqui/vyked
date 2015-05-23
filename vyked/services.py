@@ -19,68 +19,56 @@ def make_request(func, self, args, kwargs, method):
     return response
 
 
-def get(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        return make_request(func, self, args, kwargs, 'get')
+def get_decorated_fun(method, path):
+    def decorator(func):
+        @wraps(func)
+        def f(self, *args, **kwargs):
+            if isinstance(self, HTTPServiceClient):
+                return make_request(func, self, args, kwargs, method)
+            elif isinstance(self, HTTPApplicationService):
+                wrapped_func = func
+                if not iscoroutinefunction(func):
+                    wrapped_func = coroutine(func)
+                return (yield from wrapped_func(self, *args, **kwargs))
 
-    return wrapper
+        f.is_http_method = True
+        f.method = method
+        f.path = path
+        return f
 
-
-def head(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        return make_request(func, self, args, kwargs, 'head')
-
-    return wrapper
-
-
-def options(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        return make_request(func, self, args, kwargs, 'options')
-
-    return wrapper
+    return decorator
 
 
-def patch(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        return make_request(func, self, args, kwargs, 'patch')
-
-    return wrapper
+def get(path=None):
+    return get_decorated_fun('get', path)
 
 
-def post(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        return make_request(func, self, args, kwargs, 'post')
-
-    return wrapper
+def head(path=None):
+    return get_decorated_fun('head', path)
 
 
-def put(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        return make_request(func, self, args, kwargs, 'put')
-
-    return wrapper
+def options(path=None):
+    return get_decorated_fun('options', path)
 
 
-def trace(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        return make_request(func, self, args, kwargs, 'trace')
-
-    return wrapper
+def patch(path=None):
+    return get_decorated_fun('patch', path)
 
 
-def delete(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        return make_request(func, self, args, kwargs, 'delete')
+def post(path=None):
+    return get_decorated_fun('post', path)
 
-    return wrapper
+
+def put(path=None):
+    return get_decorated_fun('put', path)
+
+
+def trace(path=None):
+    return get_decorated_fun('put', path)
+
+
+def delete(path=None):
+    return get_decorated_fun('delete', path)
 
 
 def subscribe(func):
@@ -373,12 +361,6 @@ class _HTTPServiceHost(_ServiceHost):
         super(_HTTPServiceHost, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context
 
-    def get_routes(self):
-        """
-        :return: A list of 3-tuples - (HTTP method name, path, handler_function)
-        """
-        raise NotImplementedError()
-
     @property
     def ssl_context(self):
         return self._ssl_context
@@ -397,18 +379,15 @@ class TCPInfraService(_TCPServiceHost):
 
 
 class HTTPApplicationService(_HTTPServiceHost):
-    def get_routes(self):
-        raise NotImplementedError()
+    pass
 
 
 class HTTPDomainService(_HTTPServiceHost):
-    def get_routes(self):
-        raise NotImplementedError()
+    pass
 
 
 class HTTPInfraService(_HTTPServiceHost):
-    def get_routes(self):
-        raise NotImplementedError()
+    pass
 
 
 class HTTPServiceClient(_Service):
