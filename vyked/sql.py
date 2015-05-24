@@ -16,6 +16,10 @@ class SQLStore:
         cls._connection_params['port'] = port
 
     @classmethod
+    def use_pool(cls, pool):
+        cls._pool = pool
+
+    @classmethod
     @coroutine
     def get_pool(cls) -> Pool:
         if len(cls._connection_params) < 5:
