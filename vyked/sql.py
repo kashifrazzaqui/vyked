@@ -3,12 +3,18 @@ from functools import wraps
 
 from aiopg import create_pool, Pool, Cursor
 
-class SQLStore:
+
+class PostgresStore:
     _pool = None
     _connection_params = {}
+    _insert_string = "insert into {} {} values ({});"
+    _update_string = "update {} set {} = ({}) where {} = %s;"
 
     @classmethod
-    def connect(cls, database, user, password, host, port):
+    def connect(cls, database:str, user:str, password:str, host:str, port:int):
+        """
+        Sets connection parameters
+        """
         cls._connection_params['database'] = database
         cls._connection_params['user'] = user
         cls._connection_params['password'] = password
@@ -16,12 +22,19 @@ class SQLStore:
         cls._connection_params['port'] = port
 
     @classmethod
-    def use_pool(cls, pool):
+    def use_pool(cls, pool:Pool):
+        """
+        Sets an existing connection pool instead of using connect() to make one
+        """
         cls._pool = pool
 
     @classmethod
     @coroutine
     def get_pool(cls) -> Pool:
+        """
+        Yields:
+            existing db connection pool
+        """
         if len(cls._connection_params) < 5:
             raise ConnectionError('Please call SQLStore.connect before calling this method')
         if not cls._pool:
@@ -31,14 +44,67 @@ class SQLStore:
     @classmethod
     @coroutine
     def get_cursor(cls) -> Cursor:
+        """
+        Yields:
+            new client-side cursor from existing db connection pool
+        """
         pool = yield from cls.get_pool()
         cursor = yield from pool.cursor()
         return cursor
 
+    @classmethod
+    def make_insert_query(cls, table_name:str, values:dict):
+        """
+        Creates an insert statement with only chosen fields
+
+        Args:
+            table_name: a string indicating the name of the table
+            values: a dict of fields and values to be inserted
+
+        Returns:
+            query: a SQL string with
+            values: a tuple of values to replace placeholder(%s) tokens in query
+
+        """
+        keys = str(tuple(values.keys())).replace("'", "")
+        value_place_holder = ' %s,' * len(values)
+        query = cls._insert_string.format(table_name, keys, value_place_holder[:-1])
+        return query, tuple(values.values())
+
+    @classmethod
+    def make_update_query(cls, table_name:str, values:dict, where_key):
+        """
+        Creates an update query with only chosen fields
+        Supports only a single field where clause
+
+        Args:
+            table_name: a string indicating the name of the table
+            values: a dict of fields and values to be inserted
+            where_key: the 'where' clause field
+
+        Returns:
+            query: a SQL string with
+            values: a tuple of values to replace placeholder(%s) tokens in query - except the where clause value
+
+        """
+        keys = str(tuple(values.keys())).replace("'", "")
+        value_place_holder = ' %s,' * len(values)
+        query = cls._update_string.format(table_name, keys, value_place_holder[:-1], where_key)
+        return query, tuple(values.values())
+
 
 def cursor(func):
     """
-    decorator that provides a cursor from a pool and executes the function within its context manager
+    Decorator that provides a cursor to the calling function
+
+    Adds the cursor as the second argument to the calling functions
+
+    Requires that the function being decorated is an instance of a class or object
+    that yields a cursor from a get_cursor() coroutine or provides such an object
+    as the first argument in its signature
+
+    Yields:
+        A client-side cursor
     """
 
     @wraps(func)
