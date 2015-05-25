@@ -110,6 +110,6 @@ def cursor(func):
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
         with (yield from cls.get_cursor()) as c:
-            yield from func(cls, c, *args, **kwargs)
+            return (yield from func(cls, c, *args, **kwargs))
 
     return wrapper
