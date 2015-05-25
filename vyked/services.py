@@ -3,6 +3,7 @@ from functools import wraps
 
 from again.utils import unique_hex
 
+from .utils.ordered_class_member import OrderedClassMembers
 
 # Service Client decorators
 
@@ -356,7 +357,7 @@ class RequestException(Exception):
     pass
 
 
-class _HTTPServiceHost(_ServiceHost):
+class _HTTPServiceHost(_ServiceHost, metaclass=OrderedClassMembers):
     def __init__(self, service_name, service_version, host_ip, host_port, ssl_context=None):
         super(_HTTPServiceHost, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context

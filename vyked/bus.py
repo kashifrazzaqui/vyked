@@ -263,7 +263,7 @@ class Bus:
             host_ip, host_port = self._http_host.socket_address
             ssl_context = self._http_host.ssl_context
             app = Application(loop=self._loop)
-            for each in dir(self._http_host):
+            for each in self._http_host.__ordered__:
                 fn = getattr(self._http_host, each)
                 if callable(fn) and getattr(fn, 'is_http_method', False):
                     app.router.add_route(fn.method, fn.path, self.verify(fn))
