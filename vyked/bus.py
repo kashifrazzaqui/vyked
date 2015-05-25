@@ -266,7 +266,8 @@ class Bus:
             for each in self._http_host.__ordered__:
                 fn = getattr(self._http_host, each)
                 if callable(fn) and getattr(fn, 'is_http_method', False):
-                    app.router.add_route(fn.method, fn.path, self.verify(fn))
+                    for path in fn.paths:
+                        app.router.add_route(fn.method, path, self.verify(fn))
             handler = app.make_handler()
             http_coro = self._loop.create_server(handler, host_ip, host_port, ssl=ssl_context)
             return self._loop.run_until_complete(http_coro)

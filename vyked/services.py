@@ -34,7 +34,9 @@ def get_decorated_fun(method, path):
 
         f.is_http_method = True
         f.method = method
-        f.path = path
+        f.paths = path
+        if not isinstance(path, list):
+            f.paths = [path]
         return f
 
     return decorator
