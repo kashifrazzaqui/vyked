@@ -183,18 +183,20 @@ def api(func):  # incoming
         rid = kwargs.pop('request_id')
         entity = kwargs.pop('entity')
         from_id = kwargs.pop('from_id')
-        if len(kwargs):
-            if iscoroutinefunction(func):
-                result = yield from func(self, **kwargs)
+        wrapped_func = coroutine(func)
+        result = None
+        error = None
+        if not iscoroutinefunction(func):
+            wrapped_func = func
+        try:
+            if len(kwargs):
+                result = yield from wrapped_func(self, **kwargs)
             else:
-                result = func(self, **kwargs)
-        else:
-            if iscoroutinefunction(func):
-                result = yield from func()
-            else:
-                result = func()
+                result = yield from wrapped_func()
+        except BaseException as e:
+            error = str(e)
 
-        return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result)
+        return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result, error=error)
 
     wrapper.is_api = True
     return wrapper
@@ -338,12 +340,17 @@ class _TCPServiceHost(_ServiceHost):
         packet['entity'] = entity
         self._bus.send(packet)
 
-    def _make_response_packet(self, request_id: str, from_id: str, entity: str, result: object):
+    def _make_response_packet(self, request_id: str, from_id: str, entity: str, result: object, error: object):
+        if error:
+            payload = {'request_id': request_id, 'error': error}
+        else:
+            payload = {'request_id': request_id, 'result': result}
+
         packet = {'pid': unique_hex(),
                   'to': from_id,
                   'entity': entity,
                   'type': _Service._RES_PKT_STR,
-                  'payload': {'request_id': request_id, 'result': result}}
+                  'payload': payload}
         return packet
 
     def _make_publish_packet(self, packet_type: str, publication_name: str, payload: dict):

@@ -11,6 +11,10 @@ IDENTITY_HOST = '127.0.0.1'
 IDENTITY_PORT = 4501
 
 
+class UserException(BaseException):
+    pass
+
+
 class IdentityService(TCPApplicationService):
     def __init__(self, ip, port):
         super(IdentityService, self).__init__("IdentityService", 1, ip, port)
@@ -19,6 +23,8 @@ class IdentityService(TCPApplicationService):
     @coroutine
     def create(self, user_name, password):
         result = yield from self._create_user_name(user_name, password)
+        if user_name is None:
+            raise UserException('username cannot be none')
         return result
 
     @publish
