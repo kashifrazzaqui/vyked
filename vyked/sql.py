@@ -7,8 +7,8 @@ from aiopg import create_pool, Pool, Cursor
 class PostgresStore:
     _pool = None
     _connection_params = {}
-    _insert_string = "insert into {} {} values ({});"
-    _update_string = "update {} set {} = ({}) where {} = %s;"
+    _insert_string = "insert into {} ({}) values ({});"
+    _update_string = "update {} set ({}) = ({}) where {} = %s;"
 
     @classmethod
     def connect(cls, database:str, user:str, password:str, host:str, port:int):
@@ -66,7 +66,7 @@ class PostgresStore:
             values: a tuple of values to replace placeholder(%s) tokens in query
 
         """
-        keys = str(tuple(values.keys())).replace("'", "")
+        keys = ', '.join(values.keys())
         value_place_holder = ' %s,' * len(values)
         query = cls._insert_string.format(table_name, keys, value_place_holder[:-1])
         return query, tuple(values.values())
@@ -87,7 +87,7 @@ class PostgresStore:
             values: a tuple of values to replace placeholder(%s) tokens in query - except the where clause value
 
         """
-        keys = str(tuple(values.keys())).replace("'", "")
+        keys = ', '.join(values.keys())
         value_place_holder = ' %s,' * len(values)
         query = cls._update_string.format(table_name, keys, value_place_holder[:-1], where_key)
         return query, tuple(values.values())
