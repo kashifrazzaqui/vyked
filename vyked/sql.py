@@ -2,6 +2,7 @@ from asyncio import coroutine
 from functools import wraps
 
 from aiopg import create_pool, Pool, Cursor
+import psycopg2
 
 
 class PostgresStore:
@@ -43,14 +44,17 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    def get_cursor(cls) -> Cursor:
+    def get_cursor(cls, dict_cursor=False) -> Cursor:
         """
         Yields:
             new client-side cursor from existing db connection pool
         """
         pool = yield from cls.get_pool()
-        cursor = yield from pool.cursor()
-        return cursor
+        if dict_cursor:
+            cur = yield from pool.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        else:
+            cur = yield from pool.cursor()
+        return cur
 
     @classmethod
     def make_insert_query(cls, table_name:str, values:dict):
@@ -113,3 +117,27 @@ def cursor(func):
             return (yield from func(cls, c, *args, **kwargs))
 
     return wrapper
+
+
+def dict_cursor(func):
+
+    """
+    Decorator that provides a dictionary cursor to the calling function
+
+    Adds the cursor as the second argument to the calling functions
+
+    Requires that the function being decorated is an instance of a class or object
+    that yields a cursor from a get_cursor(dict_cursor=True) coroutine or provides such an object
+    as the first argument in its signature
+
+    Yields:
+        A client-side dictionary cursor
+    """
+
+    @wraps(func)
+    def wrapper(cls, *args, **kwargs):
+        with (yield from cls.get_cursor(dict_cursor=True)) as c:
+            return (yield from func(cls, c, *args, **kwargs))
+
+    return wrapper
+
