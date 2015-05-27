@@ -44,16 +44,13 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    def get_cursor(cls, dict_cursor=False) -> Cursor:
+    def get_cursor(cls, cursor_factory=None) -> Cursor:
         """
         Yields:
             new client-side cursor from existing db connection pool
         """
         pool = yield from cls.get_pool()
-        if dict_cursor:
-            cur = yield from pool.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        else:
-            cur = yield from pool.cursor()
+        cur = yield from pool.cursor(cursor_factory=cursor_factory)
         return cur
 
     @classmethod
@@ -127,7 +124,7 @@ def dict_cursor(func):
     Adds the cursor as the second argument to the calling functions
 
     Requires that the function being decorated is an instance of a class or object
-    that yields a cursor from a get_cursor(dict_cursor=True) coroutine or provides such an object
+    that yields a cursor from a get_cursor coroutine or provides such an object
     as the first argument in its signature
 
     Yields:
@@ -136,8 +133,29 @@ def dict_cursor(func):
 
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor(dict_cursor=True)) as c:
+        with (yield from cls.get_cursor(cursor_factory=psycopg2.extras.DictCursor)) as c:
             return (yield from func(cls, c, *args, **kwargs))
 
     return wrapper
 
+
+def named_tuple_cursor(func):
+    """
+    Decorator that provides a named tuple cursor to the calling function
+
+    Adds the cursor as the second argument to the calling functions
+
+    Requires that the function being decorated is an instance of a class or object
+    that yields a cursor from a get_cursor coroutine or provides such an object
+    as the first argument in its signature
+
+    Yields:
+        A client-side named tuple cursor
+    """
+
+    @wraps(func)
+    def wrapper(cls, *args, **kwargs):
+        with (yield from cls.get_cursor(cursor_factory=psycopg2.extras.NamedTupleCursor)) as c:
+            return (yield from func(cls, c, *args, **kwargs))
+
+    return wrapper
