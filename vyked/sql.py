@@ -120,8 +120,8 @@ class PostgresStore:
     @classmethod
     def make_delete_query(cls, table_name: str, where_keys: list):
         """
-        Creates a select all query with where keys
-        Supports multiple where claus with and or or both
+        Creates a delete query with where keys
+        Supports multiple where clause with and or or both
 
         Args:
             table_name: a string indicating the name of the table
