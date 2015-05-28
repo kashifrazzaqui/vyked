@@ -10,6 +10,10 @@ class PostgresStore:
     _connection_params = {}
     _insert_string = "insert into {} ({}) values ({});"
     _update_string = "update {} set ({}) = ({}) where {} = %s;"
+    _select_all_string = "select * from {} where ({})"
+    _select_selective_column = "select {} from {} where ({})"
+    _delete_query = "delete from {} where ({})"
+
 
     @classmethod
     def connect(cls, database:str, user:str, password:str, host:str, port:int):
@@ -96,6 +100,95 @@ class PostgresStore:
         query = cls._update_string.format(table_name, keys, value_place_holder[:-1], where_key)
         return query, tuple(values.values())
 
+    @classmethod
+    def _get_where_clause_with_values(cls, where_keys):
+        vals = []
+        where_clause = ""
+
+        for i, v in enumerate(where_keys):
+            s = "("
+            for k, key in enumerate(v.items()):
+                if k != 0:
+                    s += " and "
+                s += " " + key[0]
+                s += "=%s"
+                vals.append(v[key[0]])
+
+            s += ")"
+
+            if i != 0:
+                where_clause += " or "
+            where_clause += s
+        return where_clause, tuple(vals)
+
+    @classmethod
+    def make_delete_query(cls, table_name: str, where_keys: list):
+        """
+        Creates a select all query with where keys
+        Supports multiple where claus with and or or both
+
+        Args:
+            table_name: a string indicating the name of the table
+            where_keys: list of dictionary
+            example : [{'name':'cip','url':'cip.com'},{'type':'manufacturer'}]
+            where_clause will look like ((name=%s and url=%s) or (type=%s))
+            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
+
+        Returns:
+            query: a SQL string with
+            values: a tuple of values to replace placeholder(%s)
+
+        """
+        where_clause, values = cls._get_where_clause_with_values(where_keys)
+        query = cls._delete_query.format(table_name, where_clause)
+        return query, values
+
+    @classmethod
+    def make_select_selective_column_query(cls, table_name: str, columns: list, where_keys: list):
+        """
+        Creates a select query for selective columns with where keys
+        Supports multiple where claus with and or or both
+
+        Args:
+            table_name: a string indicating the name of the table
+            columns: list of columns to select from
+            where_keys: list of dictionary
+            example of where keys: [{'name':'cip','url':'cip.com'},{'type':'manufacturer'}]
+            where_clause will look like ((name=%s and url=%s) or (type=%s))
+            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
+
+        Returns:
+            query: a SQL string with
+            values: a tuple of values to replace placeholder(%s)
+
+        """
+        columns_string = ", ".join(columns)
+        where_clause, values = cls._get_where_clause_with_values(where_keys)
+        query = cls._select_selective_column.format(columns_string, table_name, where_clause)
+        return query, values
+
+    @classmethod
+    def make_select_all_query(cls, table_name: str, where_keys: list):
+        """
+        Creates a select all query with where keys
+        Supports multiple where claus with and or or both
+
+        Args:
+            table_name: a string indicating the name of the table
+            where_keys: list of dictionary
+            example : [{'name':'cip','url':'cip.com'},{'type':'manufacturer'}]
+            where_clause will look like ((name=%s and url=%s) or (type=%s))
+            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
+
+        Returns:
+            query: a SQL string with
+            values: a tuple of values to replace placeholder(%s)
+
+        """
+        where_clause, values = cls._get_where_clause_with_values(where_keys)
+        query = cls._select_all_string.format(table_name, where_clause)
+        return query, values
+
 
 def cursor(func):
     """
@@ -120,7 +213,6 @@ def cursor(func):
 
 
 def dict_cursor(func):
-
     """
     Decorator that provides a dictionary cursor to the calling function
 
