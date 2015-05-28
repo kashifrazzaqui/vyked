@@ -13,7 +13,11 @@ class PostgresStore:
     _connection_params = {}
     _insert_string = "insert into {} ({}) values ({});"
     _update_string = "update {} set ({}) = ({}) where {} = %s;"
-    _select_all_string = "select * from {} order by {} limit {} offset {} "
+    _select_all_string_with_condition = "select * from {} where ({}) limit {} offset %s order by {}"
+    _select_all_string = "select * from {} limit {} offset {} order by {}"
+    _select_selective_column = "select {} from {} limit {} offset {} order by {}"
+    _select_selective_column_with_condition = "select {} from {} where ({}) limit {} offset {} order by {}"
+    _delete_query = "delete from {} where ({})"
 
     @classmethod
     def connect(cls, database:str, user:str, password:str, host:str, port:int):
@@ -102,10 +106,77 @@ class PostgresStore:
         query = cls._update_string.format(table, keys, value_place_holder[:-1], where_key)
         return query, tuple(values.values())
 
+    @classmethod
+    def _get_where_clause_with_values(cls, where_keys):
+        vals = []
+
+        def make_and_query(ele: dict):
+            and_query = ' and '.join(['{} = %s'.format(e) for e in ele.keys()])
+            vals.extend(ele.values())
+            return '(' + and_query + ')'
+
+        return ' or '.join(map(make_and_query, where_keys)), tuple(vals)
 
     @classmethod
-    def make_select_all_query(cls, table:str, order_by: str, limit=100, offset=0):
-        return cls._select_all_string.format(table, order_by, limit, offset)
+    def make_delete_query(cls, table_name: str, where_keys: list):
+        """
+        Creates a select all query with where keys
+        Supports multiple where claus with and or or both
+
+        Args:
+            table_name: a string indicating the name of the table
+            where_keys: list of dictionary
+            example : [{'name':'cip','url':'cip.com'},{'type':'manufacturer'}]
+            where_clause will look like ((name=%s and url=%s) or (type=%s))
+            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
+
+        Returns:
+            query: a SQL string with
+            values: a tuple of values to replace placeholder(%s)
+
+        """
+        where_clause, values = cls._get_where_clause_with_values(where_keys)
+        query = cls._delete_query.format(table_name, where_clause)
+        return query, values
+
+    @classmethod
+    def make_select_query(cls, table_name: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
+                          offset=0):
+        """
+        Creates a select query for selective columns with where keys
+        Supports multiple where claus with and or or both
+
+        Args:
+            table_name: a string indicating the name of the table
+            columns: list of columns to select from
+            where_keys: list of dictionary
+            example of where keys: [{'name':'cip','url':'cip.com'},{'type':'manufacturer'}]
+            where_clause will look like ((name=%s and url=%s) or (type=%s))
+            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
+
+        Returns:
+            query: a SQL string with
+            values: a tuple of values to replace placeholder(%s)
+
+        """
+        if columns is not None:
+            columns_string = ", ".join(columns)
+            if where_keys is not None:
+                where_clause, values = cls._get_where_clause_with_values(where_keys)
+                query = cls._select_selective_column_with_condition.format(columns_string, table_name, where_clause,
+                                                                           limit, offset, order_by)
+                return query, values
+            else:
+                query = cls._select_selective_column.format(columns_string, table_name, limit, offset, order_by)
+                return query, ()
+        else:
+            if where_keys is not None:
+                where_clause, values = cls._get_where_clause_with_values(where_keys)
+                query = cls._select_all_string_with_condition.format(table_name, where_clause, limit, offset, order_by)
+                return query, ()
+            else:
+                query = cls._select_all_string.format(table_name, limit, offset, order_by)
+                return query, ()
 
 
 def cursor(func):
@@ -131,7 +202,6 @@ def cursor(func):
 
 
 def dict_cursor(func):
-
     """
     Decorator that provides a dictionary cursor to the calling function
 
@@ -154,7 +224,6 @@ def dict_cursor(func):
 
 
 def nt_cursor(func):
-
     """
     Decorator that provides a namedtuple cursor to the calling function
 
