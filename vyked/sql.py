@@ -1,8 +1,11 @@
 from asyncio import coroutine
 from functools import wraps
+from enum import Enum
 
 from aiopg import create_pool, Pool, Cursor
 import psycopg2
+
+_CursorType = Enum('CursorType', 'PLAIN, DICT, NAMEDTUPLE')
 
 
 class PostgresStore:
@@ -10,6 +13,7 @@ class PostgresStore:
     _connection_params = {}
     _insert_string = "insert into {} ({}) values ({});"
     _update_string = "update {} set ({}) = ({}) where {} = %s;"
+    _select_all_string = "select * from {} order by {} limit {} offset {} "
 
     @classmethod
     def connect(cls, database:str, user:str, password:str, host:str, port:int):
@@ -44,22 +48,27 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    def get_cursor(cls, cursor_factory=None) -> Cursor:
+    def get_cursor(cls, cursor_type=_CursorType.PLAIN) -> Cursor:
         """
         Yields:
             new client-side cursor from existing db connection pool
         """
         pool = yield from cls.get_pool()
-        cur = yield from pool.cursor(cursor_factory=cursor_factory)
-        return cur
+        if cursor_type == _CursorType.PLAIN:
+            c = yield from pool.cursor()
+            return c
+        if cursor_type == _CursorType.NAMEDTUPLE:
+            return (yield from pool.cursor(cursor_factory=psycopg2.extras.NamedTupleCursor))
+        if cursor_type == _CursorType.DICT:
+            return (yield from pool.cursor(cursor_factory=psycopg2.extras.DictCursor))
 
     @classmethod
-    def make_insert_query(cls, table_name:str, values:dict):
+    def make_insert_query(cls, table:str, values:dict):
         """
         Creates an insert statement with only chosen fields
 
         Args:
-            table_name: a string indicating the name of the table
+            table: a string indicating the name of the table
             values: a dict of fields and values to be inserted
 
         Returns:
@@ -69,17 +78,17 @@ class PostgresStore:
         """
         keys = ', '.join(values.keys())
         value_place_holder = ' %s,' * len(values)
-        query = cls._insert_string.format(table_name, keys, value_place_holder[:-1])
+        query = cls._insert_string.format(table, keys, value_place_holder[:-1])
         return query, tuple(values.values())
 
     @classmethod
-    def make_update_query(cls, table_name:str, values:dict, where_key):
+    def make_update_query(cls, table:str, values:dict, where_key:str):
         """
         Creates an update query with only chosen fields
         Supports only a single field where clause
 
         Args:
-            table_name: a string indicating the name of the table
+            table: a string indicating the name of the table
             values: a dict of fields and values to be inserted
             where_key: the 'where' clause field
 
@@ -90,8 +99,13 @@ class PostgresStore:
         """
         keys = ', '.join(values.keys())
         value_place_holder = ' %s,' * len(values)
-        query = cls._update_string.format(table_name, keys, value_place_holder[:-1], where_key)
+        query = cls._update_string.format(table, keys, value_place_holder[:-1], where_key)
         return query, tuple(values.values())
+
+
+    @classmethod
+    def make_select_all_query(cls, table:str, order_by: str, limit=100, offset=0):
+        return cls._select_all_string.format(table, order_by, limit, offset)
 
 
 def cursor(func):
@@ -124,7 +138,7 @@ def dict_cursor(func):
     Adds the cursor as the second argument to the calling functions
 
     Requires that the function being decorated is an instance of a class or object
-    that yields a cursor from a get_cursor coroutine or provides such an object
+    that yields a cursor from a get_cursor(cursor_type=CursorType.DICT) coroutine or provides such an object
     as the first argument in its signature
 
     Yields:
@@ -133,29 +147,30 @@ def dict_cursor(func):
 
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor(cursor_factory=psycopg2.extras.DictCursor)) as c:
+        with (yield from cls.get_cursor(_CursorType.DICT)) as c:
             return (yield from func(cls, c, *args, **kwargs))
 
     return wrapper
 
 
-def named_tuple_cursor(func):
+def nt_cursor(func):
+
     """
-    Decorator that provides a named tuple cursor to the calling function
+    Decorator that provides a namedtuple cursor to the calling function
 
     Adds the cursor as the second argument to the calling functions
 
     Requires that the function being decorated is an instance of a class or object
-    that yields a cursor from a get_cursor coroutine or provides such an object
+    that yields a cursor from a get_cursor(cursor_type=CursorType.NAMEDTUPLE) coroutine or provides such an object
     as the first argument in its signature
 
     Yields:
-        A client-side named tuple cursor
+        A client-side namedtuple cursor
     """
 
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor(cursor_factory=psycopg2.extras.NamedTupleCursor)) as c:
+        with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE)) as c:
             return (yield from func(cls, c, *args, **kwargs))
 
     return wrapper
