@@ -111,8 +111,8 @@ class PostgresStore:
         vals = []
 
         def make_and_query(ele: dict):
-            and_query = ' and '.join(['{} = %s'.format(e) for e in ele.keys()])
-            vals.extend(ele.values())
+            and_query = ' and '.join(['{} {} %s'.format(e[0], e[1][0]) for e in ele.items()])
+            vals.extend([val[1] for val in ele.values()])
             return '(' + and_query + ')'
 
         return ' or '.join(map(make_and_query, where_keys)), tuple(vals)
