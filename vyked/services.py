@@ -1,7 +1,9 @@
 from asyncio import Future, get_event_loop, coroutine, iscoroutinefunction
 from functools import wraps
+import json
 
 from again.utils import unique_hex
+from aiohttp.web import Response
 
 from .utils.ordered_class_member import OrderedClassMembers
 
@@ -20,13 +22,22 @@ def make_request(func, self, args, kwargs, method):
     return response
 
 
-def get_decorated_fun(method, path):
+def get_decorated_fun(method, path, required_params):
     def decorator(func):
         @wraps(func)
         def f(self, *args, **kwargs):
             if isinstance(self, HTTPServiceClient):
                 return make_request(func, self, args, kwargs, method)
             elif isinstance(self, HTTPApplicationService):
+                if required_params is not None:
+                    req = args[0]
+                    query_params = req.GET
+                    params = required_params
+                    if not isinstance(required_params, list):
+                        params = [required_params]
+                    if any(map(lambda x: x not in query_params, params)):
+                        return Response(status=400, content_type='application/json',
+                                        body=json.dumps({'error': 'Required params not found'}).encode())
                 wrapped_func = func
                 if not iscoroutinefunction(func):
                     wrapped_func = coroutine(func)
@@ -42,36 +53,36 @@ def get_decorated_fun(method, path):
     return decorator
 
 
-def get(path=None):
-    return get_decorated_fun('get', path)
+def get(path=None, required_params=None):
+    return get_decorated_fun('get', path, required_params)
 
 
-def head(path=None):
-    return get_decorated_fun('head', path)
+def head(path=None, required_params=None):
+    return get_decorated_fun('head', path, required_params)
 
 
-def options(path=None):
-    return get_decorated_fun('options', path)
+def options(path=None, required_params=None):
+    return get_decorated_fun('options', path, required_params)
 
 
-def patch(path=None):
-    return get_decorated_fun('patch', path)
+def patch(path=None, required_params=None):
+    return get_decorated_fun('patch', path, required_params)
 
 
-def post(path=None):
-    return get_decorated_fun('post', path)
+def post(path=None, required_params=None):
+    return get_decorated_fun('post', path, required_params)
 
 
-def put(path=None):
-    return get_decorated_fun('put', path)
+def put(path=None, required_params=None):
+    return get_decorated_fun('put', path, required_params)
 
 
-def trace(path=None):
-    return get_decorated_fun('put', path)
+def trace(path=None, required_params=None):
+    return get_decorated_fun('put', path, required_params)
 
 
-def delete(path=None):
-    return get_decorated_fun('delete', path)
+def delete(path=None, required_params=None):
+    return get_decorated_fun('delete', path, required_params)
 
 
 def subscribe(func):
