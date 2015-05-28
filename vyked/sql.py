@@ -181,6 +181,22 @@ class PostgresStore:
                 query = cls._select_all_string.format(table_name, limit, offset, order_by)
                 return query, ()
 
+def page(func):
+    @wraps(func)
+    def wrapper(cls, *args, **kwargs):
+        if 'offset' not in kwargs:
+            kwargs['offset'] = 0
+        limit = kwargs.get('limit', 100)
+
+        with (yield from cls.get_cursor()) as c:
+            while c.rowcount == -1 or c.rowcount == limit:
+                query, values = func(cls, *args, **kwargs)
+                yield from c.execute(query, values)
+                yield (yield from c.fetchall()) #TODO: also return total_count
+                kwargs['offset'] += limit
+    return wrapper
+
+
 
 def cursor(func):
     """
@@ -202,6 +218,7 @@ def cursor(func):
             return (yield from func(cls, c, *args, **kwargs))
 
     return wrapper
+
 
 
 def dict_cursor(func):
