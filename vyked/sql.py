@@ -13,7 +13,7 @@ class PostgresStore:
     _connection_params = {}
     _insert_string = "insert into {} ({}) values ({});"
     _update_string = "update {} set ({}) = ({}) where {} = %s;"
-    _select_all_string_with_condition = "select * from {} where ({}) limit {} offset %s order by {}"
+    _select_all_string_with_condition = "select * from {} where ({}) limit {} offset {} order by {}"
     _select_all_string = "select * from {} limit {} offset {} order by {}"
     _select_selective_column = "select {} from {} limit {} offset {} order by {}"
     _select_selective_column_with_condition = "select {} from {} where ({}) limit {} offset {} order by {}"
