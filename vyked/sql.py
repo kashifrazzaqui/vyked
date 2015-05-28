@@ -176,7 +176,7 @@ class PostgresStore:
             if where_keys is not None:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
                 query = cls._select_all_string_with_condition.format(table_name, where_clause, limit, offset, order_by)
-                return query, ()
+                return query, values
             else:
                 query = cls._select_all_string.format(table_name, limit, offset, order_by)
                 return query, ()
