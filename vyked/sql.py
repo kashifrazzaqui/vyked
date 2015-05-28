@@ -19,7 +19,6 @@ class PostgresStore:
     _select_selective_column_with_condition = "select {} from {} where ({}) limit {} offset {} order by {}"
     _delete_query = "delete from {} where ({})"
 
-
     @classmethod
     def connect(cls, database:str, user:str, password:str, host:str, port:int):
         """
@@ -31,14 +30,12 @@ class PostgresStore:
         cls._connection_params['host'] = host
         cls._connection_params['port'] = port
 
-
     @classmethod
     def use_pool(cls, pool:Pool):
         """
         Sets an existing connection pool instead of using connect() to make one
         """
         cls._pool = pool
-
 
     @classmethod
     @coroutine
@@ -52,7 +49,6 @@ class PostgresStore:
         if not cls._pool:
             cls._pool = yield from create_pool(**cls._connection_params)
         return cls._pool
-
 
     @classmethod
     @coroutine
@@ -69,7 +65,6 @@ class PostgresStore:
             return (yield from pool.cursor(cursor_factory=psycopg2.extras.NamedTupleCursor))
         if cursor_type == _CursorType.DICT:
             return (yield from pool.cursor(cursor_factory=psycopg2.extras.DictCursor))
-
 
     @classmethod
     def make_insert_query(cls, table:str, values:dict):
@@ -89,7 +84,6 @@ class PostgresStore:
         value_place_holder = ' %s,' * len(values)
         query = cls._insert_string.format(table, keys, value_place_holder[:-1])
         return query, tuple(values.values())
-
 
     @classmethod
     def make_update_query(cls, table:str, values:dict, where_key:str):
@@ -112,7 +106,6 @@ class PostgresStore:
         query = cls._update_string.format(table, keys, value_place_holder[:-1], where_key)
         return query, tuple(values.values())
 
-
     @classmethod
     def _get_where_clause_with_values(cls, where_keys):
         vals = []
@@ -123,7 +116,6 @@ class PostgresStore:
             return '(' + and_query + ')'
 
         return ' or '.join(map(make_and_query, where_keys)), tuple(vals)
-
 
     @classmethod
     def make_delete_query(cls, table_name: str, where_keys: list):
@@ -146,7 +138,6 @@ class PostgresStore:
         where_clause, values = cls._get_where_clause_with_values(where_keys)
         query = cls._delete_query.format(table_name, where_clause)
         return query, values
-
 
     @classmethod
     def make_select_query(cls, table_name: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
