@@ -13,10 +13,10 @@ class PostgresStore:
     _connection_params = {}
     _insert_string = "insert into {} ({}) values ({});"
     _update_string = "update {} set ({}) = ({}) where {} = %s;"
-    _select_all_string_with_condition = "select * from {} where ({}) limit {} offset {} order by {}"
-    _select_all_string = "select * from {} limit {} offset {} order by {}"
-    _select_selective_column = "select {} from {} limit {} offset {} order by {}"
-    _select_selective_column_with_condition = "select {} from {} where ({}) limit {} offset {} order by {}"
+    _select_all_string_with_condition = "select * from {} where ({}) order by {} limit {} offset {} "
+    _select_all_string = "select * from {} order by {} limit {} offset {} "
+    _select_selective_column = "select {} from {} order by {} limit {} offset {} "
+    _select_selective_column_with_condition = "select {} from {} where ({}) order by {} limit {} offset {}"
     _delete_query = "delete from {} where ({})"
 
     @classmethod
@@ -167,18 +167,18 @@ class PostgresStore:
             if where_keys is not None:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
                 query = cls._select_selective_column_with_condition.format(columns_string, table_name, where_clause,
-                                                                           limit, offset, order_by)
+                                                                           order_by, limit, offset)
                 return query, values
             else:
-                query = cls._select_selective_column.format(columns_string, table_name, limit, offset, order_by)
+                query = cls._select_selective_column.format(columns_string, table_name, order_by, limit, offset)
                 return query, ()
         else:
             if where_keys is not None:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
-                query = cls._select_all_string_with_condition.format(table_name, where_clause, limit, offset, order_by)
+                query = cls._select_all_string_with_condition.format(table_name, where_clause, order_by, limit, offset)
                 return query, values
             else:
-                query = cls._select_all_string.format(table_name, limit, offset, order_by)
+                query = cls._select_all_string.format(table_name, order_by, limit, offset)
                 return query, ()
 
 
