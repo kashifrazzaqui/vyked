@@ -11,7 +11,7 @@ _CursorType = Enum('CursorType', 'PLAIN, DICT, NAMEDTUPLE')
 class PostgresStore:
     _pool = None
     _connection_params = {}
-    _insert_string = "insert into {} ({}) values ({});"
+    _insert_string = "insert into {} ({}) values ({}) returning *"
     _update_string = "update {} set ({}) = ({}) where {} = %s;"
     _select_all_string_with_condition = "select * from {} where ({}) order by {} limit {} offset {} "
     _select_all_string = "select * from {} order by {} limit {} offset {} "
