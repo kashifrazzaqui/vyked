@@ -11,12 +11,12 @@ _CursorType = Enum('CursorType', 'PLAIN, DICT, NAMEDTUPLE')
 class PostgresStore:
     _pool = None
     _connection_params = {}
-    _insert_string = "insert into {} ({}) values ({}) returning *"
+    _insert_string = "insert into {} ({}) values ({}) returning *;"
     _update_string = "update {} set ({}) = ({}) where {} = %s;"
-    _select_all_string_with_condition = "select * from {} where ({}) order by {} limit {} offset {} "
-    _select_all_string = "select * from {} order by {} limit {} offset {} "
-    _select_selective_column = "select {} from {} order by {} limit {} offset {} "
-    _select_selective_column_with_condition = "select {} from {} where ({}) order by {} limit {} offset {}"
+    _select_all_string_with_condition = "select * from {} where ({}) order by {} limit {} offset {};"
+    _select_all_string = "select * from {} order by {} limit {} offset {};"
+    _select_selective_column = "select {} from {} order by {} limit {} offset {};"
+    _select_selective_column_with_condition = "select {} from {} where ({}) order by {} limit {} offset {};"
     _delete_query = "delete from {} where ({})"
 
     @classmethod
