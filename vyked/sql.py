@@ -66,9 +66,8 @@ class PostgresStore:
         if cursor_type == _CursorType.DICT:
             return (yield from pool.cursor(cursor_factory=psycopg2.extras.DictCursor))
 
-
     @classmethod
-    @dict_cursor
+    @nt_cursor
     def make_insert_query(cls, cur, table: str, values: dict):
         """
         Creates an insert statement with only chosen fields
@@ -116,7 +115,6 @@ class PostgresStore:
         yield from cur.execute(query, (tuple(values.values()) + where_values))
         return cur.rowcount
 
-
     @classmethod
     def _get_where_clause_with_values(cls, where_keys):
         vals = []
@@ -152,9 +150,8 @@ class PostgresStore:
         yield from cur.execute(query, values)
         return cur.rowcount
 
-
     @classmethod
-    @dict_cursor
+    @nt_cursor
     def make_select_query(cls, cur, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
                           offset=0):
         """
@@ -177,7 +174,6 @@ class PostgresStore:
             values: a tuple of values to replace placeholder(%s)
 
         """
-        q, t = None, None
         if columns is not None:
             columns_string = ", ".join(columns)
             if where_keys is not None:
@@ -201,21 +197,27 @@ class PostgresStore:
         rows = yield from cur.fetchall()
         return rows
 
-def page(func):
+
+def dict_cursor(func):
+    """
+    Decorator that provides a dictionary cursor to the calling function
+
+    Adds the cursor as the second argument to the calling functions
+
+    Requires that the function being decorated is an instance of a class or object
+    that yields a cursor from a get_cursor(cursor_type=CursorType.DICT) coroutine or provides such an object
+    as the first argument in its signature
+
+    Yields:
+        A client-side dictionary cursor
+    """
+
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
-        if 'offset' not in kwargs:
-            kwargs['offset'] = 0
-        limit = kwargs.get('limit', 100)
+        with (yield from cls.get_cursor(_CursorType.DICT)) as c:
+            return (yield from func(cls, c, *args, **kwargs))
 
-        with (yield from cls.get_cursor()) as c:
-            while c.rowcount == -1 or c.rowcount == limit:
-                query, values = func(cls, *args, **kwargs)
-                yield from c.execute(query, values)
-                yield (yield from c.fetchall()) #TODO: also return total_count
-                kwargs['offset'] += limit
     return wrapper
-
 
 
 def cursor(func):
@@ -235,29 +237,6 @@ def cursor(func):
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
         with (yield from cls.get_cursor()) as c:
-            return (yield from func(cls, c, *args, **kwargs))
-
-    return wrapper
-
-
-
-def dict_cursor(func):
-    """
-    Decorator that provides a dictionary cursor to the calling function
-
-    Adds the cursor as the second argument to the calling functions
-
-    Requires that the function being decorated is an instance of a class or object
-    that yields a cursor from a get_cursor(cursor_type=CursorType.DICT) coroutine or provides such an object
-    as the first argument in its signature
-
-    Yields:
-        A client-side dictionary cursor
-    """
-
-    @wraps(func)
-    def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor(_CursorType.DICT)) as c:
             return (yield from func(cls, c, *args, **kwargs))
 
     return wrapper
