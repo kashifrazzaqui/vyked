@@ -12,7 +12,7 @@ class PostgresStore:
     _pool = None
     _connection_params = {}
     _insert_string = "insert into {} ({}) values ({});"
-    _update_string = "update {} set ({}) = ({}) where {} = %s;"
+    _update_string = "update {} set ({}) = ({}) where {};"
     _select_all_string_with_condition = "select * from {} where ({}) order by {} limit {} offset {} "
     _select_all_string = "select * from {} order by {} limit {} offset {} "
     _select_selective_column = "select {} from {} order by {} limit {} offset {} "
@@ -86,7 +86,7 @@ class PostgresStore:
         return query, tuple(values.values())
 
     @classmethod
-    def make_update_query(cls, table:str, values:dict, where_key:str):
+    def make_update_query(cls, table: str, values: dict, where_keys: list) -> tuple:
         """
         Creates an update query with only chosen fields
         Supports only a single field where clause
@@ -94,7 +94,10 @@ class PostgresStore:
         Args:
             table: a string indicating the name of the table
             values: a dict of fields and values to be inserted
-            where_key: the 'where' clause field
+            where_keys: list of dictionary
+            example : [{'name':'cip','url':'cip.com'},{'type':'manufacturer'}]
+            where_clause will look like ((name=%s and url=%s) or (type=%s))
+            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
 
         Returns:
             query: a SQL string with
@@ -103,8 +106,9 @@ class PostgresStore:
         """
         keys = ', '.join(values.keys())
         value_place_holder = ' %s,' * len(values)
-        query = cls._update_string.format(table, keys, value_place_holder[:-1], where_key)
-        return query, tuple(values.values())
+        where_clause, where_values = cls._get_where_clause_with_values(where_keys)
+        query = cls._update_string.format(table, keys, value_place_holder[:-1], where_clause)
+        return query, (tuple(values.values()) + where_values)
 
     @classmethod
     def _get_where_clause_with_values(cls, where_keys):
