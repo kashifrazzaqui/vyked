@@ -8,6 +8,99 @@ import psycopg2
 _CursorType = Enum('CursorType', 'PLAIN, DICT, NAMEDTUPLE')
 
 
+def dict_cursor(func):
+    """
+    Decorator that provides a dictionary cursor to the calling function
+
+    Adds the cursor as the second argument to the calling functions
+
+    Requires that the function being decorated is an instance of a class or object
+    that yields a cursor from a get_cursor(cursor_type=CursorType.DICT) coroutine or provides such an object
+    as the first argument in its signature
+
+    Yields:
+        A client-side dictionary cursor
+    """
+
+    @wraps(func)
+    def wrapper(cls, *args, **kwargs):
+        with (yield from cls.get_cursor(_CursorType.DICT)) as c:
+            return (yield from func(cls, c, *args, **kwargs))
+
+    return wrapper
+
+
+def cursor(func):
+    """
+    Decorator that provides a cursor to the calling function
+
+    Adds the cursor as the second argument to the calling functions
+
+    Requires that the function being decorated is an instance of a class or object
+    that yields a cursor from a get_cursor() coroutine or provides such an object
+    as the first argument in its signature
+
+    Yields:
+        A client-side cursor
+    """
+
+    @wraps(func)
+    def wrapper(cls, *args, **kwargs):
+        with (yield from cls.get_cursor()) as c:
+            return (yield from func(cls, c, *args, **kwargs))
+
+    return wrapper
+
+
+def nt_cursor(func):
+    """
+    Decorator that provides a namedtuple cursor to the calling function
+
+    Adds the cursor as the second argument to the calling functions
+
+    Requires that the function being decorated is an instance of a class or object
+    that yields a cursor from a get_cursor(cursor_type=CursorType.NAMEDTUPLE) coroutine or provides such an object
+    as the first argument in its signature
+
+    Yields:
+        A client-side namedtuple cursor
+    """
+
+    @wraps(func)
+    def wrapper(cls, *args, **kwargs):
+        with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE)) as c:
+            return (yield from func(cls, c, *args, **kwargs))
+
+    return wrapper
+
+
+def transaction(func):
+    """
+    Provides a transacted cursor which will run in autocommit=false mode
+
+    For any exception the transaction will be rolled back.
+    Requires that the function being decorated is an instance of a class or object
+    that yields a cursor from a get_cursor(cursor_type=CursorType.NAMEDTUPLE) coroutine or provides such an object
+    as the first argument in its signature
+
+    Yields:
+        A client-side transacted named cursor
+    """
+
+    @wraps(func)
+    def wrapper(cls, *args, **kwargs):
+        with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE)) as c:
+            try:
+                yield from c.execute('BEGIN')
+                return (yield from func(cls, c, *args, **kwargs))
+            except Exception:
+                yield from c.execute('ROLLBACK')
+            else:
+                yield from cur.execute('COMMIT')
+
+    return wrapper
+
+
 class PostgresStore:
     _pool = None
     _connection_params = {}
@@ -196,96 +289,3 @@ class PostgresStore:
         yield from cur.execute(q, t)
         rows = yield from cur.fetchall()
         return rows
-
-
-def dict_cursor(func):
-    """
-    Decorator that provides a dictionary cursor to the calling function
-
-    Adds the cursor as the second argument to the calling functions
-
-    Requires that the function being decorated is an instance of a class or object
-    that yields a cursor from a get_cursor(cursor_type=CursorType.DICT) coroutine or provides such an object
-    as the first argument in its signature
-
-    Yields:
-        A client-side dictionary cursor
-    """
-
-    @wraps(func)
-    def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor(_CursorType.DICT)) as c:
-            return (yield from func(cls, c, *args, **kwargs))
-
-    return wrapper
-
-
-def cursor(func):
-    """
-    Decorator that provides a cursor to the calling function
-
-    Adds the cursor as the second argument to the calling functions
-
-    Requires that the function being decorated is an instance of a class or object
-    that yields a cursor from a get_cursor() coroutine or provides such an object
-    as the first argument in its signature
-
-    Yields:
-        A client-side cursor
-    """
-
-    @wraps(func)
-    def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor()) as c:
-            return (yield from func(cls, c, *args, **kwargs))
-
-    return wrapper
-
-
-def nt_cursor(func):
-    """
-    Decorator that provides a namedtuple cursor to the calling function
-
-    Adds the cursor as the second argument to the calling functions
-
-    Requires that the function being decorated is an instance of a class or object
-    that yields a cursor from a get_cursor(cursor_type=CursorType.NAMEDTUPLE) coroutine or provides such an object
-    as the first argument in its signature
-
-    Yields:
-        A client-side namedtuple cursor
-    """
-
-    @wraps(func)
-    def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE)) as c:
-            return (yield from func(cls, c, *args, **kwargs))
-
-    return wrapper
-
-
-def transaction(func):
-    """
-    Provides a transacted cursor which will run in autocommit=false mode
-
-    For any exception the transaction will be rolled back.
-    Requires that the function being decorated is an instance of a class or object
-    that yields a cursor from a get_cursor(cursor_type=CursorType.NAMEDTUPLE) coroutine or provides such an object
-    as the first argument in its signature
-
-    Yields:
-        A client-side transacted named cursor
-    """
-
-    @wraps(func)
-    def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE)) as c:
-            try:
-                yield from c.execute('BEGIN')
-                return (yield from func(cls, c, *args, **kwargs))
-            except Exception:
-                yield from c.execute('ROLLBACK')
-            else:
-                yield from cur.execute('COMMIT')
-
-    return wrapper
