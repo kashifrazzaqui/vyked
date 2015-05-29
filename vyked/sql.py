@@ -66,8 +66,10 @@ class PostgresStore:
         if cursor_type == _CursorType.DICT:
             return (yield from pool.cursor(cursor_factory=psycopg2.extras.DictCursor))
 
+
     @classmethod
-    def make_insert_query(cls, table:str, values:dict):
+    @dict_cursor
+    def make_insert_query(cls, cur, table: str, values: dict):
         """
         Creates an insert statement with only chosen fields
 
@@ -83,10 +85,13 @@ class PostgresStore:
         keys = ', '.join(values.keys())
         value_place_holder = ' %s,' * len(values)
         query = cls._insert_string.format(table, keys, value_place_holder[:-1])
-        return query, tuple(values.values())
+        yield from cur.execute(query, tuple(values.values()))
+        row = yield from cur.fetchone()
+        return row
 
     @classmethod
-    def make_update_query(cls, table: str, values: dict, where_keys: list) -> tuple:
+    @cursor
+    def make_update_query(cls, cur, table: str, values: dict, where_keys: list) -> tuple:
         """
         Creates an update query with only chosen fields
         Supports only a single field where clause
@@ -108,7 +113,9 @@ class PostgresStore:
         value_place_holder = ' %s,' * len(values)
         where_clause, where_values = cls._get_where_clause_with_values(where_keys)
         query = cls._update_string.format(table, keys, value_place_holder[:-1], where_clause)
-        return query, (tuple(values.values()) + where_values)
+        yield from cur.execute(query, (tuple(values.values()) + where_values))
+        return cur.rowcount
+
 
     @classmethod
     def _get_where_clause_with_values(cls, where_keys):
@@ -122,7 +129,8 @@ class PostgresStore:
         return ' or '.join(map(make_and_query, where_keys)), tuple(vals)
 
     @classmethod
-    def make_delete_query(cls, table: str, where_keys: list):
+    @cursor
+    def make_delete_query(cls, cur, table: str, where_keys: list):
         """
         Creates a delete query with where keys
         Supports multiple where clause with and or or both
@@ -141,10 +149,13 @@ class PostgresStore:
         """
         where_clause, values = cls._get_where_clause_with_values(where_keys)
         query = cls._delete_query.format(table, where_clause)
-        return query, values
+        yield from cur.execute(query, values)
+        return cur.rowcount
+
 
     @classmethod
-    def make_select_query(cls, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
+    @dict_cursor
+    def make_select_query(cls, cur, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
                           offset=0):
         """
         Creates a select query for selective columns with where keys
@@ -166,24 +177,29 @@ class PostgresStore:
             values: a tuple of values to replace placeholder(%s)
 
         """
+        q, t = None, None
         if columns is not None:
             columns_string = ", ".join(columns)
             if where_keys is not None:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
                 query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
                                                                            order_by, limit, offset)
-                return query, values
+                q, t = query, values
             else:
                 query = cls._select_selective_column.format(columns_string, table, order_by, limit, offset)
-                return query, ()
+                q, t = query, ()
         else:
             if where_keys is not None:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
                 query = cls._select_all_string_with_condition.format(table, where_clause, order_by, limit, offset)
-                return query, values
+                q, t = query, values
             else:
                 query = cls._select_all_string.format(table, order_by, limit, offset)
-                return query, ()
+                q, t = query, ()
+
+        yield from cur.execute(q, t)
+        rows = yield from cur.fetchall()
+        return rows
 
 def page(func):
     @wraps(func)
