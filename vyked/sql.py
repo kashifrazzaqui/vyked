@@ -12,7 +12,7 @@ class PostgresStore:
     _pool = None
     _connection_params = {}
     _insert_string = "insert into {} ({}) values ({}) returning *;"
-    _update_string = "update {} set ({}) = ({}) where {} = %s;"
+    _update_string = "update {} set ({}) = ({}) where {};"
     _select_all_string_with_condition = "select * from {} where ({}) order by {} limit {} offset {};"
     _select_all_string = "select * from {} order by {} limit {} offset {};"
     _select_selective_column = "select {} from {} order by {} limit {} offset {};"
@@ -86,7 +86,7 @@ class PostgresStore:
         return query, tuple(values.values())
 
     @classmethod
-    def make_update_query(cls, table:str, values:dict, where_key:str):
+    def make_update_query(cls, table: str, values: dict, where_keys: list) -> tuple:
         """
         Creates an update query with only chosen fields
         Supports only a single field where clause
@@ -94,7 +94,10 @@ class PostgresStore:
         Args:
             table: a string indicating the name of the table
             values: a dict of fields and values to be inserted
-            where_key: the 'where' clause field
+            where_keys: list of dictionary
+            example of where keys: [{'name':('>', 'cip'),'url':('=', 'cip.com'},{'type':{'<=', 'manufacturer'}}]
+            where_clause will look like ((name>%s and url=%s) or (type <= %s))
+            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
 
         Returns:
             query: a SQL string with
@@ -103,8 +106,9 @@ class PostgresStore:
         """
         keys = ', '.join(values.keys())
         value_place_holder = ' %s,' * len(values)
-        query = cls._update_string.format(table, keys, value_place_holder[:-1], where_key)
-        return query, tuple(values.values())
+        where_clause, where_values = cls._get_where_clause_with_values(where_keys)
+        query = cls._update_string.format(table, keys, value_place_holder[:-1], where_clause)
+        return query, (tuple(values.values()) + where_values)
 
     @classmethod
     def _get_where_clause_with_values(cls, where_keys):
@@ -118,16 +122,16 @@ class PostgresStore:
         return ' or '.join(map(make_and_query, where_keys)), tuple(vals)
 
     @classmethod
-    def make_delete_query(cls, table_name: str, where_keys: list):
+    def make_delete_query(cls, table: str, where_keys: list):
         """
         Creates a delete query with where keys
         Supports multiple where clause with and or or both
 
         Args:
-            table_name: a string indicating the name of the table
+            table: a string indicating the name of the table
             where_keys: list of dictionary
-            example : [{'name':'cip','url':'cip.com'},{'type':'manufacturer'}]
-            where_clause will look like ((name=%s and url=%s) or (type=%s))
+            example of where keys: [{'name':('>', 'cip'),'url':('=', 'cip.com'},{'type':{'<=', 'manufacturer'}}]
+            where_clause will look like ((name>%s and url=%s) or (type <= %s))
             multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
 
         Returns:
@@ -136,23 +140,23 @@ class PostgresStore:
 
         """
         where_clause, values = cls._get_where_clause_with_values(where_keys)
-        query = cls._delete_query.format(table_name, where_clause)
+        query = cls._delete_query.format(table, where_clause)
         return query, values
 
     @classmethod
-    def make_select_query(cls, table_name: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
+    def make_select_query(cls, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
                           offset=0):
         """
         Creates a select query for selective columns with where keys
         Supports multiple where claus with and or or both
 
         Args:
-            table_name: a string indicating the name of the table
+            table: a string indicating the name of the table
             order_by: a string indicating column name to order the results on
             columns: list of columns to select from
             where_keys: list of dictionary
-            example of where keys: [{'name':('', 'cip'),'url':('=', 'cip.com'},{'type':'manufacturer'}]
-            where_clause will look like ((name=%s and url=%s) or (type=%s))
+            example of where keys: [{'name':('>', 'cip'),'url':('=', 'cip.com'},{'type':{'<=', 'manufacturer'}}]
+            where_clause will look like ((name>%s and url=%s) or (type <= %s))
             limit: the limit on the number of results
             offset: offset on the results
             multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
@@ -166,20 +170,36 @@ class PostgresStore:
             columns_string = ", ".join(columns)
             if where_keys is not None:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
-                query = cls._select_selective_column_with_condition.format(columns_string, table_name, where_clause,
+                query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
                                                                            order_by, limit, offset)
                 return query, values
             else:
-                query = cls._select_selective_column.format(columns_string, table_name, order_by, limit, offset)
+                query = cls._select_selective_column.format(columns_string, table, order_by, limit, offset)
                 return query, ()
         else:
             if where_keys is not None:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
-                query = cls._select_all_string_with_condition.format(table_name, where_clause, order_by, limit, offset)
+                query = cls._select_all_string_with_condition.format(table, where_clause, order_by, limit, offset)
                 return query, values
             else:
-                query = cls._select_all_string.format(table_name, order_by, limit, offset)
+                query = cls._select_all_string.format(table, order_by, limit, offset)
                 return query, ()
+
+def page(func):
+    @wraps(func)
+    def wrapper(cls, *args, **kwargs):
+        if 'offset' not in kwargs:
+            kwargs['offset'] = 0
+        limit = kwargs.get('limit', 100)
+
+        with (yield from cls.get_cursor()) as c:
+            while c.rowcount == -1 or c.rowcount == limit:
+                query, values = func(cls, *args, **kwargs)
+                yield from c.execute(query, values)
+                yield (yield from c.fetchall()) #TODO: also return total_count
+                kwargs['offset'] += limit
+    return wrapper
+
 
 
 def cursor(func):
@@ -202,6 +222,7 @@ def cursor(func):
             return (yield from func(cls, c, *args, **kwargs))
 
     return wrapper
+
 
 
 def dict_cursor(func):
