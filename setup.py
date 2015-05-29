@@ -1,7 +1,7 @@
 from distutils.core import setup
 
 setup(name='vyked',
-      version='1.2.31',
+      version='1.2.32',
       author='Kashif Razzaqui',
       author_email='kashif.razzaqui@gmail.com',
       url='https://github.com/kashifrazzaqui/vyked',
