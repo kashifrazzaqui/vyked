@@ -284,14 +284,13 @@ class PostgresStore:
             columns_string = cls._COMMA.join(columns)
             if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
-                query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
-                                                                           order_by, limit, offset)
+                query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause, order_by, limit, offset)
                 q, t = query, values
             else:
                 query = cls._select_selective_column.format(columns_string, table, order_by, limit, offset)
                 q, t = query, ()
         else:
-            if where_keys is not None:
+            if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
                 query = cls._select_all_string_with_condition.format(table, where_clause, order_by, limit, offset)
                 q, t = query, values
