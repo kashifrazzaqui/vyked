@@ -162,7 +162,7 @@ class PostgresStore:
 
     @classmethod
     @nt_cursor
-    def make_insert_query(cls, cur, table: str, values: dict):
+    def insert(cls, cur, table: str, values: dict):
         """
         Creates an insert statement with only chosen fields
 
@@ -184,7 +184,7 @@ class PostgresStore:
 
     @classmethod
     @cursor
-    def make_update_query(cls, cur, table: str, values: dict, where_keys: list) -> tuple:
+    def update(cls, cur, table: str, values: dict, where_keys: list) -> tuple:
         """
         Creates an update query with only chosen fields
         Supports only a single field where clause
@@ -222,7 +222,7 @@ class PostgresStore:
 
     @classmethod
     @cursor
-    def make_delete_query(cls, cur, table: str, where_keys: list):
+    def delete(cls, cur, table: str, where_keys: list):
         """
         Creates a delete query with where keys
         Supports multiple where clause with and or or both
@@ -246,7 +246,7 @@ class PostgresStore:
 
     @classmethod
     @nt_cursor
-    def make_select_query(cls, cur, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
+    def select(cls, cur, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
                           offset=0):
         """
         Creates a select query for selective columns with where keys
