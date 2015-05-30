@@ -194,7 +194,7 @@ class PostgresStore:
             where_keys: list of dictionary
             example of where keys: [{'name':('>', 'cip'),'url':('=', 'cip.com'},{'type':{'<=', 'manufacturer'}}]
             where_clause will look like ((name>%s and url=%s) or (type <= %s))
-            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
+            items within each dictionary get 'AND'-ed and dictionaries themselves get 'OR'-ed
 
         Returns:
             query: a SQL string with
@@ -231,7 +231,7 @@ class PostgresStore:
             where_keys: list of dictionary
             example of where keys: [{'name':('>', 'cip'),'url':('=', 'cip.com'},{'type':{'<=', 'manufacturer'}}]
             where_clause will look like ((name>%s and url=%s) or (type <= %s))
-            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
+            items within each dictionary get 'AND'-ed and dictionaries themselves get 'OR'-ed
 
         Returns:
             query: a SQL string with
@@ -256,11 +256,12 @@ class PostgresStore:
             order_by: a string indicating column name to order the results on
             columns: list of columns to select from
             where_keys: list of dictionary
-            example of where keys: [{'name':('>', 'cip'),'url':('=', 'cip.com'},{'type':{'<=', 'manufacturer'}}]
-            where_clause will look like ((name>%s and url=%s) or (type <= %s))
             limit: the limit on the number of results
             offset: offset on the results
-            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
+
+            example of where keys: [{'name':('>', 'cip'),'url':('=', 'cip.com'},{'type':{'<=', 'manufacturer'}}]
+            where_clause will look like ((name>%s and url=%s) or (type <= %s))
+            items within each dictionary get 'AND'-ed and across dictionaries get 'OR'-ed
 
         Returns:
             query: a SQL string with
