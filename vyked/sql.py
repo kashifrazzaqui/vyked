@@ -7,7 +7,6 @@ import psycopg2
 
 _CursorType = Enum('CursorType', 'PLAIN, DICT, NAMEDTUPLE')
 
-
 def dict_cursor(func):
     """
     Decorator that provides a dictionary cursor to the calling function
@@ -112,6 +111,14 @@ class PostgresStore:
     _select_selective_column = "select {} from {} order by {} limit {} offset {};"
     _select_selective_column_with_condition = "select {} from {} where ({}) order by {} limit {} offset {};"
     _delete_query = "delete from {} where ({})"
+    _OR = ' or '
+    _AND= ' and '
+    _LPAREN = '('
+    _RPAREN = ')'
+    _WHERE_AND = '{} {} %s'
+    _PLACEHOLDER = ' %s,'
+    _COMMA = ', '
+
 
     @classmethod
     def connect(cls, database:str, user:str, password:str, host:str, port:int):
@@ -161,6 +168,7 @@ class PostgresStore:
             return (yield from pool.cursor(cursor_factory=psycopg2.extras.DictCursor))
 
     @classmethod
+    @coroutine
     @nt_cursor
     def insert(cls, cur, table: str, values: dict):
         """
@@ -175,14 +183,15 @@ class PostgresStore:
             values: a tuple of values to replace placeholder(%s) tokens in query
 
         """
-        keys = ', '.join(values.keys())
-        value_place_holder = ' %s,' * len(values)
+        keys = cls._COMMA.join(values.keys())
+        value_place_holder = cls._PLACEHOLDER * len(values)
         query = cls._insert_string.format(table, keys, value_place_holder[:-1])
         yield from cur.execute(query, tuple(values.values()))
         row = yield from cur.fetchone()
         return row
 
     @classmethod
+    @coroutine
     @cursor
     def update(cls, cur, table: str, values: dict, where_keys: list) -> tuple:
         """
@@ -202,8 +211,8 @@ class PostgresStore:
             values: a tuple of values to replace placeholder(%s) tokens in query - except the where clause value
 
         """
-        keys = ', '.join(values.keys())
-        value_place_holder = ' %s,' * len(values)
+        keys = cls._COMMA.join(values.keys())
+        value_place_holder = cls._PLACEHOLDER * len(values)
         where_clause, where_values = cls._get_where_clause_with_values(where_keys)
         query = cls._update_string.format(table, keys, value_place_holder[:-1], where_clause)
         yield from cur.execute(query, (tuple(values.values()) + where_values))
@@ -211,16 +220,17 @@ class PostgresStore:
 
     @classmethod
     def _get_where_clause_with_values(cls, where_keys):
-        vals = []
+        values = []
 
         def make_and_query(ele: dict):
-            and_query = ' and '.join(['{} {} %s'.format(e[0], e[1][0]) for e in ele.items()])
-            vals.extend([val[1] for val in ele.values()])
-            return '(' + and_query + ')'
+            and_query = cls._AND.join([cls._WHERE_AND.format(e[0], e[1][0]) for e in ele.items()])
+            values.extend([val[1] for val in ele.values()])
+            return cls._LPAREN + and_query + cls._RPAREN
 
-        return ' or '.join(map(make_and_query, where_keys)), tuple(vals)
+        return cls._OR.join(map(make_and_query, where_keys)), tuple(values)
 
     @classmethod
+    @coroutine
     @cursor
     def delete(cls, cur, table: str, where_keys: list):
         """
@@ -245,6 +255,7 @@ class PostgresStore:
         return cur.rowcount
 
     @classmethod
+    @coroutine
     @nt_cursor
     def select(cls, cur, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
                           offset=0):
@@ -270,7 +281,7 @@ class PostgresStore:
 
         """
         if columns:
-            columns_string = ", ".join(columns)
+            columns_string = cls._COMMA.join(columns)
             if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
                 query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
@@ -289,5 +300,4 @@ class PostgresStore:
                 q, t = query, ()
 
         yield from cur.execute(q, t)
-        rows = yield from cur.fetchall()
-        return rows
+        return (yield from cur.fetchall())
