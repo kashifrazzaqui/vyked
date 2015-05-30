@@ -92,11 +92,12 @@ def transaction(func):
         with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE)) as c:
             try:
                 yield from c.execute('BEGIN')
-                return (yield from func(cls, c, *args, **kwargs))
+                result = (yield from func(cls, c, *args, **kwargs))
             except Exception:
                 yield from c.execute('ROLLBACK')
             else:
-                yield from cur.execute('COMMIT')
+                yield from c.execute('COMMIT')
+                return result
 
     return wrapper
 
@@ -268,9 +269,9 @@ class PostgresStore:
             values: a tuple of values to replace placeholder(%s)
 
         """
-        if columns is not None:
+        if columns:
             columns_string = ", ".join(columns)
-            if where_keys is not None:
+            if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
                 query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
                                                                            order_by, limit, offset)
