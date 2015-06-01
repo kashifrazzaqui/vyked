@@ -7,7 +7,6 @@ import psycopg2
 
 _CursorType = Enum('CursorType', 'PLAIN, DICT, NAMEDTUPLE')
 
-
 def dict_cursor(func):
     """
     Decorator that provides a dictionary cursor to the calling function
@@ -92,11 +91,12 @@ def transaction(func):
         with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE)) as c:
             try:
                 yield from c.execute('BEGIN')
-                return (yield from func(cls, c, *args, **kwargs))
+                result = (yield from func(cls, c, *args, **kwargs))
             except Exception:
                 yield from c.execute('ROLLBACK')
             else:
-                yield from cur.execute('COMMIT')
+                yield from c.execute('COMMIT')
+                return result
 
     return wrapper
 
@@ -111,6 +111,14 @@ class PostgresStore:
     _select_selective_column = "select {} from {} order by {} limit {} offset {};"
     _select_selective_column_with_condition = "select {} from {} where ({}) order by {} limit {} offset {};"
     _delete_query = "delete from {} where ({})"
+    _OR = ' or '
+    _AND= ' and '
+    _LPAREN = '('
+    _RPAREN = ')'
+    _WHERE_AND = '{} {} %s'
+    _PLACEHOLDER = ' %s,'
+    _COMMA = ', '
+
 
     @classmethod
     def connect(cls, database:str, user:str, password:str, host:str, port:int):
@@ -160,8 +168,9 @@ class PostgresStore:
             return (yield from pool.cursor(cursor_factory=psycopg2.extras.DictCursor))
 
     @classmethod
+    @coroutine
     @nt_cursor
-    def make_insert_query(cls, cur, table: str, values: dict):
+    def insert(cls, cur, table: str, values: dict):
         """
         Creates an insert statement with only chosen fields
 
@@ -174,16 +183,17 @@ class PostgresStore:
             values: a tuple of values to replace placeholder(%s) tokens in query
 
         """
-        keys = ', '.join(values.keys())
-        value_place_holder = ' %s,' * len(values)
+        keys = cls._COMMA.join(values.keys())
+        value_place_holder = cls._PLACEHOLDER * len(values)
         query = cls._insert_string.format(table, keys, value_place_holder[:-1])
         yield from cur.execute(query, tuple(values.values()))
         row = yield from cur.fetchone()
         return row
 
     @classmethod
+    @coroutine
     @cursor
-    def make_update_query(cls, cur, table: str, values: dict, where_keys: list) -> tuple:
+    def update(cls, cur, table: str, values: dict, where_keys: list) -> tuple:
         """
         Creates an update query with only chosen fields
         Supports only a single field where clause
@@ -194,15 +204,15 @@ class PostgresStore:
             where_keys: list of dictionary
             example of where keys: [{'name':('>', 'cip'),'url':('=', 'cip.com'},{'type':{'<=', 'manufacturer'}}]
             where_clause will look like ((name>%s and url=%s) or (type <= %s))
-            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
+            items within each dictionary get 'AND'-ed and dictionaries themselves get 'OR'-ed
 
         Returns:
             query: a SQL string with
             values: a tuple of values to replace placeholder(%s) tokens in query - except the where clause value
 
         """
-        keys = ', '.join(values.keys())
-        value_place_holder = ' %s,' * len(values)
+        keys = cls._COMMA.join(values.keys())
+        value_place_holder = cls._PLACEHOLDER * len(values)
         where_clause, where_values = cls._get_where_clause_with_values(where_keys)
         query = cls._update_string.format(table, keys, value_place_holder[:-1], where_clause)
         yield from cur.execute(query, (tuple(values.values()) + where_values))
@@ -210,18 +220,19 @@ class PostgresStore:
 
     @classmethod
     def _get_where_clause_with_values(cls, where_keys):
-        vals = []
+        values = []
 
         def make_and_query(ele: dict):
-            and_query = ' and '.join(['{} {} %s'.format(e[0], e[1][0]) for e in ele.items()])
-            vals.extend([val[1] for val in ele.values()])
-            return '(' + and_query + ')'
+            and_query = cls._AND.join([cls._WHERE_AND.format(e[0], e[1][0]) for e in ele.items()])
+            values.extend([val[1] for val in ele.values()])
+            return cls._LPAREN + and_query + cls._RPAREN
 
-        return ' or '.join(map(make_and_query, where_keys)), tuple(vals)
+        return cls._OR.join(map(make_and_query, where_keys)), tuple(values)
 
     @classmethod
+    @coroutine
     @cursor
-    def make_delete_query(cls, cur, table: str, where_keys: list):
+    def delete(cls, cur, table: str, where_keys: list):
         """
         Creates a delete query with where keys
         Supports multiple where clause with and or or both
@@ -231,7 +242,7 @@ class PostgresStore:
             where_keys: list of dictionary
             example of where keys: [{'name':('>', 'cip'),'url':('=', 'cip.com'},{'type':{'<=', 'manufacturer'}}]
             where_clause will look like ((name>%s and url=%s) or (type <= %s))
-            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
+            items within each dictionary get 'AND'-ed and dictionaries themselves get 'OR'-ed
 
         Returns:
             query: a SQL string with
@@ -244,8 +255,9 @@ class PostgresStore:
         return cur.rowcount
 
     @classmethod
+    @coroutine
     @nt_cursor
-    def make_select_query(cls, cur, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
+    def select(cls, cur, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
                           offset=0):
         """
         Creates a select query for selective columns with where keys
@@ -256,29 +268,29 @@ class PostgresStore:
             order_by: a string indicating column name to order the results on
             columns: list of columns to select from
             where_keys: list of dictionary
-            example of where keys: [{'name':('>', 'cip'),'url':('=', 'cip.com'},{'type':{'<=', 'manufacturer'}}]
-            where_clause will look like ((name>%s and url=%s) or (type <= %s))
             limit: the limit on the number of results
             offset: offset on the results
-            multiple dictionary gets converted to or clause and elements of sam dictionary in and clause
+
+            example of where keys: [{'name':('>', 'cip'),'url':('=', 'cip.com'},{'type':{'<=', 'manufacturer'}}]
+            where_clause will look like ((name>%s and url=%s) or (type <= %s))
+            items within each dictionary get 'AND'-ed and across dictionaries get 'OR'-ed
 
         Returns:
             query: a SQL string with
             values: a tuple of values to replace placeholder(%s)
 
         """
-        if columns is not None:
-            columns_string = ", ".join(columns)
-            if where_keys is not None:
+        if columns:
+            columns_string = cls._COMMA.join(columns)
+            if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
-                query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
-                                                                           order_by, limit, offset)
+                query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause, order_by, limit, offset)
                 q, t = query, values
             else:
                 query = cls._select_selective_column.format(columns_string, table, order_by, limit, offset)
                 q, t = query, ()
         else:
-            if where_keys is not None:
+            if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
                 query = cls._select_all_string_with_condition.format(table, where_clause, order_by, limit, offset)
                 q, t = query, values
@@ -287,5 +299,4 @@ class PostgresStore:
                 q, t = query, ()
 
         yield from cur.execute(q, t)
-        rows = yield from cur.fetchall()
-        return rows
+        return (yield from cur.fetchall())
