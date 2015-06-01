@@ -194,11 +194,11 @@ def api(func):  # incoming
         rid = kwargs.pop('request_id')
         entity = kwargs.pop('entity')
         from_id = kwargs.pop('from_id')
-        wrapped_func = coroutine(func)
+        wrapped_func = func
         result = None
         error = None
         if not iscoroutinefunction(func):
-            wrapped_func = func
+            wrapped_func = coroutine(func)
         try:
             if len(kwargs):
                 result = yield from wrapped_func(self, **kwargs)
