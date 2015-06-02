@@ -54,7 +54,8 @@ class Bus:
     def send_http_request(self, app, service, version, method, entity, params):
         path = params.pop('path')
         query_params = params.pop('params', {})
-        query_params['app'] = app
+        if app is not None:
+            query_params['app'] = app
         query_params['version'] = version
         query_params['service'] = service
         data = params.pop('data', None)

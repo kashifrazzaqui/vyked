@@ -13,10 +13,7 @@ from .utils.ordered_class_member import OrderedClassMembers
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
     entity = params.pop('entity', None)
-    try:
-        app_name = params.pop('app_name')
-    except KeyError:
-        raise RuntimeError('App name must be specified')
+    app_name = params.pop('app_name', None)
     self = params.pop('self')
     response = yield from self._send_http_request(app_name, method, entity, params)
     return response
@@ -107,12 +104,9 @@ def request(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         params = func(self, *args, **kwargs)
-        self = params.pop('self')
+        self = params.pop('self', None)
         entity = params.pop('entity', None)
-        try:
-            app_name = params.pop('app_name')
-        except KeyError:
-            raise RuntimeError('App name must be specified')
+        app_name = params.pop('app_name', None)
         request_id = unique_hex()
         params['request_id'] = request_id
         future = self._send_request(app_name, endpoint=func.__name__, entity=entity, params=params)
