@@ -37,8 +37,8 @@ class Bus:
                 each.bus = self
                 self._service_clients.append(each)
 
-    def add_death_listener(self, app:str, service:str, version:str):
-        self._death_listeners.add((app, service, version))
+    def add_death_listener(self, service:str, version:str):
+        self._death_listeners.add((service, version))
 
     def serve_tcp(self, service_host):
         self._tcp_host = service_host
@@ -229,15 +229,15 @@ class Bus:
             self._loop.close()
 
     def registration_complete(self):
-        if self._tcp_host:
-            for app, service, version in self._death_listeners:
-                self._registry_client.add_service_death_listener(app, service, version)
-            f = self._create_service_clients()
+        for service, version in self._death_listeners:
+            self._registry_client.add_service_death_listener(service, version)
+        f = self._create_service_clients()
 
-            def fun(f):
+        def fun(f):
+            if self._tcp_host:
                 self._clear_request_queue()
 
-            f.add_done_callback(fun)
+        f.add_done_callback(fun)
 
     def _create_tcp_service_host(self):
         if self._tcp_host:
@@ -257,6 +257,7 @@ class Bus:
                     return Response(status=421, body="421 wrongly routed request".encode())
             else:
                 return Response(status=400, body="400 bad request".encode())
+
         return verified_func
 
     def _create_http_service_host(self):

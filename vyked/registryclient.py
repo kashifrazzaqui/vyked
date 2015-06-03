@@ -1,4 +1,5 @@
 from asyncio import Future
+import logging
 import random
 from collections import defaultdict
 
@@ -6,8 +7,10 @@ from again.utils import unique_hex
 
 from .services import TCPServiceClient
 
-
 class RegistryClient:
+
+    logger = logging.getLogger(__name__)
+
     def __init__(self, loop, host, port, bus):
         self._bus = bus
         self._loop = loop
