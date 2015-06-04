@@ -7,6 +7,7 @@ import psycopg2
 
 _CursorType = Enum('CursorType', 'PLAIN, DICT, NAMEDTUPLE')
 
+
 def dict_cursor(func):
     """
     Decorator that provides a dictionary cursor to the calling function
@@ -112,13 +113,12 @@ class PostgresStore:
     _select_selective_column_with_condition = "select {} from {} where ({}) order by {} limit {} offset {};"
     _delete_query = "delete from {} where ({})"
     _OR = ' or '
-    _AND= ' and '
+    _AND = ' and '
     _LPAREN = '('
     _RPAREN = ')'
     _WHERE_AND = '{} {} %s'
     _PLACEHOLDER = ' %s,'
     _COMMA = ', '
-
 
     @classmethod
     def connect(cls, database:str, user:str, password:str, host:str, port:int):
@@ -258,7 +258,7 @@ class PostgresStore:
     @coroutine
     @nt_cursor
     def select(cls, cur, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
-                          offset=0):
+               offset=0):
         """
         Creates a select query for selective columns with where keys
         Supports multiple where claus with and or or both
@@ -284,7 +284,8 @@ class PostgresStore:
             columns_string = cls._COMMA.join(columns)
             if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
-                query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause, order_by, limit, offset)
+                query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
+                                                                           order_by, limit, offset)
                 q, t = query, values
             else:
                 query = cls._select_selective_column.format(columns_string, table, order_by, limit, offset)
@@ -299,4 +300,22 @@ class PostgresStore:
                 q, t = query, ()
 
         yield from cur.execute(q, t)
+        return (yield from cur.fetchall())
+
+    @classmethod
+    @coroutine
+    @nt_cursor
+    def raw_sql(cls, cur, query: str, values: tuple):
+        """
+        Run a raw sql query
+
+        Args:
+            query : query string to execute
+            values : tuple of values to be used with the query
+
+        Returns:
+            result of query as list of named tuple
+
+        """
+        yield from cur.execute(query, values)
         return (yield from cur.fetchall())
