@@ -42,9 +42,11 @@ class Bus:
 
     def serve_tcp(self, service_host):
         self._tcp_host = service_host
+        self._tcp_host.bus = self
 
     def serve_http(self, service_host):
         self._http_host = service_host
+        self._http_host.bus = self
 
     def send(self, packet:dict):
         packet['from'] = self._host_id
@@ -122,7 +124,7 @@ class Bus:
         """
         auto dispatch method called from self.send()
         """
-        app, service, version, endpoint = packet['app'], packet['service'], packet['version'], packet['endpoint']
+        service, version, endpoint = packet['service'], packet['version'], packet['endpoint']
         future = self._registry_client.resolve_publication(service, version, endpoint)
         self._publish(future, packet)
 
