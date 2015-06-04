@@ -24,7 +24,7 @@ def get_decorated_fun(method, path, required_params):
         @wraps(func)
         def f(self, *args, **kwargs):
             if isinstance(self, HTTPServiceClient):
-                return make_request(func, self, args, kwargs, method)
+                return (yield from make_request(func, self, args, kwargs, method))
             elif isinstance(self, HTTPApplicationService):
                 if required_params is not None:
                     req = args[0]
