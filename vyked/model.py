@@ -1,4 +1,4 @@
-class Entity():
+class Entity:
     """
     objects which are defined by their identity
     """
@@ -10,7 +10,7 @@ class Entity():
         return self._id
 
 
-class Value():
+class Value:
     """
     describe a property of a thing, and they don’t have their own identity or lifecycle
     """
@@ -19,14 +19,14 @@ class Value():
         pass
 
 
-class Aggregate():
+class Aggregate:
     """
     groups of objects which are treated as a single unit
     """
     pass
 
 
-class Factory():
+class Factory:
     """
     used to encapsulate the creation logic of an object or an aggregate
     """
