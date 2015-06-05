@@ -11,6 +11,9 @@ from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from .registryclient import RegistryClient
 from .services import TCPServiceClient, HTTPServiceClient, HTTPApplicationService
 
+HTTP = 'http'
+TCP = 'tcp'
+
 PUB_STORE = os.path.join(os.curdir, 'publish.store')
 
 
@@ -77,7 +80,7 @@ class Bus:
         read_until_eof = params.pop('read_until_eof', True)
         request_class = params.pop('request_class', None)
         response_class = params.pop('response_class', None)
-        host, port, node_id = self._registry_client.resolve(service, version, entity)
+        host, port, node_id, service_type = self._registry_client.resolve(service, version, entity, HTTP)
         # TODO : find a better method create the url
         url = 'http://{}:{}{}'.format(host, port, path)
         response = yield from aiohttp.request(method, url, params=query_params, data=data, headers=headers,
@@ -279,7 +282,7 @@ class Bus:
     def _create_service_clients(self):
         futures = []
         for sc in self._service_clients:
-            for host, port, node_id in self._registry_client.get_all_addresses(sc.properties):
+            for host, port, node_id, service_type in self._registry_client.get_all_addresses(sc.properties):
                 coro = self._loop.create_connection(self._client_factory, host, port)
                 future = asyncio.async(coro)
                 future.add_done_callback(partial(self._service_client_connection_callback, sc, node_id))
@@ -310,7 +313,7 @@ class Bus:
     def _clear_request_queue(self):
         for packet in self._pending_requests:
             app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
-            node = self._registry_client.resolve(service, version, entity)
+            node = self._registry_client.resolve(service, version, entity, TCP)
             if node is not None:
                 node_id = node[2]
                 client_protocol = self._client_protocols[node_id]

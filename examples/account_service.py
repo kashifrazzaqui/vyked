@@ -5,11 +5,8 @@ import asyncio
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
 
-IDENTITY_HOST = '127.0.0.1'
-IDENTITY_PORT = 4501
-
 ACCOUNTS_HOST = '127.0.0.1'
-ACCOUNTS_PORT = 4502
+ACCOUNTS_PORT = 4503
 
 
 class AccountService(TCPApplicationService):
