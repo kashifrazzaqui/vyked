@@ -78,7 +78,7 @@ class Registry:
                 self._notify_service_death_listeners(service, node_id)
                 if not len(nodes):
                     for consumer in self._get_consumers(service):
-                        self._pending_services[consumer] = [node_id for host, port, node_id in
+                        self._pending_services[consumer] = [node_id for host, port, node_id, service_type in
                                                             self._registered_services[consumer]]
 
         self._service_protocols.pop(node_id)
@@ -108,7 +108,7 @@ class Registry:
         params = packet['params']
         service_name = self._get_full_service_name(params["service"], params['version'])
         dependencies = params['vendors']
-        service_entry = (host, params['port'], params['node_id'])
+        service_entry = (host, params['port'], params['node_id'], params['type'])
         self._registered_services[service_name].append(service_entry)
         self._pending_services[service_name].append(params['node_id'])
         self._client_protocols[params['node_id']] = registry_protocol
@@ -132,11 +132,12 @@ class Registry:
         for vendor in vendors:
             vendor_packet = defaultdict(list)
             vendor_name = self._get_full_service_name(vendor['service'], vendor['version'])
-            for host, port, node in self._registered_services[vendor_name]:
+            for host, port, node, service_type in self._registered_services[vendor_name]:
                 vendor_node_packet = {
                     'host': host,
                     'port': port,
-                    'node_id': node
+                    'node_id': node,
+                    'type': service_type
                 }
                 vendor_packet['name'] = vendor_name
                 vendor_packet['addresses'].append(vendor_node_packet)
@@ -200,7 +201,7 @@ class Registry:
     def _notify_consumers(self, vendor, node_id):
         packet = self._make_deregister_packet(node_id, vendor)
         for consumer in self._get_consumers(vendor):
-            for host, port, node in self._registered_services[consumer]:
+            for host, port, node, service_type in self._registered_services[consumer]:
                 protocol = self._client_protocols[node]
                 protocol.send(packet)
 
@@ -244,7 +245,7 @@ class Registry:
         service_name = self._get_full_service_name(service, version)
         instances = []
         if service_name in self._registered_services:
-            instances = [{'host': host, 'port': port, 'node': node} for host, port, node in
+            instances = [{'host': host, 'port': port, 'node': node, 'type': service_type} for host, port, node, service_type in
                          self._registered_services[service_name]]
         instance_packet_params = {'service': service, 'version': version, 'instances': instances}
         instance_packet = {'type': 'instances', 'params': instance_packet_params}
