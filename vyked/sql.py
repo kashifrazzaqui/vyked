@@ -106,7 +106,7 @@ class PostgresStore:
     _pool = None
     _connection_params = {}
     _insert_string = "insert into {} ({}) values ({}) returning *;"
-    _update_string = "update {} set ({}) = ({}) where ({});"
+    _update_string = "update {} set ({}) = ({}) where ({}) returning *;"
     _select_all_string_with_condition = "select * from {} where ({}) order by {} limit {} offset {};"
     _select_all_string = "select * from {} order by {} limit {} offset {};"
     _select_selective_column = "select {} from {} order by {} limit {} offset {};"
@@ -187,12 +187,11 @@ class PostgresStore:
         value_place_holder = cls._PLACEHOLDER * len(values)
         query = cls._insert_string.format(table, keys, value_place_holder[:-1])
         yield from cur.execute(query, tuple(values.values()))
-        row = yield from cur.fetchone()
-        return row
+        return (yield from cur.fetchone())
 
     @classmethod
     @coroutine
-    @cursor
+    @nt_cursor
     def update(cls, cur, table: str, values: dict, where_keys: list) -> tuple:
         """
         Creates an update query with only chosen fields
@@ -216,7 +215,7 @@ class PostgresStore:
         where_clause, where_values = cls._get_where_clause_with_values(where_keys)
         query = cls._update_string.format(table, keys, value_place_holder[:-1], where_clause)
         yield from cur.execute(query, (tuple(values.values()) + where_values))
-        return cur.rowcount
+        return (yield from cur.fetchall())
 
     @classmethod
     def _get_where_clause_with_values(cls, where_keys):
