@@ -275,6 +275,8 @@ class Bus:
                 if callable(fn) and getattr(fn, 'is_http_method', False):
                     for path in fn.paths:
                         app.router.add_route(fn.method, path, self.verify(fn))
+            fn = getattr(self._http_host, 'pong')
+            app.router.add_route('GET', '/ping', fn)
             handler = app.make_handler()
             http_coro = self._loop.create_server(handler, host_ip, host_port, ssl=ssl_context)
             return self._loop.run_until_complete(http_coro)

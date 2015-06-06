@@ -380,6 +380,9 @@ class _HTTPServiceHost(_ServiceHost, metaclass=OrderedClassMembers):
     def ssl_context(self):
         return self._ssl_context
 
+    def pong(self, request):
+        return Response()
+
 
 class TCPApplicationService(_TCPServiceHost):
     pass
