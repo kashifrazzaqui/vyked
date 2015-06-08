@@ -90,7 +90,10 @@ def subscribe(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
+        coroutine_func = func
+        if not iscoroutinefunction(func):
+            coroutine_func = coroutine(func)
+        return (yield from coroutine_func(*args, **kwargs))
 
     wrapper.is_subscribe = True
     return wrapper
@@ -146,6 +149,7 @@ def publish(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):  # outgoing
         payload = func(self, *args, **kwargs)
+        payload.pop('self', None)
         self._publish(func.__name__, payload)
         return None
 

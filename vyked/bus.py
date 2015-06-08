@@ -147,7 +147,7 @@ class Bus:
             client = [sc for sc in self._service_clients if (
                 sc.name == packet['service'] and sc.version == packet['version'])][0]
             func = getattr(client, packet['endpoint'])
-            func(packet['payload'])
+            asyncio.async(func(packet['payload']), loop=self._loop)
             self.send_ack(protocol, packet['pid'])
         else:
             if self._tcp_host.is_for_me(packet['service'], packet['version']):

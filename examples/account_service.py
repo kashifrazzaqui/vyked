@@ -43,8 +43,9 @@ class IdentityClient(TCPServiceClient):
 
     @subscribe
     def password_changed(self, user_name):
-        pass
-
+        print("Password changed event received")
+        yield from asyncio.sleep(4)
+        print("Password changed {}".format(user_name))
 
 def setup_accounts_service():
     bus = Bus(REGISTRY_HOST, REGISTRY_PORT)
