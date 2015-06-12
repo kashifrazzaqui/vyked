@@ -265,6 +265,11 @@ class Bus:
 
         return verified_func
 
+    def _get_preflight_response(self, request):
+        return Response(status=200,
+                        headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT',
+                                 'Access-Control-Allow-Headers': 'accept, content-type'})
+
     def _create_http_service_host(self):
         if self._http_host:
             host_ip, host_port = self._http_host.socket_address
@@ -275,6 +280,8 @@ class Bus:
                 if callable(fn) and getattr(fn, 'is_http_method', False):
                     for path in fn.paths:
                         app.router.add_route(fn.method, path, self.verify(fn))
+                        if self._http_host.cross_domain_allowed:
+                            app.router.add_route('options', path, self._get_preflight_response)
             fn = getattr(self._http_host, 'pong')
             app.router.add_route('GET', '/ping', fn)
             handler = app.make_handler()

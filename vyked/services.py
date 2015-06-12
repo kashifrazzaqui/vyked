@@ -376,13 +376,18 @@ class RequestException(Exception):
 
 
 class _HTTPServiceHost(_ServiceHost, metaclass=OrderedClassMembers):
-    def __init__(self, service_name, service_version, host_ip, host_port, ssl_context=None):
+    def __init__(self, service_name, service_version, host_ip, host_port, ssl_context=None, allow_cross_domain=False):
         super(_HTTPServiceHost, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context
+        self._allow_cross_domain = allow_cross_domain
 
     @property
     def ssl_context(self):
         return self._ssl_context
+
+    @property
+    def cross_domain_allowed(self):
+        return self._allow_cross_domain
 
     def pong(self, request):
         return Response()
