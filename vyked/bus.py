@@ -5,6 +5,7 @@ import signal
 
 from again.utils import unique_hex
 import aiohttp
+
 from aiohttp.web import Application, Response
 
 from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
@@ -56,41 +57,26 @@ class Bus:
         func = getattr(self, '_' + packet['type'] + '_sender')
         func(packet)
 
-    def send_http_request(self, app, service, version, method, entity, params):
-        path = params.pop('path')
+    def send_http_request(self, app:str, service:str, version:str, method:str, entity:str, params:dict):
+        """
+        a convenience method that allows you to send a well formatted http request to another service
+        """
+        host, port, node_id, service_type = self._registry_client.resolve(service, version, entity, HTTP)
+
+        url = 'http://{}:{}{}'.format(host, port, params.pop('path'))
+
+        http_keys = ['data', 'headers', 'cookies', 'auth', 'allow_redirects', 'compress', 'chunked']
+        kwargs = {k: params[k] for k in http_keys}
+
         query_params = params.pop('params', {})
+
         if app is not None:
             query_params['app'] = app
+
         query_params['version'] = version
         query_params['service'] = service
-        data = params.pop('data', None)
-        headers = params.pop('headers', None)
-        cookies = params.pop('cookies', None)
-        files = params.pop('files', None)
-        auth = params.pop('auth', None)
-        allow_redirects = params.pop('allow_redirects', True)
-        max_redirects = params.pop('max_redirects', 10)
-        encoding = params.pop('encoding', 'utf-8')
-        http_version = params.pop('version', aiohttp.HttpVersion11)
-        compress = params.pop('compress', None)
-        chunked = params.pop('chunked', None)
-        expect100 = params.pop('expect100', False)
-        connector = params.pop('connector', None)
-        loop = params.pop('loop', None)
-        read_until_eof = params.pop('read_until_eof', True)
-        request_class = params.pop('request_class', None)
-        response_class = params.pop('response_class', None)
-        host, port, node_id, service_type = self._registry_client.resolve(service, version, entity, HTTP)
-        # TODO : find a better method create the url
-        url = 'http://{}:{}{}'.format(host, port, path)
-        response = yield from aiohttp.request(method, url, params=query_params, data=data, headers=headers,
-                                              cookies=cookies,
-                                              files=files, auth=auth, allow_redirects=allow_redirects,
-                                              max_redirects=max_redirects, encoding=encoding, version=http_version,
-                                              compress=compress, chunked=chunked, expect100=expect100,
-                                              connector=connector,
-                                              loop=loop, read_until_eof=read_until_eof, request_class=request_class,
-                                              response_class=response_class)
+
+        response = yield from aiohttp.request(method, url, params=query_params, **kwargs)
         return response
 
     def _request_sender(self, packet: dict):
