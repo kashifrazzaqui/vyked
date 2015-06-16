@@ -13,10 +13,7 @@ from .utils.ordered_class_member import OrderedClassMembers
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
     entity = params.pop('entity', None)
-    try:
-        app_name = params.pop('app_name')
-    except KeyError:
-        raise RuntimeError('App name must be specified')
+    app_name = params.pop('app_name', None)
     self = params.pop('self')
     response = yield from self._send_http_request(app_name, method, entity, params)
     return response
@@ -27,7 +24,7 @@ def get_decorated_fun(method, path, required_params):
         @wraps(func)
         def f(self, *args, **kwargs):
             if isinstance(self, HTTPServiceClient):
-                return make_request(func, self, args, kwargs, method)
+                return (yield from make_request(func, self, args, kwargs, method))
             elif isinstance(self, HTTPApplicationService):
                 if required_params is not None:
                     req = args[0]
@@ -93,7 +90,10 @@ def subscribe(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
+        coroutine_func = func
+        if not iscoroutinefunction(func):
+            coroutine_func = coroutine(func)
+        return (yield from coroutine_func(*args, **kwargs))
 
     wrapper.is_subscribe = True
     return wrapper
@@ -107,12 +107,9 @@ def request(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         params = func(self, *args, **kwargs)
-        self = params.pop('self')
+        self = params.pop('self', None)
         entity = params.pop('entity', None)
-        try:
-            app_name = params.pop('app_name')
-        except KeyError:
-            raise RuntimeError('App name must be specified')
+        app_name = params.pop('app_name', None)
         request_id = unique_hex()
         params['request_id'] = request_id
         future = self._send_request(app_name, endpoint=func.__name__, entity=entity, params=params)
@@ -152,6 +149,7 @@ def publish(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):  # outgoing
         payload = func(self, *args, **kwargs)
+        payload.pop('self', None)
         self._publish(func.__name__, payload)
         return None
 
@@ -194,11 +192,11 @@ def api(func):  # incoming
         rid = kwargs.pop('request_id')
         entity = kwargs.pop('entity')
         from_id = kwargs.pop('from_id')
-        wrapped_func = coroutine(func)
+        wrapped_func = func
         result = None
         error = None
         if not iscoroutinefunction(func):
-            wrapped_func = func
+            wrapped_func = coroutine(func)
         try:
             if len(kwargs):
                 result = yield from wrapped_func(self, **kwargs)
@@ -385,6 +383,9 @@ class _HTTPServiceHost(_ServiceHost, metaclass=OrderedClassMembers):
     @property
     def ssl_context(self):
         return self._ssl_context
+
+    def pong(self, request):
+        return Response()
 
 
 class TCPApplicationService(_TCPServiceHost):

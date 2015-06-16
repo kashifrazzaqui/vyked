@@ -11,6 +11,9 @@ from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from .registryclient import RegistryClient
 from .services import TCPServiceClient, HTTPServiceClient, HTTPApplicationService
 
+HTTP = 'http'
+TCP = 'tcp'
+
 PUB_STORE = os.path.join(os.curdir, 'publish.store')
 
 
@@ -37,14 +40,16 @@ class Bus:
                 each.bus = self
                 self._service_clients.append(each)
 
-    def add_death_listener(self, app:str, service:str, version:str):
-        self._death_listeners.add((app, service, version))
+    def add_death_listener(self, service:str, version:str):
+        self._death_listeners.add((service, version))
 
     def serve_tcp(self, service_host):
         self._tcp_host = service_host
+        self._tcp_host.bus = self
 
     def serve_http(self, service_host):
         self._http_host = service_host
+        self._http_host.bus = self
 
     def send(self, packet:dict):
         packet['from'] = self._host_id
@@ -54,7 +59,8 @@ class Bus:
     def send_http_request(self, app, service, version, method, entity, params):
         path = params.pop('path')
         query_params = params.pop('params', {})
-        query_params['app'] = app
+        if app is not None:
+            query_params['app'] = app
         query_params['version'] = version
         query_params['service'] = service
         data = params.pop('data', None)
@@ -74,7 +80,7 @@ class Bus:
         read_until_eof = params.pop('read_until_eof', True)
         request_class = params.pop('request_class', None)
         response_class = params.pop('response_class', None)
-        host, port, node_id = self._registry_client.resolve(service, version, entity)
+        host, port, node_id, service_type = self._registry_client.resolve(service, version, entity, HTTP)
         # TODO : find a better method create the url
         url = 'http://{}:{}{}'.format(host, port, path)
         response = yield from aiohttp.request(method, url, params=query_params, data=data, headers=headers,
@@ -121,7 +127,7 @@ class Bus:
         """
         auto dispatch method called from self.send()
         """
-        app, service, version, endpoint = packet['app'], packet['service'], packet['version'], packet['endpoint']
+        service, version, endpoint = packet['service'], packet['version'], packet['endpoint']
         future = self._registry_client.resolve_publication(service, version, endpoint)
         self._publish(future, packet)
 
@@ -141,7 +147,7 @@ class Bus:
             client = [sc for sc in self._service_clients if (
                 sc.name == packet['service'] and sc.version == packet['version'])][0]
             func = getattr(client, packet['endpoint'])
-            func(packet['payload'])
+            asyncio.async(func(packet['payload']), loop=self._loop)
             self.send_ack(protocol, packet['pid'])
         else:
             if self._tcp_host.is_for_me(packet['service'], packet['version']):
@@ -228,15 +234,15 @@ class Bus:
             self._loop.close()
 
     def registration_complete(self):
-        if self._tcp_host:
-            for app, service, version in self._death_listeners:
-                self._registry_client.add_service_death_listener(app, service, version)
-            f = self._create_service_clients()
+        for service, version in self._death_listeners:
+            self._registry_client.add_service_death_listener(service, version)
+        f = self._create_service_clients()
 
-            def fun(f):
+        def fun(f):
+            if self._tcp_host:
                 self._clear_request_queue()
 
-            f.add_done_callback(fun)
+        f.add_done_callback(fun)
 
     def _create_tcp_service_host(self):
         if self._tcp_host:
@@ -256,6 +262,7 @@ class Bus:
                     return Response(status=421, body="421 wrongly routed request".encode())
             else:
                 return Response(status=400, body="400 bad request".encode())
+
         return verified_func
 
     def _create_http_service_host(self):
@@ -268,6 +275,8 @@ class Bus:
                 if callable(fn) and getattr(fn, 'is_http_method', False):
                     for path in fn.paths:
                         app.router.add_route(fn.method, path, self.verify(fn))
+            fn = getattr(self._http_host, 'pong')
+            app.router.add_route('GET', '/ping', fn)
             handler = app.make_handler()
             http_coro = self._loop.create_server(handler, host_ip, host_port, ssl=ssl_context)
             return self._loop.run_until_complete(http_coro)
@@ -275,7 +284,7 @@ class Bus:
     def _create_service_clients(self):
         futures = []
         for sc in self._service_clients:
-            for host, port, node_id in self._registry_client.get_all_addresses(sc.properties):
+            for host, port, node_id, service_type in self._registry_client.get_all_addresses(sc.properties):
                 coro = self._loop.create_connection(self._client_factory, host, port)
                 future = asyncio.async(coro)
                 future.add_done_callback(partial(self._service_client_connection_callback, sc, node_id))
@@ -306,7 +315,7 @@ class Bus:
     def _clear_request_queue(self):
         for packet in self._pending_requests:
             app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
-            node = self._registry_client.resolve(service, version, entity)
+            node = self._registry_client.resolve(service, version, entity, TCP)
             if node is not None:
                 node_id = node[2]
                 client_protocol = self._client_protocols[node_id]

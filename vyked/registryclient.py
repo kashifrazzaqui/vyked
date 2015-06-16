@@ -1,4 +1,5 @@
 from asyncio import Future
+import logging
 import random
 from collections import defaultdict
 
@@ -8,6 +9,8 @@ from .services import TCPServiceClient
 
 
 class RegistryClient:
+    logger = logging.getLogger(__name__)
+
     def __init__(self, loop, host, port, bus):
         self._bus = bus
         self._loop = loop
@@ -57,7 +60,7 @@ class RegistryClient:
         coro = self._loop.create_connection(self._protocol_factory, self._host, self._port)
         self._transport, self._protocol = self._loop.run_until_complete(coro)
 
-    def receive(self, packet:dict, registry_protocol):
+    def receive(self, packet: dict, registry_protocol):
         if packet['type'] == 'registered':
             self.cache_vendors(packet['params']['vendors'])
             self._bus.registration_complete()
@@ -72,14 +75,15 @@ class RegistryClient:
         return self._available_services.get(
             self._get_full_service_name(full_service_name[0], full_service_name[1]))
 
-    def get_random_service(self, service_name):
+    def get_random_service(self, service_name, service_type):
         services = self._available_services[service_name]
+        services = [service for service in services if service[3] == service_type]
         if len(services):
             return random.choice(services)
         else:
             return None
 
-    def resolve(self, service: str, version: str, entity:str):
+    def resolve(self, service: str, version: str, entity: str, service_type: str):
         service_name = self._get_full_service_name(service, version)
         if entity is not None:
             entity_map = self._assigned_services.get(service_name)
@@ -89,12 +93,12 @@ class RegistryClient:
             if entity in entity_map:
                 return entity_map[entity]
             else:
-                host, port, node_id = self.get_random_service(service_name)
+                host, port, node_id, service_type = self.get_random_service(service_name, service_type)
                 if node_id is not None:
-                    entity_map[entity] = host, port, node_id
-                return host, port, node_id
+                    entity_map[entity] = host, port, node_id, service_type
+                return host, port, node_id, service_type
         else:
-            return self.get_random_service(service_name)
+            return self.get_random_service(service_name, service_type)
 
     def _make_registration_packet(self, ip:str, port:str, service:str, version:str, vendors, type:str):
         vendors_list = []
@@ -144,7 +148,8 @@ class RegistryClient:
         for vendor in vendors:
             vendor_name = vendor['name']
             for address in vendor['addresses']:
-                self._available_services[vendor_name].append((address['host'], address['port'], address['node_id']))
+                self._available_services[vendor_name].append(
+                    (address['host'], address['port'], address['node_id'], address['type']))
 
     def _register_for_subscription(self, vendors, ip, port):
         subscription_packet = {
@@ -218,9 +223,3 @@ class RegistryClient:
                     stale_entities.append(entity)
             for entity in stale_entities:
                 entity_map.pop(entity)
-
-
-
-
-
-

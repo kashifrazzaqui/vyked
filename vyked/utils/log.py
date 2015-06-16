@@ -78,10 +78,15 @@ def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):
         wrapped_fn = fn
         if not asyncio.iscoroutinefunction(fn):
             wrapped_fn = asyncio.coroutine(fn)
-        result = yield from wrapped_fn(*args, **kwargs)
-        string = BLUE + BOLD + '<< ' + END + 'Return {0} with result :{1}'.format(fn.__name__, result)
-        logger.log(debug_level, string)
-        return result
+        try:
+            result = yield from wrapped_fn(*args, **kwargs)
+            string = BLUE + BOLD + '<< ' + END + 'Return {0} with result :{1}'.format(fn.__name__, result)
+            logger.log(debug_level, string)
+            return result
+        except Exception as e:
+            string = (RED + BOLD + '>> ' + END + '{0} raised exception :{1}'.format(fn.__name__, str(e)))
+            logger.log(debug_level, string)
+            raise e
 
     return func
 

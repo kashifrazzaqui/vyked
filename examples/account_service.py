@@ -5,11 +5,8 @@ import asyncio
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
 
-IDENTITY_HOST = '127.0.0.1'
-IDENTITY_PORT = 4501
-
 ACCOUNTS_HOST = '127.0.0.1'
-ACCOUNTS_PORT = 4502
+ACCOUNTS_PORT = 4503
 
 
 class AccountService(TCPApplicationService):
@@ -46,8 +43,9 @@ class IdentityClient(TCPServiceClient):
 
     @subscribe
     def password_changed(self, user_name):
-        pass
-
+        print("Password changed event received")
+        yield from asyncio.sleep(4)
+        print("Password changed {}".format(user_name))
 
 def setup_accounts_service():
     bus = Bus(REGISTRY_HOST, REGISTRY_PORT)

@@ -78,11 +78,11 @@ class Registry:
                 self._notify_service_death_listeners(service, node_id)
                 if not len(nodes):
                     for consumer in self._get_consumers(service):
-                        self._pending_services[consumer] = [node_id for host, port, node_id in
+                        self._pending_services[consumer] = [node_id for host, port, node_id, service_type in
                                                             self._registered_services[consumer]]
 
-        self._service_protocols.pop(node_id)
-        self._client_protocols.pop(node_id)
+        self._service_protocols.pop(node_id, None)
+        self._client_protocols.pop(node_id, None)
 
     def handle_ping_timeout(self, node_id):
         print("{} timed out".format(node_id))
@@ -108,12 +108,11 @@ class Registry:
         params = packet['params']
         service_name = self._get_full_service_name(params["service"], params['version'])
         dependencies = params['vendors']
-        service_entry = (host, params['port'], params['node_id'])
+        service_entry = (host, params['port'], params['node_id'], params['type'])
         self._registered_services[service_name].append(service_entry)
         self._pending_services[service_name].append(params['node_id'])
         self._client_protocols[params['node_id']] = registry_protocol
-        if params['type'] == 'tcp':
-            self._connect_to_service(host, params['port'], params['node_id'])
+        self._connect_to_service(host, params['port'], params['node_id'], params['type'])
         if self._service_dependencies.get(service_name) is None:
             self._service_dependencies[service_name] = dependencies
         self._handle_pending_registrations()
@@ -132,11 +131,12 @@ class Registry:
         for vendor in vendors:
             vendor_packet = defaultdict(list)
             vendor_name = self._get_full_service_name(vendor['service'], vendor['version'])
-            for host, port, node in self._registered_services[vendor_name]:
+            for host, port, node, service_type in self._registered_services[vendor_name]:
                 vendor_node_packet = {
                     'host': host,
                     'port': port,
-                    'node_id': node
+                    'node_id': node,
+                    'type': service_type
                 }
                 vendor_packet['name'] = vendor_name
                 vendor_packet['addresses'].append(vendor_node_packet)
@@ -149,17 +149,24 @@ class Registry:
                   'params': params}
         return packet
 
-    def _connect_to_service(self, host, port, node_id):
-        coro = self._loop.create_connection(self._rfactory, host, port)
-        future = asyncio.async(coro)
-        future.add_done_callback(partial(self._handle_service_connection, node_id))
+    def _connect_to_service(self, host, port, node_id, service_type):
+        if service_type == 'tcp':
+            coro = self._loop.create_connection(self._rfactory, host, port)
+            future = asyncio.async(coro)
+            future.add_done_callback(partial(self._handle_service_connection, node_id))
+        else:
+            pinger = Pinger(registry, self._loop)
+            pinger.register_http_service(host, port, node_id)
+            self._pingers[node_id] = pinger
+            asyncio.async(pinger.start_ping())
 
     def _handle_service_connection(self, node_id, future):
         transport, protocol = future.result()
         self._service_protocols[node_id] = protocol
-        pinger = Pinger(self, self._loop, protocol, node_id)
+        pinger = Pinger(registry, self._loop)
+        pinger.register_tcp_service(protocol, node_id)
         self._pingers[node_id] = pinger
-        pinger.start_ping()
+        asyncio.async(pinger.start_ping())
 
     def _handle_subscription(self, packet, host, port):
         params = packet['params']
@@ -170,7 +177,7 @@ class Registry:
     def _handle_pong(self, node_id, count):
         pinger = self._pingers[node_id]
         pinger.pong_received(count)
-        pinger.start_ping()
+        asyncio.async(pinger.start_ping())
 
     def _resolve_publication(self, packet, protocol):
         params = packet['params']
@@ -200,7 +207,7 @@ class Registry:
     def _notify_consumers(self, vendor, node_id):
         packet = self._make_deregister_packet(node_id, vendor)
         for consumer in self._get_consumers(vendor):
-            for host, port, node in self._registered_services[consumer]:
+            for host, port, node, service_type in self._registered_services[consumer]:
                 protocol = self._client_protocols[node]
                 protocol.send(packet)
 
@@ -244,7 +251,7 @@ class Registry:
         service_name = self._get_full_service_name(service, version)
         instances = []
         if service_name in self._registered_services:
-            instances = [{'host': host, 'port': port, 'node': node} for host, port, node in
+            instances = [{'host': host, 'port': port, 'node': node, 'type': service_type} for host, port, node, service_type in
                          self._registered_services[service_name]]
         instance_packet_params = {'service': service, 'version': version, 'instances': instances}
         instance_packet = {'type': 'instances', 'params': instance_packet_params}
