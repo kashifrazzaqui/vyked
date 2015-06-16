@@ -17,12 +17,12 @@ TCP = 'tcp'
 
 PUB_STORE = os.path.join(os.curdir, 'publish.store')
 
-
 class Bus:
     def __init__(self, registry_host:str, registry_port:int):
+
         self._registry_host = registry_host
         self._registry_port = registry_port
-        self._loop = asyncio.get_event_loop()
+
         self._client_protocols = {}
         self._service_clients = []
         self._death_listeners = set()
@@ -103,7 +103,7 @@ class Bus:
                 pid = unique_hex()
                 packet['pid'] = pid
                 self._unacked_publish[pid] = packet
-                coro = self._loop.create_connection(self._host_factory, node['ip'], node['port'])
+                coro = asyncio.get_event_loop().create_connection(self._host_factory, node['ip'], node['port'])
                 connect_future = asyncio.async(coro)
                 connect_future.add_done_callback(partial(send_publish_packet, packet))
 
@@ -133,7 +133,7 @@ class Bus:
             client = [sc for sc in self._service_clients if (
                 sc.name == packet['service'] and sc.version == packet['version'])][0]
             func = getattr(client, packet['endpoint'])
-            asyncio.async(func(packet['payload']), loop=self._loop)
+            asyncio.async(func(packet['payload']))
             self.send_ack(protocol, packet['pid'])
         else:
             if self._tcp_host.is_for_me(packet['service'], packet['version']):
@@ -162,7 +162,7 @@ class Bus:
 
     def _stop(self, signame:str):
         print('\ngot signal {} - exiting'.format(signame))
-        self._loop.stop()
+        asyncio.get_event_loop().stop()
 
     def _host_factory(self):
         return ServiceHostProtocol(self)
@@ -178,8 +178,8 @@ class Bus:
 
     def start(self):
         self._set_process_name()
-        self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
-        self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
+        asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
+        asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
 
         self._tcp_server = self._create_tcp_service_host()
         self._http_server = self._create_http_service_host()
@@ -205,19 +205,19 @@ class Bus:
         print("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
 
         try:
-            self._loop.run_forever()
+            asyncio.get_event_loop().run_forever()
         except Exception as e:
             print(e)
         finally:
             if self._tcp_server:
                 self._tcp_server.close()
-                self._loop.run_until_complete(self._tcp_server.wait_closed())
+                asyncio.get_event_loop().run_until_complete(self._tcp_server.wait_closed())
 
             if self._http_server:
                 self._http_server.close()
-                self._loop.run_until_complete(self._http_server.wait_closed())
+                asyncio.get_event_loop().run_until_complete(self._http_server.wait_closed())
 
-            self._loop.close()
+            asyncio.get_event_loop().close()
 
     def registration_complete(self):
         for service, version in self._death_listeners:
@@ -233,8 +233,8 @@ class Bus:
     def _create_tcp_service_host(self):
         if self._tcp_host:
             host_ip, host_port = self._tcp_host.socket_address
-            host_coro = self._loop.create_server(self._host_factory, host_ip, host_port)
-            return self._loop.run_until_complete(host_coro)
+            host_coro = asyncio.get_event_loop().create_server(self._host_factory, host_ip, host_port)
+            return asyncio.get_event_loop().run_until_complete(host_coro)
 
     def verify(self, func):
         def verified_func(*args, **kwargs):
@@ -255,7 +255,7 @@ class Bus:
         if self._http_host:
             host_ip, host_port = self._http_host.socket_address
             ssl_context = self._http_host.ssl_context
-            app = Application(loop=self._loop)
+            app = Application(loop=asyncio.get_event_loop())
             for each in self._http_host.__ordered__:
                 fn = getattr(self._http_host, each)
                 if callable(fn) and getattr(fn, 'is_http_method', False):
@@ -264,14 +264,14 @@ class Bus:
             fn = getattr(self._http_host, 'pong')
             app.router.add_route('GET', '/ping', fn)
             handler = app.make_handler()
-            http_coro = self._loop.create_server(handler, host_ip, host_port, ssl=ssl_context)
-            return self._loop.run_until_complete(http_coro)
+            http_coro = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
+            return asyncio.get_event_loop().run_until_complete(http_coro)
 
     def _create_service_clients(self):
         futures = []
         for sc in self._service_clients:
             for host, port, node_id, service_type in self._registry_client.get_all_addresses(sc.properties):
-                coro = self._loop.create_connection(self._client_factory, host, port)
+                coro = asyncio.get_event_loop().create_connection(self._client_factory, host, port)
                 future = asyncio.async(coro)
                 future.add_done_callback(partial(self._service_client_connection_callback, sc, node_id))
                 futures.append(future)
@@ -283,7 +283,7 @@ class Bus:
         self._client_protocols[node_id] = protocol
 
     def _setup_registry_client(self):
-        self._registry_client = RegistryClient(self._loop, self._registry_host, self._registry_port, self)
+        self._registry_client = RegistryClient(asyncio.get_event_loop(), self._registry_host, self._registry_port, self)
         self._registry_client.connect()
 
     @staticmethod
