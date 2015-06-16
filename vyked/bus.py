@@ -18,17 +18,19 @@ TCP = 'tcp'
 PUB_STORE = os.path.join(os.curdir, 'publish.store')
 
 class Bus:
-    def __init__(self, registry_host:str, registry_port:int):
+    def __init__(self):
 
-        self._registry_host = registry_host
-        self._registry_port = registry_port
+        self._registry_client = None
 
         self._client_protocols = {}
         self._service_clients = []
+
         self._death_listeners = set()
+
         self._pending_requests = []
         # TODO : replace with shelve
         self._unacked_publish = {}
+
         self._tcp_host = None
         self._http_host = None
         self._tcp_server = None
@@ -176,7 +178,7 @@ class Bus:
     def is_http_ronin(self):
         return self._http_host and not self._http_host.ronin
 
-    def start(self):
+    def start(self, registry_host:str, registry_port:int):
         self._set_process_name()
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
@@ -184,7 +186,7 @@ class Bus:
         self._tcp_server = self._create_tcp_service_host()
         self._http_server = self._create_http_service_host()
         if self.is_tcp_ronin() or self.is_http_ronin():
-            self._setup_registry_client()
+            self._setup_registry_client(registry_host, registry_port)
 
         # TODO: All the ronin conditional logic needs refactor and completion
         if self.is_tcp_ronin():
@@ -282,8 +284,8 @@ class Bus:
         protocol.set_service_client(sc)
         self._client_protocols[node_id] = protocol
 
-    def _setup_registry_client(self):
-        self._registry_client = RegistryClient(asyncio.get_event_loop(), self._registry_host, self._registry_port, self)
+    def _setup_registry_client(self, host:str, port:int):
+        self._registry_client = RegistryClient(asyncio.get_event_loop(), host, port, self)
         self._registry_client.connect()
 
     @staticmethod
@@ -328,5 +330,5 @@ if __name__ == '__main__':
     REGISTRY_PORT = 4500
     HOST_IP = '127.0.0.1'
     HOST_PORT = 8000
-    bus = Bus(REGISTRY_HOST, REGISTRY_PORT)
-    bus.start()
+    bus = Bus()
+    bus.start(REGISTRY_HOST, REGISTRY_PORT)
