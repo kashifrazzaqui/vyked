@@ -7,6 +7,7 @@ import psycopg2
 
 _CursorType = Enum('CursorType', 'PLAIN, DICT, NAMEDTUPLE')
 
+
 def dict_cursor(func):
     """
     Decorator that provides a dictionary cursor to the calling function
@@ -110,15 +111,15 @@ class PostgresStore:
     _select_all_string = "select * from {} order by {} limit {} offset {};"
     _select_selective_column = "select {} from {} order by {} limit {} offset {};"
     _select_selective_column_with_condition = "select {} from {} where ({}) order by {} limit {} offset {};"
-    _delete_query = "delete from {} where ({})"
+    _delete_query = "delete from {} where ({});"
+    _count_query = "select count(*) from {};"
     _OR = ' or '
-    _AND= ' and '
+    _AND = ' and '
     _LPAREN = '('
     _RPAREN = ')'
     _WHERE_AND = '{} {} %s'
     _PLACEHOLDER = ' %s,'
     _COMMA = ', '
-
 
     @classmethod
     def connect(cls, database:str, user:str, password:str, host:str, port:int):
@@ -169,6 +170,24 @@ class PostgresStore:
 
     @classmethod
     @coroutine
+    @cursor
+    def count(cls, cur, table:str):
+        """
+        gives the number of records in the table
+
+        Args:
+            table: a string indicating the name of the table
+
+        Returns:
+            an integer indicating the number of records in the table
+
+        """
+
+        result = yield from cur.execute(cls._count_query.format(table))
+        return int(result[0])
+
+    @classmethod
+    @coroutine
     @nt_cursor
     def insert(cls, cur, table: str, values: dict):
         """
@@ -179,8 +198,7 @@ class PostgresStore:
             values: a dict of fields and values to be inserted
 
         Returns:
-            query: a SQL string with
-            values: a tuple of values to replace placeholder(%s) tokens in query
+            A 'Record' object with table columns as properties
 
         """
         keys = cls._COMMA.join(values.keys())
@@ -207,8 +225,7 @@ class PostgresStore:
             items within each dictionary get 'AND'-ed and dictionaries themselves get 'OR'-ed
 
         Returns:
-            query: a SQL string with
-            values: a tuple of values to replace placeholder(%s) tokens in query - except the where clause value
+            an integer indicating count of rows deleted
 
         """
         keys = cls._COMMA.join(values.keys())
@@ -245,8 +262,7 @@ class PostgresStore:
             items within each dictionary get 'AND'-ed and dictionaries themselves get 'OR'-ed
 
         Returns:
-            query: a SQL string with
-            values: a tuple of values to replace placeholder(%s)
+            an integer indicating count of rows deleted
 
         """
         where_clause, values = cls._get_where_clause_with_values(where_keys)
@@ -258,7 +274,7 @@ class PostgresStore:
     @coroutine
     @nt_cursor
     def select(cls, cur, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
-                          offset=0):
+               offset=0):
         """
         Creates a select query for selective columns with where keys
         Supports multiple where claus with and or or both
@@ -276,15 +292,15 @@ class PostgresStore:
             items within each dictionary get 'AND'-ed and across dictionaries get 'OR'-ed
 
         Returns:
-            query: a SQL string with
-            values: a tuple of values to replace placeholder(%s)
+            A list of 'Record' object with table columns as properties
 
         """
         if columns:
             columns_string = cls._COMMA.join(columns)
             if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
-                query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause, order_by, limit, offset)
+                query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
+                                                                           order_by, limit, offset)
                 q, t = query, values
             else:
                 query = cls._select_selective_column.format(columns_string, table, order_by, limit, offset)
