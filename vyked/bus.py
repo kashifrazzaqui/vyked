@@ -68,7 +68,7 @@ class Bus:
         url = 'http://{}:{}{}'.format(host, port, params.pop('path'))
 
         http_keys = ['data', 'headers', 'cookies', 'auth', 'allow_redirects', 'compress', 'chunked']
-        kwargs = {k: params[k] for k in http_keys}
+        kwargs = {k: params[k] for k in http_keys if k in params}
 
         query_params = params.pop('params', {})
 
