@@ -32,9 +32,11 @@ def get_decorated_fun(method, path, required_params):
                     params = required_params
                     if not isinstance(required_params, list):
                         params = [required_params]
-                    if any(map(lambda x: x not in query_params, params)):
+                    missing_params = list(filter(lambda x: x not in query_params, params))
+                    if len(missing_params) > 0:
                         return Response(status=400, content_type='application/json',
-                                        body=json.dumps({'error': 'Required params not found'}).encode())
+                                        body=json.dumps({'error': 'Required params {} not found'.format(
+                                            ','.join(missing_params))}).encode())
                 wrapped_func = func
                 if not iscoroutinefunction(func):
                     wrapped_func = coroutine(func)
