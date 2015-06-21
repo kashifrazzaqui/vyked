@@ -1,19 +1,20 @@
 import asyncio
 from functools import partial
 import os
-import signal
 
 from again.utils import unique_hex
-import aiohttp
 
+import aiohttp
 from aiohttp.web import Application, Response
 
+import signal
 from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from .registryclient import RegistryClient
 from .services import TCPServiceClient, HTTPServiceClient, HTTPApplicationService
 
 HTTP = 'http'
 TCP = 'tcp'
+
 
 class Bus:
     def __init__(self):
@@ -186,8 +187,7 @@ class Bus:
 
         if self.is_http_ronin():
             ip, port = self._http_host.socket_address
-            self._registry_client.register_http(self._service_clients, ip, port,
-                                                *self._http_host.properties)
+            self._registry_client.register_http(self._service_clients, ip, port, *self._http_host.properties)
 
         if tcp_server:
             print('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
