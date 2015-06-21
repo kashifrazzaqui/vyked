@@ -48,13 +48,13 @@ class IdentityClient(TCPServiceClient):
         print("Password changed {}".format(user_name))
 
 def setup_accounts_service():
-    bus = Bus(REGISTRY_HOST, REGISTRY_PORT)
+    bus = Bus()
     accounts_service = AccountService(ACCOUNTS_HOST, ACCOUNTS_PORT)
     identity_client = IdentityClient()
     bus.require([identity_client])
     bus.serve_tcp(accounts_service)
     asyncio.get_event_loop().call_later(5, identity_client.create, None, 'test@123')
-    bus.start()
+    bus.start(REGISTRY_HOST, REGISTRY_PORT)
 
 
 if __name__ == '__main__':

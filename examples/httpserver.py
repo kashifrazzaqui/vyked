@@ -27,8 +27,8 @@ class Hello(HTTPApplicationService):
 
 
 if __name__ == '__main__':
-    bus = Bus(REGISTRY_HOST, REGISTRY_PORT)
+    bus = Bus()
     hello = Hello()
     hello.ronin = True
     bus.serve_http(hello)
-    bus.start()
+    bus.start(REGISTRY_HOST, REGISTRY_PORT)

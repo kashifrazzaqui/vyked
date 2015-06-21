@@ -51,13 +51,13 @@ class IdentityTCPService(TCPApplicationService):
 
 
 def setup_identity_service():
-    bus = Bus(REGISTRY_HOST, REGISTRY_PORT)
+    bus = Bus()
     http = IdentityHTTPService(IDENTITY_HOST, IDENTITY_HTTP_PORT)
     tcp = IdentityTCPService(IDENTITY_HOST, IDENTITY_TCP_PORT)
     bus.serve_http(http)
     bus.serve_tcp(tcp)
     asyncio.get_event_loop().call_later(10, tcp.password_changed, "username")
-    bus.start()
+    bus.start(REGISTRY_HOST, REGISTRY_PORT)
 
 
 if __name__ == '__main__':
