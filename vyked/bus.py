@@ -315,9 +315,9 @@ class Bus:
         from setproctitle import setproctitle
 
         if self._tcp_host:
-            setproctitle('{}_{}'.format(self._tcp_host.name, self._tcp_host.version))
+            setproctitle('{}_{}_{}'.format(self._tcp_host.name, self._tcp_host.version, self._host_id))
         elif self._http_host:
-            setproctitle('{}_{}'.format(self._http_host.name, self._http_host.version))
+            setproctitle('{}_{}_{}'.format(self._http_host.name, self._http_host.version, self._host_id))
 
 
 if __name__ == '__main__':
