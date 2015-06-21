@@ -1,6 +1,7 @@
 import asyncio
 from functools import partial
 import os
+import logging
 
 from again.utils import unique_hex
 
@@ -15,6 +16,7 @@ from .services import TCPServiceClient, HTTPServiceClient, HTTPApplicationServic
 HTTP = 'http'
 TCP = 'tcp'
 
+logger = logging.getLogger(__name__)
 
 class Bus:
     def __init__(self):
@@ -123,8 +125,7 @@ class Bus:
             pid = packet['pid']
             self._unacked_publish.pop(pid)
         elif packet['type'] == 'publish':
-            client = [sc for sc in self._service_clients if (
-                sc.name == packet['service'] and sc.version == packet['version'])][0]
+            client = [sc for sc in self._service_clients if (sc.name == packet['service'] and sc.version == packet['version'])][0]
             func = getattr(client, packet['endpoint'])
             asyncio.async(func(packet['payload']))
             self.send_ack(protocol, packet['pid'])
@@ -133,7 +134,7 @@ class Bus:
                 func = getattr(self, '_' + packet['type'] + '_receiver')
                 func(packet, protocol)
             else:
-                print('wrongly routed packet: ', packet)
+                logger.warn('wrongly routed packet: ', packet)
 
     def _request_receiver(self, packet, protocol):
         api_fn = getattr(self._tcp_host, packet['endpoint'])
@@ -190,11 +191,11 @@ class Bus:
             self._registry_client.register_http(self._service_clients, ip, port, *self._http_host.properties)
 
         if tcp_server:
-            print('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
+            logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
         if http_server:
-            print('Serving HTTP on {}'.format(http_server.sockets[0].getsockname()))
-        print("Event loop running forever, press CTRL+c to interrupt.")
-        print("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
+            logger.info('Serving HTTP on {}'.format(http_server.sockets[0].getsockname()))
+        logger.info("Event loop running forever, press CTRL+c to interrupt.")
+        logger.info("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
 
         try:
             asyncio.get_event_loop().run_forever()
@@ -226,7 +227,7 @@ class Bus:
             host_coro = asyncio.get_event_loop().create_server(self._host_factory, host_ip, host_port)
             return asyncio.get_event_loop().run_until_complete(host_coro)
 
-    def verify(self, func):
+    def _verify_service_and_version(self, func):
         def verified_func(*args, **kwargs):
             query_dict = args[0].GET
             if isinstance(self._http_host, HTTPApplicationService):
@@ -255,7 +256,7 @@ class Bus:
                 fn = getattr(self._http_host, each)
                 if callable(fn) and getattr(fn, 'is_http_method', False):
                     for path in fn.paths:
-                        app.router.add_route(fn.method, path, self.verify(fn))
+                        app.router.add_route(fn.method, path, self._verify_service_and_version(fn))
                         if self._http_host.cross_domain_allowed:
                             app.router.add_route('options', path, self._get_preflight_response)
             fn = getattr(self._http_host, 'pong')
