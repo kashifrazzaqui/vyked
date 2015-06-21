@@ -15,8 +15,6 @@ from .services import TCPServiceClient, HTTPServiceClient, HTTPApplicationServic
 HTTP = 'http'
 TCP = 'tcp'
 
-PUB_STORE = os.path.join(os.curdir, 'publish.store')
-
 class Bus:
     def __init__(self):
 
@@ -28,7 +26,6 @@ class Bus:
         self._death_listeners = set()
 
         self._pending_requests = []
-        # TODO : replace with shelve
         self._unacked_publish = {}
 
         self._tcp_host = None
@@ -226,7 +223,7 @@ class Bus:
             self._registry_client.add_service_death_listener(service, version)
         f = self._create_service_clients()
 
-        def fun(f):
+        def fun(fut):
             if self._tcp_host:
                 self._clear_request_queue()
 
