@@ -30,8 +30,6 @@ class Bus:
 
         self._tcp_host = None
         self._http_host = None
-        self._tcp_server = None
-        self._http_server = None
         self._host_id = unique_hex()
 
     def require(self, args):
@@ -180,8 +178,8 @@ class Bus:
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
 
-        self._tcp_server = self._create_tcp_service_host()
-        self._http_server = self._create_http_service_host()
+        tcp_server = self._create_tcp_service_host()
+        http_server = self._create_http_service_host()
         if self.is_tcp_ronin() or self.is_http_ronin():
             self._setup_registry_client(registry_host, registry_port)
 
@@ -196,10 +194,10 @@ class Bus:
             self._registry_client.register_http(self._service_clients, ip, port,
                                                 *self._http_host.properties)
 
-        if self._tcp_server:
-            print('Serving TCP on {}'.format(self._tcp_server.sockets[0].getsockname()))
-        if self._http_server:
-            print('Serving HTTP on {}'.format(self._http_server.sockets[0].getsockname()))
+        if tcp_server:
+            print('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
+        if http_server:
+            print('Serving HTTP on {}'.format(http_server.sockets[0].getsockname()))
         print("Event loop running forever, press CTRL+c to interrupt.")
         print("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
 
@@ -208,13 +206,13 @@ class Bus:
         except Exception as e:
             print(e)
         finally:
-            if self._tcp_server:
-                self._tcp_server.close()
-                asyncio.get_event_loop().run_until_complete(self._tcp_server.wait_closed())
+            if tcp_server:
+                tcp_server.close()
+                asyncio.get_event_loop().run_until_complete(tcp_server.wait_closed())
 
-            if self._http_server:
-                self._http_server.close()
-                asyncio.get_event_loop().run_until_complete(self._http_server.wait_closed())
+            if http_server:
+                http_server.close()
+                asyncio.get_event_loop().run_until_complete(http_server.wait_closed())
 
             asyncio.get_event_loop().close()
 
