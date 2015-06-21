@@ -183,7 +183,8 @@ class PostgresStore:
 
         """
 
-        result = yield from cur.execute(cls._count_query.format(table))
+        yield from cur.execute(cls._count_query.format(table))
+        result = yield from cur.fetchone()
         return int(result[0])
 
     @classmethod
