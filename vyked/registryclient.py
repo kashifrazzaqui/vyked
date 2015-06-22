@@ -106,7 +106,7 @@ class RegistryClient:
             vendor_dict = {'service': vendor.name,
                            'version': vendor.version}
             vendors_list.append(vendor_dict)
-        self._node_id = unique_hex()
+        self._node_id = '{}_{}_{}'.format(service, version, unique_hex())
         params = {'service': service,
                   'version': version,
                   'host': ip,
