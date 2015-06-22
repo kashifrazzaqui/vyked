@@ -7,6 +7,8 @@ from again.utils import unique_hex
 
 from .pinger import Pinger
 
+PING_TIMEOUT = 10
+
 
 class Registry:
     def __init__(self, ip, port):
@@ -158,7 +160,7 @@ class Registry:
             pinger = Pinger(registry, self._loop)
             pinger.register_http_service(host, port, node_id)
             self._pingers[node_id] = pinger
-            asyncio.async(pinger.start_ping())
+            asyncio.async(pinger.start_ping(PING_TIMEOUT))
 
     def _handle_service_connection(self, node_id, future):
         transport, protocol = future.result()
@@ -166,7 +168,7 @@ class Registry:
         pinger = Pinger(registry, self._loop)
         pinger.register_tcp_service(protocol, node_id)
         self._pingers[node_id] = pinger
-        asyncio.async(pinger.start_ping())
+        asyncio.async(pinger.start_ping(PING_TIMEOUT))
 
     def _handle_subscription(self, packet, host, port):
         params = packet['params']
@@ -177,7 +179,7 @@ class Registry:
     def _handle_pong(self, node_id, count):
         pinger = self._pingers[node_id]
         pinger.pong_received(count)
-        asyncio.async(pinger.start_ping())
+        asyncio.async(pinger.start_ping(PING_TIMEOUT))
 
     def _resolve_publication(self, packet, protocol):
         params = packet['params']
