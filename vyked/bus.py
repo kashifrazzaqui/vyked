@@ -12,9 +12,12 @@ import signal
 from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from .registryclient import RegistryClient
 from .services import TCPServiceClient, HTTPServiceClient, HTTPApplicationService
+from .pinger import Pinger
 
 HTTP = 'http'
 TCP = 'tcp'
+
+PING_TIMEOUT = 10
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,7 @@ class Bus:
         self._registry_client = None
 
         self._client_protocols = {}
+        self._pingers = {}
         self._service_clients = []
 
         self._pending_requests = []
@@ -121,6 +125,8 @@ class Bus:
     def host_receive(self, packet: dict, protocol: ServiceHostProtocol):
         if packet['type'] == 'ping':
             self._handle_ping(packet, protocol)
+        elif packet['type'] == 'pong':
+            self._handle_pong(packet['node_id'], packet['count'])
         elif packet['type'] == 'ack':
             pid = packet['pid']
             self._unacked_publish.pop(pid)
@@ -152,7 +158,13 @@ class Bus:
             print('no api found for packet: ', packet)
 
     def client_receive(self, service_client:TCPServiceClient, packet:dict):
-        service_client.process_packet(packet)
+        if packet['type'] == 'ping':
+            self._handle_pong(packet['node_id'], packet['count'])
+        elif packet['type'] == 'pong':
+            pinger = self._pingers[packet['node_id']]
+            asyncio.async(pinger.pong_received(packet['count']))
+        else:
+            service_client.process_packet(packet)
 
     def _stop(self, signame:str):
         print('\ngot signal {} - exiting'.format(signame))
@@ -170,7 +182,7 @@ class Bus:
     def is_http_ronin(self):
         return self._http_host and not self._http_host.ronin
 
-    def start(self, registry_host:str, registry_port:int):
+    def start(self, registry_host: str, registry_port: int):
         self._set_process_name()
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
@@ -271,16 +283,21 @@ class Bus:
             for host, port, node_id, service_type in self._registry_client.get_all_addresses(sc.properties):
                 coro = asyncio.get_event_loop().create_connection(self._client_factory, host, port)
                 future = asyncio.async(coro)
-                future.add_done_callback(partial(self._service_client_connection_callback, sc, node_id))
+                future.add_done_callback(partial(self._service_client_connection_callback, sc, node_id, service_type))
                 futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
-    def _service_client_connection_callback(self, sc, node_id, future):
+    def _service_client_connection_callback(self, sc, node_id, service_type, future):
         transport, protocol = future.result()
         protocol.set_service_client(sc)
+        if service_type == TCP:
+            pinger = Pinger(self, asyncio.get_event_loop())
+            self._pingers[node_id] = pinger
+            pinger.register_tcp_service(protocol, node_id)
+            asyncio.async(pinger.start_ping())
         self._client_protocols[node_id] = protocol
 
-    def _setup_registry_client(self, host:str, port:int):
+    def _setup_registry_client(self, host: str, port: int):
         self._registry_client = RegistryClient(asyncio.get_event_loop(), host, port, self)
         self._registry_client.connect()
 
@@ -291,6 +308,10 @@ class Bus:
     def _handle_ping(self, packet, protocol):
         pong_packet = self._make_pong_packet(packet['node_id'], packet['count'])
         protocol.send(pong_packet)
+
+    def _handle_pong(self, node_id, count):
+        pinger = self._pingers[node_id]
+        asyncio.async(pinger.pong_received(count))
 
     def _make_pong_packet(self, node_id, count):
         packet = {'type': 'pong', 'node_id': node_id, 'count': count}
@@ -311,6 +332,10 @@ class Bus:
     def send_ack(protocol, pid):
         packet = {'type': 'ack', 'pid': pid}
         protocol.send(packet)
+
+    def handle_ping_timeout(self, node_id):
+        print("Service client connection timed out".format(node_id))
+        self._pingers.pop(node_id, None)
 
     def _set_process_name(self):
         from setproctitle import setproctitle

@@ -3,14 +3,17 @@ import asyncio
 
 import aiohttp
 
-class Pinger:
+DEFAULT_TIMEOUT = 10
 
+
+class Pinger:
     _logger = logging.getLogger(__name__)
 
-    def __init__(self, ping_handler, loop):
+    def __init__(self, ping_handler, loop, timeout=DEFAULT_TIMEOUT):
         self._ping_handler = ping_handler
         self._loop = loop
         self._count = 0
+        self._timeout = timeout
         self._timer = None
         self._tcp = None
         self._protocol = None
@@ -30,17 +33,17 @@ class Pinger:
         self._node = node
 
     @asyncio.coroutine
-    def start_ping(self, timeout):
+    def start_ping(self):
         if self._tcp:
             packet = self._make_ping_packet()
-            self._loop.call_later(timeout, self._send_timed_ping, packet)
+            self._loop.call_later(self._timeout, self._send_timed_ping, packet)
         else:
             url = 'http://{}:{}/ping'.format(self._host, self._port)
-            yield from asyncio.sleep(timeout)
+            yield from asyncio.sleep(self._timeout)
             self._logger.debug('Pinging node {} at url: {}'.format(self._node, url))
             try:
-                yield from asyncio.wait_for(aiohttp.request('GET', url=url), timeout)
-                yield from self.start_ping(timeout)
+                yield from asyncio.wait_for(aiohttp.request('GET', url=url), self._timeout)
+                yield from self.start_ping()
             except:
                 self._ping_handler.handle_ping_timeout(self._node)
 
@@ -49,6 +52,7 @@ class Pinger:
             self._count += 1
             if self._timer is not None:
                 self._timer.cancel()
+                yield from self.start_ping()
         else:
             self._ping_timed_out()
 

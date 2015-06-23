@@ -56,7 +56,6 @@ def setup_identity_service():
     tcp = IdentityTCPService(IDENTITY_HOST, IDENTITY_TCP_PORT)
     bus.serve_http(http)
     bus.serve_tcp(tcp)
-    asyncio.get_event_loop().call_later(10, tcp.password_changed, "username")
     bus.start(REGISTRY_HOST, REGISTRY_PORT)
 
 

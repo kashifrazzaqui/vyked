@@ -53,7 +53,6 @@ def setup_accounts_service():
     identity_client = IdentityClient()
     bus.require([identity_client])
     bus.serve_tcp(accounts_service)
-    asyncio.get_event_loop().call_later(5, identity_client.create, None, 'test@123')
     bus.start(REGISTRY_HOST, REGISTRY_PORT)
 
 
