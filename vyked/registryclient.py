@@ -75,6 +75,13 @@ class RegistryClient:
         return self._available_services.get(
             self._get_full_service_name(full_service_name[0], full_service_name[1]))
 
+    def get_for_node(self, node_id):
+        for services in self._available_services.values():
+            for host, port, node, service_type in services:
+                if node == node_id:
+                    return host, port, node, service_type
+        return None
+
     def get_random_service(self, service_name, service_type):
         services = self._available_services[service_name]
         services = [service for service in services if service[3] == service_type]

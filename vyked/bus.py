@@ -4,7 +4,7 @@ import os
 import logging
 
 from again.utils import unique_hex
-
+from retrial.retrial import retry
 import aiohttp
 from aiohttp.web import Application, Response
 
@@ -21,6 +21,12 @@ PING_TIMEOUT = 10
 
 logger = logging.getLogger(__name__)
 
+def _retry_for(result):
+    if isinstance(result, tuple):
+        return not isinstance(result[0], asyncio.transports.Transport) or not isinstance(result[1],
+                                                                                         asyncio.Protocol)
+    return True
+
 class Bus:
     def __init__(self):
 
@@ -29,6 +35,7 @@ class Bus:
         self._client_protocols = {}
         self._pingers = {}
         self._service_clients = []
+        self._node_clients = {}
 
         self._pending_requests = []
         self._unacked_publish = {}
@@ -131,7 +138,9 @@ class Bus:
             pid = packet['pid']
             self._unacked_publish.pop(pid)
         elif packet['type'] == 'publish':
-            client = [sc for sc in self._service_clients if (sc.name == packet['service'] and sc.version == packet['version'])][0]
+            client = \
+                [sc for sc in self._service_clients if (sc.name == packet['service'] and sc.version == packet['version'])][
+                    0]
             func = getattr(client, packet['endpoint'])
             asyncio.async(func(packet['payload']))
             self.send_ack(protocol, packet['pid'])
@@ -281,11 +290,17 @@ class Bus:
         futures = []
         for sc in self._service_clients:
             for host, port, node_id, service_type in self._registry_client.get_all_addresses(sc.properties):
-                coro = asyncio.get_event_loop().create_connection(self._client_factory, host, port)
-                future = asyncio.async(coro)
-                future.add_done_callback(partial(self._service_client_connection_callback, sc, node_id, service_type))
+                self._node_clients[node_id] = sc
+                future = self._connect_to_client(host, node_id, port, service_type)
                 futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
+
+    @retry(should_retry_for_result=_retry_for, timeout=10)
+    def _connect_to_client(self, host, node_id, port, service_type):
+        future = asyncio.async(asyncio.get_event_loop().create_connection(self._client_factory, host, port))
+        future.add_done_callback(
+            partial(self._service_client_connection_callback, self._node_clients[node_id], node_id, service_type))
+        return future
 
     def _service_client_connection_callback(self, sc, node_id, service_type, future):
         transport, protocol = future.result()
@@ -336,6 +351,10 @@ class Bus:
     def handle_ping_timeout(self, node_id):
         print("Service client connection timed out".format(node_id))
         self._pingers.pop(node_id, None)
+        service_props = self._registry_client.get_for_node(node_id)
+        print(service_props)
+        if service_props is not None:
+            asyncio.async(self._connect_to_client(*service_props))
 
     def _set_process_name(self):
         from setproctitle import setproctitle
