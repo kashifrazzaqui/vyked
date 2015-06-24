@@ -112,7 +112,7 @@ class PostgresStore:
     _select_selective_column = "select {} from {} order by {} limit {} offset {};"
     _select_selective_column_with_condition = "select {} from {} where ({}) order by {} limit {} offset {};"
     _delete_query = "delete from {} where ({});"
-    _count_query = "select count(*) from {};"
+    _count_query = "select count(*) from {} where {};"
     _OR = ' or '
     _AND = ' and '
     _LPAREN = '('
@@ -171,7 +171,7 @@ class PostgresStore:
     @classmethod
     @coroutine
     @cursor
-    def count(cls, cur, table:str):
+    def count(cls, cur, table:str, where_keys: list=None):
         """
         gives the number of records in the table
 
@@ -183,9 +183,17 @@ class PostgresStore:
 
         """
 
-        yield from cur.execute(cls._count_query.format(table))
+        if where_keys:
+            where_clause, values = cls._get_where_clause_with_values(where_keys)
+            query = cls._count_query.format(table, where_clause)
+            q, t = query, values
+        else:
+            query = cls._count_query.format(table)
+            q, t = query, ()
+        yield from cur.execute(q, t)
         result = yield from cur.fetchone()
         return int(result[0])
+
 
     @classmethod
     @coroutine
