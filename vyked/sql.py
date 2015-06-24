@@ -112,7 +112,8 @@ class PostgresStore:
     _select_selective_column = "select {} from {} order by {} limit {} offset {};"
     _select_selective_column_with_condition = "select {} from {} where ({}) order by {} limit {} offset {};"
     _delete_query = "delete from {} where ({});"
-    _count_query = "select count(*) from {} where {};"
+    _count_query = "select count(*) from {};"
+    _count_query_where = "select count(*) from {} where {};"
     _OR = ' or '
     _AND = ' and '
     _LPAREN = '('
@@ -185,7 +186,7 @@ class PostgresStore:
 
         if where_keys:
             where_clause, values = cls._get_where_clause_with_values(where_keys)
-            query = cls._count_query.format(table, where_clause)
+            query = cls._count_query_where.format(table, where_clause)
             q, t = query, values
         else:
             query = cls._count_query.format(table)
