@@ -195,7 +195,6 @@ class PostgresStore:
         result = yield from cur.fetchone()
         return int(result[0])
 
-
     @classmethod
     @coroutine
     @nt_cursor
