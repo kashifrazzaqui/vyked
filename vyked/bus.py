@@ -221,7 +221,6 @@ class Bus:
         return (yield from self._pubsub_handler.publish(service, version, endpoint, payload))
 
     def subscription_handler(self, service, version, endpoint, payload):
-        print(service, version, endpoint, payload)
         client = [sc for sc in self._service_clients if (sc.name == service and sc.version == version)][0]
         func = getattr(client, endpoint)
         asyncio.async(func(**json.loads(payload)))
