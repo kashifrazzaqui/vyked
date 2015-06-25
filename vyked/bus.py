@@ -31,6 +31,9 @@ def _retry_for_client_conn(result):
     return True
 
 
+def _retry_for_pub(result):
+    return not result
+
 def _retry_for_exception(e):
     return True
 
@@ -211,8 +214,11 @@ class Bus:
         yield from self._pubsub_handler.subscribe(subscription_list, handler=self.subscription_handler)
 
     def publish(self, service, version, endpoint, payload):
-        # TODO : add retry
-        asyncio.async(self._pubsub_handler.publish(service, version, endpoint, payload))
+        asyncio.async(self._retry_publish(service, version, endpoint, payload))
+
+    @retry(should_retry_for_result=_retry_for_pub, should_retry_for_exception=_retry_for_exception, timeout=10)
+    def _retry_publish(self, service, version, endpoint, payload):
+        return (yield from self._pubsub_handler.publish(service, version, endpoint, payload))
 
     def subscription_handler(self, service, version, endpoint, payload):
         print(service, version, endpoint, payload)
