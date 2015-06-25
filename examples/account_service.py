@@ -5,6 +5,9 @@ import asyncio
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
 
+REDIS_HOST = '127.0.0.1'
+REDIS_PORT = 6379
+
 ACCOUNTS_HOST = '127.0.0.1'
 ACCOUNTS_PORT = 4503
 
@@ -38,7 +41,6 @@ class IdentityClient(TCPServiceClient):
 
     @request
     def create(self, user_name, password):
-        app_name = 'accounts'
         return locals()
 
     @subscribe
@@ -53,7 +55,7 @@ def setup_accounts_service():
     identity_client = IdentityClient()
     bus.require([identity_client])
     bus.serve_tcp(accounts_service)
-    bus.start(REGISTRY_HOST, REGISTRY_PORT)
+    bus.start(REGISTRY_HOST, REGISTRY_PORT, REDIS_HOST, REDIS_PORT)
 
 
 if __name__ == '__main__':

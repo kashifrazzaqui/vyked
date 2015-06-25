@@ -131,10 +131,7 @@ def message_sub(func):
     def wrapper(self, *args, **kwargs):
         params = func(self, *args, **kwargs)
         entity = params.pop('entity')
-        try:
-            app_name = params.pop('app_name')
-        except KeyError:
-            raise RuntimeError('App name must be specified')
+        app_name = params.pop('app_name', None)
         self._send_message_sub(app_name, endpoint=func.__name__, entity=entity)
 
     wrapper.is_directed_subscribe = True
@@ -342,14 +339,8 @@ class _TCPServiceHost(_ServiceHost):
         # TODO: to be multi-tenant make app_name a list
         super(_TCPServiceHost, self).__init__(service_name, service_version, host_ip, host_port)
 
-    def _publish(self, publication_name, payload):
-        packet = self._make_publish_packet(_Service._PUB_PKT_STR, publication_name, payload)
-        self._bus.send(packet)
-
-    def _message(self, message_name, payload, entity):
-        packet = self._make_publish_packet(_Service._MSG_PUB_PKT_STR, message_name, payload)
-        packet['entity'] = entity
-        self._bus.send(packet)
+    def _publish(self, service, version, endpoint, payload):
+        self._bus.publish(service, version, endpoint, payload)
 
     def _make_response_packet(self, request_id: str, from_id: str, entity: str, result: object, error: object):
         if error:
@@ -363,15 +354,6 @@ class _TCPServiceHost(_ServiceHost):
                   'type': _Service._RES_PKT_STR,
                   'payload': payload}
         return packet
-
-    def _make_publish_packet(self, packet_type: str, publication_name: str, payload: dict):
-        packet = {'service': self.name,
-                  'version': self.version,
-                  'endpoint': publication_name,
-                  'type': packet_type,
-                  'payload': payload}
-        return packet
-
 
 class RequestException(Exception):
     pass

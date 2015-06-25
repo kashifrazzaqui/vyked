@@ -1,5 +1,6 @@
 import asyncio
 from functools import partial
+import json
 import os
 import logging
 
@@ -13,6 +14,7 @@ from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from .registryclient import RegistryClient
 from .services import TCPServiceClient, HTTPServiceClient, HTTPApplicationService
 from .pinger import Pinger
+from .pubsub_handler import PubSubHandler
 
 HTTP = 'http'
 TCP = 'tcp'
@@ -21,11 +23,17 @@ PING_TIMEOUT = 10
 
 logger = logging.getLogger(__name__)
 
-def _retry_for(result):
+
+def _retry_for_client_conn(result):
     if isinstance(result, tuple):
         return not isinstance(result[0], asyncio.transports.Transport) or not isinstance(result[1],
                                                                                          asyncio.Protocol)
     return True
+
+
+def _retry_for_exception(e):
+    return True
+
 
 class Bus:
     def __init__(self):
@@ -43,6 +51,7 @@ class Bus:
         self._tcp_host = None
         self._http_host = None
         self._host_id = unique_hex()
+        self._pubsub_handler = None
 
     def require(self, args):
         for each in args:
@@ -93,42 +102,6 @@ class Bus:
         self._pending_requests.append(packet)
         self._clear_request_queue()
 
-    def _message_sub_sender(self, packet: dict):
-        packet['ip'], packet['port'] = self._tcp_host.socket_address
-        self._registry_client.subscribe_for_message(packet)
-
-    def _publish(self, future, packet):
-        def send_publish_packet(publish_packet, f):
-            transport, protocol = f.result()
-            protocol.send(publish_packet)
-            transport.close()
-
-        def fun(fut):
-            for node in fut.result():
-                packet['to'] = node['node_id']
-                pid = unique_hex()
-                packet['pid'] = pid
-                self._unacked_publish[pid] = packet
-                coro = asyncio.get_event_loop().create_connection(self._host_factory, node['ip'], node['port'])
-                connect_future = asyncio.async(coro)
-                connect_future.add_done_callback(partial(send_publish_packet, packet))
-
-        future.add_done_callback(fun)
-
-    def _publish_sender(self, packet: dict):
-        """
-        auto dispatch method called from self.send()
-        """
-        service, version, endpoint = packet['service'], packet['version'], packet['endpoint']
-        future = self._registry_client.resolve_publication(service, version, endpoint)
-        self._publish(future, packet)
-
-    def _message_pub_sender(self, packet: dict):
-        app, service, version, endpoint, entity = packet['app'], packet['service'], packet['version'], packet[
-            'endpoint'], packet['entity']
-        future = self._registry_client.resolve_message_publication(service, version, endpoint, entity)
-        self._publish(future, packet)
-
     def host_receive(self, packet: dict, protocol: ServiceHostProtocol):
         if packet['type'] == 'ping':
             self._handle_ping(packet, protocol)
@@ -137,13 +110,6 @@ class Bus:
         elif packet['type'] == 'ack':
             pid = packet['pid']
             self._unacked_publish.pop(pid)
-        elif packet['type'] == 'publish':
-            client = \
-                [sc for sc in self._service_clients if (sc.name == packet['service'] and sc.version == packet['version'])][
-                    0]
-            func = getattr(client, packet['endpoint'])
-            asyncio.async(func(packet['payload']))
-            self.send_ack(protocol, packet['pid'])
         else:
             if self._tcp_host.is_for_me(packet['service'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
@@ -191,13 +157,14 @@ class Bus:
     def is_http_ronin(self):
         return self._http_host and not self._http_host.ronin
 
-    def start(self, registry_host: str, registry_port: int):
+    def start(self, registry_host: str, registry_port: int, redis_host: str, redis_port: int):
         self._set_process_name()
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
 
         tcp_server = self._create_tcp_service_host()
         http_server = self._create_http_service_host()
+        self._create_pubsub_handler(redis_host, redis_port)
         if self.is_tcp_ronin() or self.is_http_ronin():
             self._setup_registry_client(registry_host, registry_port)
 
@@ -232,6 +199,26 @@ class Bus:
                 asyncio.get_event_loop().run_until_complete(http_server.wait_closed())
 
             asyncio.get_event_loop().close()
+
+    def _register_for_subscription(self):
+        subscription_list = []
+        for client in self._service_clients:
+            if isinstance(client, TCPServiceClient):
+                for each in dir(client):
+                    fn = getattr(client, each)
+                    if callable(fn) and getattr(fn, 'is_subscribe', False):
+                        subscription_list.append((client.name, client.version, fn.__name__))
+        yield from self._pubsub_handler.subscribe(subscription_list, handler=self.subscription_handler)
+
+    def publish(self, service, version, endpoint, payload):
+        # TODO : add retry
+        asyncio.async(self._pubsub_handler.publish(service, version, endpoint, payload))
+
+    def subscription_handler(self, service, version, endpoint, payload):
+        print(service, version, endpoint, payload)
+        client = [sc for sc in self._service_clients if (sc.name == service and sc.version == version)][0]
+        func = getattr(client, endpoint)
+        asyncio.async(func(**json.loads(payload)))
 
     def registration_complete(self):
         f = self._create_service_clients()
@@ -286,6 +273,11 @@ class Bus:
             http_coro = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             return asyncio.get_event_loop().run_until_complete(http_coro)
 
+    def _create_pubsub_handler(self, host, port):
+        self._pubsub_handler = PubSubHandler(host, port)
+        asyncio.get_event_loop().run_until_complete(self._pubsub_handler.connect())
+        asyncio.async(self._register_for_subscription())
+
     def _create_service_clients(self):
         futures = []
         for sc in self._service_clients:
@@ -295,7 +287,7 @@ class Bus:
                 futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
-    @retry(should_retry_for_result=_retry_for, timeout=10)
+    @retry(should_retry_for_result=_retry_for_client_conn, should_retry_for_exception=_retry_for_exception, timeout=10)
     def _connect_to_client(self, host, node_id, port, service_type):
         future = asyncio.async(asyncio.get_event_loop().create_connection(self._client_factory, host, port))
         future.add_done_callback(
@@ -368,7 +360,9 @@ class Bus:
 if __name__ == '__main__':
     REGISTRY_HOST = '127.0.0.1'
     REGISTRY_PORT = 4500
+    REDIS_HOST = '127.0.0.1'
+    REDIS_PORT = 6379
     HOST_IP = '127.0.0.1'
     HOST_PORT = 8000
     bus = Bus()
-    bus.start(REGISTRY_HOST, REGISTRY_PORT)
+    bus.start(REGISTRY_HOST, REGISTRY_PORT, REDIS_HOST, REDIS_PORT)

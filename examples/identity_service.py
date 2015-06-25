@@ -9,6 +9,9 @@ from vyked import TCPApplicationService, HTTPApplicationService, api, publish
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
 
+REDIS_HOST = '127.0.0.1'
+REDIS_PORT = 6379
+
 IDENTITY_HOST = '127.0.0.1'
 IDENTITY_HTTP_PORT = 4501
 IDENTITY_TCP_PORT = 4502
@@ -33,7 +36,6 @@ class IdentityTCPService(TCPApplicationService):
         super(IdentityTCPService, self).__init__("IdentityService", 1, ip, port)
 
     @api
-    @coroutine
     def create(self, user_name, password):
         result = yield from self._create_user_name(user_name, password)
         if user_name is None:
@@ -56,7 +58,8 @@ def setup_identity_service():
     tcp = IdentityTCPService(IDENTITY_HOST, IDENTITY_TCP_PORT)
     bus.serve_http(http)
     bus.serve_tcp(tcp)
-    bus.start(REGISTRY_HOST, REGISTRY_PORT)
+    asyncio.get_event_loop().call_later(5, tcp.password_changed, 'ankit')
+    bus.start(REGISTRY_HOST, REGISTRY_PORT, REDIS_HOST, REDIS_PORT)
 
 
 if __name__ == '__main__':

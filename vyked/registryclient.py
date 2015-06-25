@@ -44,7 +44,6 @@ class RegistryClient:
 
     def register_tcp(self, vendors, ip, port, service, version):
         self._register_service(ip, port, service, vendors, version, 'tcp')
-        self._register_for_subscription(vendors, ip, port)
 
     def subscribe_for_message(self, packet):
         packet['node_id'] = self._node_id
@@ -157,30 +156,6 @@ class RegistryClient:
             for address in vendor['addresses']:
                 self._available_services[vendor_name].append(
                     (address['host'], address['port'], address['node_id'], address['type']))
-
-    def _register_for_subscription(self, vendors, ip, port):
-        subscription_packet = {
-            'type': 'subscribe',
-        }
-        params = {
-            'ip': ip,
-            'port': port,
-            'node_id': self._node_id
-        }
-        subscription_list = []
-        for vendor in vendors:
-            if isinstance(vendor, TCPServiceClient):
-                for each in dir(vendor):
-                    fn = getattr(vendor, each)
-                    if callable(fn) and getattr(fn, 'is_subscribe', False):
-                        subscription_list.append({
-                            'service': vendor.name,
-                            'version': vendor.version,
-                            'endpoint': fn.__name__
-                        })
-        params['subscribe_to'] = subscription_list
-        subscription_packet['params'] = params
-        self._protocol.send(subscription_packet)
 
     def resolve_publication(self, service, version, endpoint):
         future = Future()
