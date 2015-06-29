@@ -31,4 +31,4 @@ if __name__ == '__main__':
     hello = Hello()
     hello.ronin = True
     bus.serve_http(hello)
-    bus.start(REGISTRY_HOST, REGISTRY_PORT)
+    bus.start(REGISTRY_HOST, REGISTRY_PORT, REDIS_HOST, REDIS_PORT)
