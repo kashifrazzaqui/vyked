@@ -200,7 +200,7 @@ def api(func):  # incoming
             if len(kwargs):
                 result = yield from wrapped_func(self, **kwargs)
             else:
-                result = yield from wrapped_func()
+                result = yield from wrapped_func(self)
         except BaseException as e:
             error = str(e)
 
