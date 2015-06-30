@@ -339,8 +339,8 @@ class _TCPServiceHost(_ServiceHost):
         # TODO: to be multi-tenant make app_name a list
         super(_TCPServiceHost, self).__init__(service_name, service_version, host_ip, host_port)
 
-    def _publish(self, service, version, endpoint, payload):
-        self._bus.publish(service, version, endpoint, payload)
+    def _publish(self, endpoint, payload):
+        self._bus.publish(self.name, self.version, endpoint, payload)
 
     def _make_response_packet(self, request_id: str, from_id: str, entity: str, result: object, error: object):
         if error:
