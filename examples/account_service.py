@@ -49,12 +49,18 @@ class IdentityClient(TCPServiceClient):
         yield from asyncio.sleep(4)
         print("Password changed {}".format(user_name))
 
+    def repeat_request(self):
+        yield from asyncio.sleep(5)
+        yield from self.create('test', 'test@123')
+        yield from self.repeat_request()
+
 def setup_accounts_service():
     bus = Bus()
     accounts_service = AccountService(ACCOUNTS_HOST, ACCOUNTS_PORT)
     identity_client = IdentityClient()
     bus.require([identity_client])
     bus.serve_tcp(accounts_service)
+    asyncio.async(identity_client.repeat_request())
     bus.start(REGISTRY_HOST, REGISTRY_PORT, REDIS_HOST, REDIS_PORT)
 
 
