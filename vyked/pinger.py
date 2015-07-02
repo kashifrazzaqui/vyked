@@ -40,7 +40,7 @@ class Pinger:
         else:
             url = 'http://{}:{}/ping'.format(self._host, self._port)
             yield from asyncio.sleep(self._timeout)
-            self._logger.debug('Pinging node {} at url: {}'.format(self._node, url))
+            self._logger.info('Pinging node {} at url: {}'.format(self._node, url))
             try:
                 yield from asyncio.wait_for(aiohttp.request('GET', url=url), self._timeout)
                 yield from self.start_ping()

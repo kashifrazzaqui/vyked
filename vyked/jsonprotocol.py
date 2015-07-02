@@ -39,16 +39,16 @@ class JSONProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc):
         self._connected = False
-        self.logger.debug('Peer closed the connection')
+        self.logger.info('Peer closed the connection')
 
     def send(self, packet: dict):
         string = json.dumps(packet) + ','
         if self._connected:
             self._transport.write(string.encode())
-            self.logger.debug('Data sent: {}'.format(string))
+            self.logger.info('Data sent: {}'.format(string))
         else:
             self._pending_data.append(packet)
-            self.logger.debug('Appended data: {}'.format(self._pending_data))
+            self.logger.info('Appended data: {}'.format(self._pending_data))
 
     def close(self):
         self._transport.write('bye]'.encode())  # end the json array
@@ -56,7 +56,7 @@ class JSONProtocol(asyncio.Protocol):
 
     def data_received(self, byte_data):
         string_data = byte_data.decode()
-        self.logger.debug('Data received: {}'.format(string_data))
+        self.logger.info('Data received: {}'.format(string_data))
         self._obj_streamer.consume(string_data)
 
     def on_object_stream_start(self):
@@ -67,14 +67,14 @@ class JSONProtocol(asyncio.Protocol):
         raise RuntimeError('Incorrect JSON Streaming Format: expect a JSON Array to end at root, got object')
 
     def on_array_stream_start(self):
-        self.logger.debug('Array Stream started')
+        self.logger.info('Array Stream started')
 
     def on_array_stream_end(self):
         del self._obj_streamer
-        self.logger.debug('Array Stream ended')
+        self.logger.info('Array Stream ended')
 
     def on_pair(self, pair):
-        self.logger.debug('Pair {}'.format(pair))
+        self.logger.info('Pair {}'.format(pair))
         raise RuntimeError('Received a key-value pair object - expected elements only')
 
 
@@ -85,7 +85,7 @@ class ServiceHostProtocol(JSONProtocol):
 
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
-        self.logger.debug('Client Connection from {}'.format(peername))
+        self.logger.info('Client Connection from {}'.format(peername))
         super(ServiceHostProtocol, self).connection_made(transport)
 
     def connection_lost(self, exc):
@@ -106,7 +106,7 @@ class ServiceClientProtocol(JSONProtocol):
 
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
-        self.logger.debug('Connected to server{}'.format(peername))
+        self.logger.info('Connected to server{}'.format(peername))
         super(ServiceClientProtocol, self).connection_made(transport)
 
     def on_element(self, element):
@@ -121,7 +121,7 @@ class RegistryProtocol(JSONProtocol):
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
         self._transport = transport
-        self.logger.debug('Connected from {}'.format(peername))
+        self.logger.info('Connected from {}'.format(peername))
         super(RegistryProtocol, self).connection_made(transport)
         # TODO: pass protocol to registry
 
@@ -136,7 +136,7 @@ class RegistryClientProtocol(JSONProtocol):
 
     def connection_made(self, transport):
         peername = transport.get_extra_info('peername')
-        self.logger.debug('Connected to server{}'.format(peername))
+        self.logger.info('Connected to server{}'.format(peername))
         super(RegistryClientProtocol, self).connection_made(transport)
 
     def on_element(self, element):
