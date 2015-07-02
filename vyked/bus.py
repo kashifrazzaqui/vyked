@@ -56,6 +56,7 @@ class Bus:
         self._host_id = unique_hex()
         self._pubsub_handler = None
         self._ronin = False
+        self._registered = False
 
     @property
     def ronin(self):
@@ -229,13 +230,15 @@ class Bus:
         asyncio.async(func(**json.loads(payload)))
 
     def registration_complete(self):
-        f = self._create_service_clients()
+        if not self._registered:
+            f = self._create_service_clients()
+            self._registered = True
 
-        def fun(fut):
-            if self._tcp_host:
-                self._clear_request_queue()
+            def fun(fut):
+                if self._tcp_host:
+                    self._clear_request_queue()
 
-        f.add_done_callback(fun)
+            f.add_done_callback(fun)
 
     def _create_tcp_service_host(self):
         if self._tcp_host:
