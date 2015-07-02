@@ -316,7 +316,6 @@ class _ServiceHost(_Service):
         super(_ServiceHost, self).__init__(service_name, service_version)
         self._ip = host_ip
         self._port = host_port
-        self._ronin = False
 
     def is_for_me(self, service, version):
         return service == self.name and int(version) == self.version
@@ -324,15 +323,6 @@ class _ServiceHost(_Service):
     @property
     def socket_address(self):
         return self._ip, self._port
-
-    @property
-    def ronin(self):
-        return self._ronin
-
-    @ronin.setter
-    def ronin(self, value:bool):
-        self._ronin = value
-
 
 class _TCPServiceHost(_ServiceHost):
     def __init__(self, service_name, service_version, host_ip, host_port):

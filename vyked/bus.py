@@ -3,13 +3,14 @@ from functools import partial
 import json
 import os
 import logging
+import signal
 
 from again.utils import unique_hex
 from retrial.retrial import retry
 import aiohttp
+
 from aiohttp.web import Application, Response
 
-import signal
 from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from .registryclient import RegistryClient
 from .services import TCPServiceClient, HTTPServiceClient, HTTPApplicationService
@@ -18,8 +19,6 @@ from .pubsub_handler import PubSubHandler
 
 HTTP = 'http'
 TCP = 'tcp'
-
-PING_TIMEOUT = 10
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +32,7 @@ def _retry_for_client_conn(result):
 
 def _retry_for_pub(result):
     return not result
+
 
 def _retry_for_exception(e):
     return True
@@ -55,6 +55,15 @@ class Bus:
         self._http_host = None
         self._host_id = unique_hex()
         self._pubsub_handler = None
+        self._ronin = False
+
+    @property
+    def ronin(self):
+        return self._ronin
+
+    @ronin.setter
+    def ronin(self, value):
+        self._ronin = value
 
     def require(self, args):
         for each in args:
@@ -156,12 +165,6 @@ class Bus:
     def _client_factory(self):
         return ServiceClientProtocol(self)
 
-    def is_tcp_ronin(self):
-        return self._tcp_host and not self._tcp_host.ronin
-
-    def is_http_ronin(self):
-        return self._http_host and not self._http_host.ronin
-
     def start(self, registry_host: str, registry_port: int, redis_host: str, redis_port: int):
         self._set_process_name()
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
@@ -170,18 +173,15 @@ class Bus:
         tcp_server = self._create_tcp_service_host()
         http_server = self._create_http_service_host()
         self._create_pubsub_handler(redis_host, redis_port)
-        if self.is_tcp_ronin() or self.is_http_ronin():
+        if not self.ronin:
             self._setup_registry_client(registry_host, registry_port)
-
-        # TODO: All the ronin conditional logic needs refactor and completion
-        if self.is_tcp_ronin():
-            tcp_host_ip, tcp_host_port = self._tcp_host.socket_address
-            self._registry_client.register_tcp(self._service_clients, tcp_host_ip, tcp_host_port,
+            if self._tcp_host:
+                tcp_host_ip, tcp_host_port = self._tcp_host.socket_address
+                self._registry_client.register_tcp(self._service_clients, tcp_host_ip, tcp_host_port,
                                                *self._tcp_host.properties)
-
-        if self.is_http_ronin():
-            ip, port = self._http_host.socket_address
-            self._registry_client.register_http(self._service_clients, ip, port, *self._http_host.properties)
+            if self._http_host:
+                ip, port = self._http_host.socket_address
+                self._registry_client.register_http(self._service_clients, ip, port, *self._http_host.properties)
 
         if tcp_server:
             logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
@@ -218,7 +218,8 @@ class Bus:
     def publish(self, service, version, endpoint, payload):
         asyncio.async(self._retry_publish(service, version, endpoint, payload))
 
-    @retry(should_retry_for_result=_retry_for_pub, should_retry_for_exception=_retry_for_exception, timeout=10,strategy=[2,2,4])
+    @retry(should_retry_for_result=_retry_for_pub, should_retry_for_exception=_retry_for_exception, timeout=10,
+           strategy=[2, 2, 4])
     def _retry_publish(self, service, version, endpoint, payload):
         return (yield from self._pubsub_handler.publish(service, version, endpoint, payload))
 
@@ -294,7 +295,8 @@ class Bus:
                 futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
-    @retry(should_retry_for_result=_retry_for_client_conn, should_retry_for_exception=_retry_for_exception, timeout=10,strategy=[2,2,4])
+    @retry(should_retry_for_result=_retry_for_client_conn, should_retry_for_exception=_retry_for_exception, timeout=10,
+           strategy=[2, 2, 4])
     def _connect_to_client(self, host, node_id, port, service_type):
         logger.info('node_id' + node_id)
         future = asyncio.async(asyncio.get_event_loop().create_connection(self._client_factory, host, port))

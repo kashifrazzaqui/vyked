@@ -47,7 +47,7 @@ class Pinger:
                 resp.close()
                 yield from self.start_ping()
             except:
-                #self._ping_handler.handle_ping_timeout(self._node)
+                self._ping_handler.handle_ping_timeout(self._node)
                 pass
 
     def pong_received(self, count):
