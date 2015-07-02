@@ -3,7 +3,8 @@ import asyncio
 
 import aiohttp
 
-DEFAULT_TIMEOUT = 10
+DEFAULT_TIMEOUT = 15
+DEFAULT_PING_INTERVAL= 10
 
 
 class Pinger:
@@ -14,6 +15,7 @@ class Pinger:
         self._loop = loop
         self._count = 0
         self._timeout = timeout
+        self._interval = DEFAULT_PING_INTERVAL
         self._timer = None
         self._tcp = None
         self._protocol = None
@@ -35,13 +37,13 @@ class Pinger:
     @asyncio.coroutine
     def start_ping(self):
         if self._tcp:
-            self._loop.call_later(self._timeout, self._send_timed_ping)
+            self._timer = self._loop.call_later(self._interval, self._send_timed_ping)
         else:
             url = 'http://{}:{}/ping'.format(self._host, self._port)
-            yield from asyncio.sleep(self._timeout)
+            yield from asyncio.sleep(self._interval)
             self._logger.info('Pinging node {} at url: {}'.format(self._node, url))
             try:
-                resp = yield from asyncio.wait_for(aiohttp.request('GET', url=url), self._timeout)
+                resp = yield from asyncio.wait_for(aiohttp.request('GET', url=url), self._interval)
                 resp.close()
                 yield from self.start_ping()
             except:
@@ -49,11 +51,12 @@ class Pinger:
                 pass
 
     def pong_received(self, count):
+        if self._timer is not None:
+            self._timer.cancel()
+
         if self._count == count:
             self._count += 1
-            if self._timer is not None:
-                self._timer.cancel()
-                yield from self.start_ping()
+            yield from self.start_ping()
         else:
             self._ping_timed_out()
 
@@ -67,6 +70,4 @@ class Pinger:
         self._timer = self._loop.call_later(self._timeout, self._ping_timed_out)
 
     def _ping_timed_out(self):
-        if self._timer:
-            self._timer.cancel()
         self._ping_handler.handle_ping_timeout(self._node)
