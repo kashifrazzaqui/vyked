@@ -136,8 +136,10 @@ class Bus:
             print('no api found for packet: ', packet)
 
     def client_receive(self, service_client:TCPServiceClient, packet:dict):
+        logger.info('service client {}, packet {}'.format(service_client, packet))
+        logger.info('active pingers {}'.format(self._pingers))
         if packet['type'] == 'ping':
-            self._handle_pong(packet['node_id'], packet['count'])
+            self._handle_ping(packet['node_id'], packet['count'])
         elif packet['type'] == 'pong':
             pinger = self._pingers[packet['node_id']]
             asyncio.async(pinger.pong_received(packet['count']))
@@ -216,7 +218,7 @@ class Bus:
     def publish(self, service, version, endpoint, payload):
         asyncio.async(self._retry_publish(service, version, endpoint, payload))
 
-    @retry(should_retry_for_result=_retry_for_pub, should_retry_for_exception=_retry_for_exception, timeout=10)
+    @retry(should_retry_for_result=_retry_for_pub, should_retry_for_exception=_retry_for_exception, timeout=10,strategy=[2,2,4])
     def _retry_publish(self, service, version, endpoint, payload):
         return (yield from self._pubsub_handler.publish(service, version, endpoint, payload))
 
@@ -292,8 +294,9 @@ class Bus:
                 futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
-    @retry(should_retry_for_result=_retry_for_client_conn, should_retry_for_exception=_retry_for_exception, timeout=10)
+    @retry(should_retry_for_result=_retry_for_client_conn, should_retry_for_exception=_retry_for_exception, timeout=10,strategy=[2,2,4])
     def _connect_to_client(self, host, node_id, port, service_type):
+        logger.info('node_id' + node_id)
         future = asyncio.async(asyncio.get_event_loop().create_connection(self._client_factory, host, port))
         future.add_done_callback(
             partial(self._service_client_connection_callback, self._node_clients[node_id], node_id, service_type))
@@ -346,12 +349,13 @@ class Bus:
         protocol.send(packet)
 
     def handle_ping_timeout(self, node_id):
-        print("Service client connection timed out".format(node_id))
+        logger.info("Service client connection timed out {}".format(node_id))
         self._pingers.pop(node_id, None)
         service_props = self._registry_client.get_for_node(node_id)
-        print(service_props)
+        logger.info('service client props {}'.format(service_props))
         if service_props is not None:
-            asyncio.async(self._connect_to_client(*service_props))
+            host, port, _node_id, _type = service_props
+            asyncio.async(self._connect_to_client(host, _node_id, port, _type))
 
     def _set_process_name(self):
         from setproctitle import setproctitle
