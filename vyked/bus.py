@@ -338,15 +338,25 @@ class Bus:
         return packet
 
     def _clear_request_queue(self):
-        for packet in self._pending_requests:
-            app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
-            node = self._registry_client.resolve(service, version, entity, TCP)
-            if node is not None:
-                node_id = node[2]
-                client_protocol = self._client_protocols[node_id]
+        self._pending_requests[:] = [each for each in self._pending_requests if not self._send_packet(each)]
+
+    def _send_packet(self, packet):
+        node_id = self._get_node_id_for_packet(packet)
+        if node_id is not None:
+            client_protocol = self._client_protocols[node_id]
+            if client_protocol.is_connected:
                 packet['to'] = node_id
                 client_protocol.send(packet)
-                self._pending_requests.remove(packet)
+                return True
+            else:
+                return False
+        else:
+            return False
+
+    def _get_node_id_for_packet(self, packet):
+        app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
+        node = self._registry_client.resolve(service, version, entity, TCP)
+        return node[2] if node else None
 
     @staticmethod
     def send_ack(protocol, pid):
