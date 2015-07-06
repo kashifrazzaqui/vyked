@@ -72,6 +72,8 @@ class Registry:
                 if node[2] == node_id:
                     nodes.remove(node)
                     service_present = True
+                    self._service_protocols.pop(node_id, None)
+                    self._client_protocols.pop(node_id, None)
             if service_present:
                 self._notify_consumers(service, node_id)
                 self._remove_service_death_listener(node_id)
@@ -81,8 +83,6 @@ class Registry:
                         self._pending_services[consumer] = [node_id for host, port, node_id, service_type in
                                                             self._registered_services[consumer]]
 
-        self._service_protocols.pop(node_id, None)
-        self._client_protocols.pop(node_id, None)
 
     def handle_ping_timeout(self, node_id):
         print("{} timed out".format(node_id))
