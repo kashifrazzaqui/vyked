@@ -324,6 +324,7 @@ class _ServiceHost(_Service):
     def socket_address(self):
         return self._ip, self._port
 
+
 class _TCPServiceHost(_ServiceHost):
     def __init__(self, service_name, service_version, host_ip, host_port):
         # TODO: to be multi-tenant make app_name a list
@@ -345,15 +346,23 @@ class _TCPServiceHost(_ServiceHost):
                   'payload': payload}
         return packet
 
+
 class RequestException(Exception):
     pass
 
 
+def _default_preflight_response(self, request):
+    return Response(status=200,
+                    headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT',
+                             'Access-Control-Allow-Headers': 'accept, content-type'})
+
 class _HTTPServiceHost(_ServiceHost, metaclass=OrderedClassMembers):
-    def __init__(self, service_name, service_version, host_ip, host_port, ssl_context=None, allow_cross_domain=False):
+    def __init__(self, service_name, service_version, host_ip, host_port, ssl_context=None, allow_cross_domain=False,
+                 preflight_response=_default_preflight_response):
         super(_HTTPServiceHost, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context
         self._allow_cross_domain = allow_cross_domain
+        self._preflight_response = preflight_response
 
     @property
     def ssl_context(self):
@@ -362,6 +371,10 @@ class _HTTPServiceHost(_ServiceHost, metaclass=OrderedClassMembers):
     @property
     def cross_domain_allowed(self):
         return self._allow_cross_domain
+
+    @property
+    def preflight_response(self):
+        return self._preflight_response
 
     def pong(self, request):
         return Response()
