@@ -7,6 +7,7 @@ from jsonstreamer import ObjectStreamer
 from .registry import Registry
 from .registryclient import RegistryClient
 from .services import TCPServiceClient
+from .sendqueue import SendQueue
 
 
 class JSONProtocol(asyncio.Protocol):
@@ -14,19 +15,18 @@ class JSONProtocol(asyncio.Protocol):
     logger = logging.getLogger(__name__)
 
     def __init__(self):
-        self._pending_data = []
+        self._send_q = None
         self._connected = False
         self._transport = None
         self._obj_streamer = None
 
     def _make_frame(self, packet):
         string = json.dumps(packet) + ','
-        return string
+        return string.encode()
 
-    def _write_pending_data(self):
-        for packet in self._pending_data:
-            frame = self._make_frame(packet)
-            self._transport.write(frame.encode())
+    @property
+    def is_connected(self):
+        return self._connected
 
     def connection_made(self, transport):
         self._connected = True
@@ -34,24 +34,21 @@ class JSONProtocol(asyncio.Protocol):
         self._obj_streamer = ObjectStreamer()
         self._obj_streamer.auto_listen(self, prefix='on_')
 
+        self._transport.send = self._transport.write
+        self._send_q = SendQueue(transport, self.is_connected)
+
         self._transport.write('['.encode())  # start a json array
-        self._write_pending_data()
+        self._send_q.send()
 
     def connection_lost(self, exc):
         self._connected = False
-        self.logger.info('Peer closed the connection')
+        self.logger.info('Peer closed', self._transport.get_extra_info('peername'))
 
     def send(self, packet: dict):
-        string = json.dumps(packet) + ','
-        if self._connected:
-            self._transport.write(string.encode())
-            self.logger.info('Data sent: {}'.format(string))
-        else:
-            self._pending_data.append(packet)
-            self.logger.info('Appended data: {}'.format(self._pending_data))
+        self._send_q.send(self._make_frame(packet))
 
     def close(self):
-        self._transport.write('bye]'.encode())  # end the json array
+        self._transport.write(']'.encode())  # end the json array
         self._transport.close()
 
     def data_received(self, byte_data):

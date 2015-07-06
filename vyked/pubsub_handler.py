@@ -19,8 +19,8 @@ class PubSubHandler:
         return self._conn
 
     @asyncio.coroutine
-    @log(logger=_logger)
-    def publish(self, service, version, endpoint, payload):
+    @log(logger=_logger.error)
+    def publish(self, service, version, endpoint, payload:str):
         if self._conn is not None:
             try:
                 yield from self._conn.publish(self._get_key(service, version, endpoint), json.dumps(payload))

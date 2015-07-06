@@ -6,7 +6,6 @@ import aiohttp
 DEFAULT_TIMEOUT = 15
 DEFAULT_PING_INTERVAL= 10
 
-
 class Pinger:
     _logger = logging.getLogger(__name__)
 

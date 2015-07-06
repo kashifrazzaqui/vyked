@@ -7,7 +7,6 @@ from again.utils import unique_hex
 
 from .pinger import Pinger
 
-
 class Registry:
     def __init__(self, ip, port):
         self._ip = ip

@@ -197,10 +197,7 @@ def api(func):  # incoming
         if not iscoroutinefunction(func):
             wrapped_func = coroutine(func)
         try:
-            if len(kwargs):
-                result = yield from wrapped_func(self, **kwargs)
-            else:
-                result = yield from wrapped_func(self)
+            result = yield from wrapped_func(self, **kwargs)
         except BaseException as e:
             error = str(e)
 
