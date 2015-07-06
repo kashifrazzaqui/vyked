@@ -263,7 +263,8 @@ class Bus:
 
     def _get_preflight_response(self, request):
         return Response(status=200,
-                        headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT',
+                        headers={'Access-Control-Allow-Origin': '*',
+                                 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE',
                                  'Access-Control-Allow-Headers': 'accept, content-type, token'})
 
     def _create_http_service_host(self):
