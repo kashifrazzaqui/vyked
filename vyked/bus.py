@@ -339,14 +339,10 @@ class Bus:
         node_id = self._get_node_id_for_packet(packet)
         if node_id is not None:
             client_protocol = self._client_protocols[node_id]
-            if client_protocol.is_connected:
-                packet['to'] = node_id
-                client_protocol.send(packet)
-                return True
-            else:
-                return False
-        else:
-            return False
+            packet['to'] = node_id
+            client_protocol.send(packet)
+            return True
+        return False
 
     def _get_node_id_for_packet(self, packet):
         app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
