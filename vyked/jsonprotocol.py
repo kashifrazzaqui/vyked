@@ -78,6 +78,9 @@ class JSONProtocol(asyncio.Protocol):
         self.logger.info('Pair {}'.format(pair))
         raise RuntimeError('Received a key-value pair object - expected elements only')
 
+    def is_connected(self):
+        return self._connected
+
 
 class ServiceHostProtocol(JSONProtocol):
     def __init__(self, bus):
