@@ -220,7 +220,7 @@ class Bus:
         asyncio.async(self._retry_publish(service, version, endpoint, payload))
 
     @retry(should_retry_for_result=_retry_for_pub, should_retry_for_exception=_retry_for_exception, timeout=10,
-           strategy=[2, 2, 4])
+           strategy=[0, 2, 2, 4])
     def _retry_publish(self, service, version, endpoint, payload):
         return (yield from self._pubsub_handler.publish(service, version, endpoint, payload))
 
@@ -294,7 +294,7 @@ class Bus:
         return asyncio.gather(*futures, return_exceptions=False)
 
     @retry(should_retry_for_result=_retry_for_client_conn, should_retry_for_exception=_retry_for_exception, timeout=10,
-           strategy=[2, 2, 4])
+           strategy=[0, 2, 2, 4])
     def _connect_to_client(self, host, node_id, port, service_type):
         logger.info('node_id' + node_id)
         future = asyncio.async(asyncio.get_event_loop().create_connection(self._client_factory, host, port))
