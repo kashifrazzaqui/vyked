@@ -1,7 +1,5 @@
 import asyncio
 
-DEFAULT_TIMEOUT = 15
-PING_INTERVAL = 10
 
 class Pinger:
     """
