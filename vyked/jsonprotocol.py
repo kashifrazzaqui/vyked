@@ -28,6 +28,12 @@ class JSONProtocol(asyncio.Protocol):
     def is_connected(self):
         return self._connected
 
+    def _write_pending_data(self):
+        for packet in self._pending_data:
+            frame = self._make_frame(packet)
+            self._transport.write(frame.encode())
+        self._pending_data.clear()
+
     def connection_made(self, transport):
         self._connected = True
         self._transport = transport

@@ -214,7 +214,7 @@ class Bus:
         asyncio.async(self._retry_publish(service, version, endpoint, payload))
 
     @retry(should_retry_for_result=_retry_for_pub, should_retry_for_exception=_retry_for_exception, timeout=10,
-           strategy=[2, 2, 4])
+           strategy=[0, 2, 2, 4])
     def _retry_publish(self, service, version, endpoint, payload):
         return (yield from self._pubsub_handler.publish(service, version, endpoint, payload))
 
@@ -255,11 +255,6 @@ class Bus:
 
         return verified_func
 
-    def _get_preflight_response(self, request):
-        return Response(status=200,
-                        headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT',
-                                 'Access-Control-Allow-Headers': 'accept, content-type, token'})
-
     def _create_http_service_host(self):
         if self._http_host:
             host_ip, host_port = self._http_host.socket_address
@@ -271,7 +266,7 @@ class Bus:
                     for path in fn.paths:
                         app.router.add_route(fn.method, path, self._verify_service_and_version(fn))
                         if self._http_host.cross_domain_allowed:
-                            app.router.add_route('options', path, self._get_preflight_response)
+                            app.router.add_route('options', path, self._http_host.preflight_response)
             fn = getattr(self._http_host, 'pong')
             app.router.add_route('GET', '/ping', fn)
             handler = app.make_handler()
@@ -293,7 +288,7 @@ class Bus:
         return asyncio.gather(*futures, return_exceptions=False)
 
     @retry(should_retry_for_result=_retry_for_client_conn, should_retry_for_exception=_retry_for_exception, timeout=10,
-           strategy=[2, 2, 4])
+           strategy=[0, 2, 2, 4])
     def _connect_to_client(self, host, node_id, port, service_type):
         _logger.info('node_id' + node_id)
         future = asyncio.async(asyncio.get_event_loop().create_connection(self._client_factory, host, port))
@@ -344,8 +339,7 @@ class Bus:
                 return True
             else:
                 return False
-        else:
-            return False
+        return False
 
     def _get_node_id_for_packet(self, packet):
         app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
