@@ -11,7 +11,7 @@ class Pinger:
         """Aysncio based pinger
         :param handler: Pinger uses it to send a ping and inform when timeout occurs.
                         Must implement send_ping() and on_timeout() methods
-        :param int interval: time interval between ping afer a pong
+        :param int interval: time interval between ping after a pong
         :param loop: Optional event loop
         """
 
