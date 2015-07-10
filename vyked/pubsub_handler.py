@@ -5,6 +5,7 @@ import asyncio
 import asyncio_redis as redis
 from vyked.utils.log import log
 
+
 class PubSubHandler:
     _logger = logging.getLogger(__name__)
 
@@ -33,7 +34,8 @@ class PubSubHandler:
     def subscribe(self, endpoints, handler):
         connection = yield from self._get_conn()
         subscriber = yield from connection.start_subscribe()
-        channels = [self._get_key(*endpoint) for endpoint in endpoints]
+        channels = [self._get_key(endpoint['service'], endpoint['version'], endpoint['endpoint']) for endpoint in
+                    endpoints]
         yield from subscriber.subscribe(channels)
         while True:
             payload = yield from subscriber.next_published()
@@ -47,9 +49,3 @@ class PubSubHandler:
 
     def _get_conn(self):
         return (yield from redis.Connection.create(self._redis_host, self._redis_port, auto_reconnect=True))
-
-
-
-
-
-
