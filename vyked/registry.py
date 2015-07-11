@@ -49,16 +49,8 @@ class Registry:
         request_type = packet['type']
         if request_type == 'register':
             self._register_service(packet, registry_protocol, *transport.get_extra_info('peername'))
-        elif request_type == 'subscribe':
-            self._handle_subscription(packet, *transport.get_extra_info('peername'))
-        elif request_type == 'message_sub':
-            self._subscribe_for_message(packet, *transport.get_extra_info('peername'))
         elif request_type == 'pong':
             self._handle_pong(packet['node_id'], packet['count'])
-        elif request_type == 'resolve_publication':
-            self._resolve_publication(packet, registry_protocol)
-        elif request_type == 'resolve_message_publication':
-            self._resolve_message_publication(packet, registry_protocol)
         elif request_type == 'service_death_sub':
             self._add_service_death_listener(packet)
         elif request_type == 'get_instances':
@@ -81,7 +73,6 @@ class Registry:
                     for consumer in self._get_consumers(service):
                         self._pending_services[consumer] = [node_id for host, port, node_id, service_type in
                                                             self._registered_services[consumer]]
-
 
     def handle_ping_timeout(self, node_id):
         print("{} timed out".format(node_id))
@@ -167,31 +158,9 @@ class Registry:
         self._pingers[node_id] = pinger
         asyncio.async(pinger.start_ping())
 
-    def _handle_subscription(self, packet, host, port):
-        params = packet['params']
-        for each in params['subscribe_to']:
-            self._subscription_list[each['service']][each['version']][each['endpoint']].append(
-                (host, params['port'], params['node_id']))
-
     def _handle_pong(self, node_id, count):
         pinger = self._pingers[node_id]
         asyncio.async(pinger.pong_received(count))
-
-    def _resolve_publication(self, packet, protocol):
-        params = packet['params']
-        service, version, endpoint = params['service'], params['version'], params['endpoint']
-        nodes = [{'ip': ip, 'port': port, 'node_id': node} for ip, port, node in
-                 self._subscription_list[service][version][endpoint]]
-        result = {'type': 'subscription_list', 'request_id': packet['request_id'], 'nodes': nodes}
-        protocol.send(result)
-
-    def _resolve_message_publication(self, packet, protocol):
-        params = packet['params']
-        service, version, endpoint, entity = params['service'], params['version'], params['endpoint'], params['entity']
-        nodes = [{'ip': ip, 'port': port, 'node_id': node} for ip, port, node in
-                 self._message_sub_list[service][version][endpoint][entity]]
-        result = {'type': 'message_subscription_list', 'request_id': packet['request_id'], 'nodes': nodes}
-        protocol.send(result)
 
     def _get_consumers(self, vendor):
         consumers = []
@@ -214,12 +183,6 @@ class Registry:
         params = {'node_id': node_id, 'vendor': vendor}
         packet['params'] = params
         return packet
-
-    def _subscribe_for_message(self, packet, host, port):
-        service, version, endpoint, entity = packet['service'], packet['version'], packet[
-            'endpoint'], packet['entity']
-        ip, port, node_id = packet['ip'], packet['port'], packet['node_id']
-        self._message_sub_list[service][version][endpoint][entity].append((host, port, node_id))
 
     def _add_service_death_listener(self, packet):
         service, version, node = packet['service'], packet['version'], packet['node']

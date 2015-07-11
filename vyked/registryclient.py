@@ -61,10 +61,6 @@ class RegistryClient:
             self._bus.registration_complete()
         elif packet['type'] == 'deregister':
             self._handle_deregistration(packet)
-        elif packet['type'] == 'subscription_list':
-            self._handle_subscription_list(packet)
-        elif packet['type'] == 'message_subscription_list':
-            self._handle_subscription_list(packet)
 
     def get_all_addresses(self, full_service_name):
         return self._available_services.get(
@@ -102,7 +98,6 @@ class RegistryClient:
         else:
             return self.get_random_service(service_name, service_type)
 
-
     @staticmethod
     def _get_full_service_name(service, version):
         return "{}/{}".format(service, version)
@@ -113,10 +108,6 @@ class RegistryClient:
             for address in vendor['addresses']:
                 self._available_services[vendor_name].append(
                     (address['host'], address['port'], address['node_id'], address['type']))
-
-    def _handle_subscription_list(self, packet):
-        future = self._pending_requests.pop(packet['request_id'])
-        future.set_result(packet['nodes'])
 
     def _handle_deregistration(self, packet):
         params = packet['params']
