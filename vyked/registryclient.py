@@ -4,8 +4,7 @@ import random
 from collections import defaultdict
 
 from again.utils import unique_hex
-
-from .services import TCPServiceClient
+from .packet import ControlPacket
 
 
 class RegistryClient:
@@ -25,18 +24,15 @@ class RegistryClient:
         self._available_services = defaultdict(list)
         self._assigned_services = defaultdict(lambda: defaultdict(list))
 
-    def _register_service(self, ip, port, service, vendors, version, type):
+    def _register_service(self, ip, port, service, vendors, version, service_type):
         self._service = service
         self._version = version
-        packet = self._make_registration_packet(ip, port, service, version, vendors, type)
-        self._protocol.send(packet)
-
-    def add_service_death_listener(self, service, version):
-        packet = self._make_death_subscription_packet(service, version, self._node_id)
+        self._node_id = '{}_{}_{}'.format(service, version, unique_hex())
+        packet = ControlPacket.registration(ip, port, self._node_id, service, version, vendors, service_type)
         self._protocol.send(packet)
 
     def get_instances(self, service, version):
-        packet = self._make_get_instance_packet(service, version)
+        packet = ControlPacket.instances(service, version)
         self._protocol.send(packet)
 
     def register_http(self, vendors, ip, port, service, version):
@@ -106,45 +102,6 @@ class RegistryClient:
         else:
             return self.get_random_service(service_name, service_type)
 
-    def _make_registration_packet(self, ip:str, port:str, service:str, version:str, vendors, type:str):
-        vendors_list = []
-        for vendor in vendors:
-            vendor_dict = {'service': vendor.name,
-                           'version': vendor.version}
-            vendors_list.append(vendor_dict)
-        self._node_id = '{}_{}_{}'.format(service, version, unique_hex())
-        params = {'service': service,
-                  'version': version,
-                  'host': ip,
-                  'port': port,
-                  'node_id': self._node_id,
-                  'vendors': vendors_list,
-                  'type': type}
-        packet = {'pid': unique_hex(),
-                  'type': 'register',
-                  'params': params}
-        return packet
-
-    def _make_death_subscription_packet(self, service:str, version:str, node_id:str):
-        params = {'service': service,
-                  'version': version}
-        packet = {'pid': unique_hex(),
-                  'type': 'service_death_sub',
-                  'service': self._service,
-                  'version': self._version,
-                  'params': params,
-                  'node': node_id}
-        return packet
-
-    def _make_get_instance_packet(self, service, version):
-        params = {'service': service,
-                  'version': version}
-        packet = {'pid': unique_hex(),
-                  'type': 'get_instances',
-                  'service': self._service,
-                  'version': self._version,
-                  'params': params}
-        return packet
 
     @staticmethod
     def _get_full_service_name(service, version):
@@ -156,35 +113,6 @@ class RegistryClient:
             for address in vendor['addresses']:
                 self._available_services[vendor_name].append(
                     (address['host'], address['port'], address['node_id'], address['type']))
-
-    def resolve_publication(self, service, version, endpoint):
-        future = Future()
-        request_id = unique_hex()
-        packet = {'type': 'resolve_publication', 'request_id': request_id}
-        params = {
-            'service': service,
-            'version': version,
-            'endpoint': endpoint
-        }
-        packet['params'] = params
-        self._pending_requests[request_id] = future
-        self._protocol.send(packet)
-        return future
-
-    def resolve_message_publication(self, service, version, endpoint, entity):
-        future = Future()
-        request_id = unique_hex()
-        packet = {'type': 'resolve_message_publication', 'request_id': request_id}
-        params = {
-            'service': service,
-            'version': version,
-            'endpoint': endpoint,
-            'entity': entity
-        }
-        packet['params'] = params
-        self._pending_requests[request_id] = future
-        self._protocol.send(packet)
-        return future
 
     def _handle_subscription_list(self, packet):
         future = self._pending_requests.pop(packet['request_id'])

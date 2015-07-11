@@ -15,7 +15,8 @@ from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from .registryclient import RegistryClient
 from .services import TCPServiceClient, HTTPServiceClient, HTTPApplicationService
 from .pinger import Pinger
-from .pubsub_handler import PubSubHandler
+from .pubsub_handler import PubSub
+from .packet import ControlPacket
 
 HTTP = 'http'
 TCP = 'tcp'
@@ -165,6 +166,10 @@ class Bus:
 
     def start(self, registry_host: str, registry_port: int, redis_host: str, redis_port: int):
 
+        self._set_process_name()
+        ControlPacket.initialize()
+        asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
+        asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
         tcp_server = self._create_tcp_service_host()
         http_server = self._create_http_service_host()
         self._create_pubsub_handler(redis_host, redis_port)
@@ -274,7 +279,7 @@ class Bus:
             return asyncio.get_event_loop().run_until_complete(http_coro)
 
     def _create_pubsub_handler(self, host, port):
-        self._pubsub_handler = PubSubHandler(host, port)
+        self._pubsub_handler = PubSub(host, port)
         asyncio.get_event_loop().run_until_complete(self._pubsub_handler.connect())
         asyncio.async(self._register_for_subscription())
 
@@ -418,7 +423,7 @@ if __name__ == '__main__':
     HOST_PORT = 8000
     Host.registry = RegistryClient(REGISTRY_HOST, REGISTRY_PORT)
     Host.pubsub = PubSub(REDIS_HOST, REDIS_PORT)
-    Host.attach_tcp_service(tcp_service)
+    Host.attach_tcp_service(tcpx_service)
     Host.attach_http_service(http_service)
     Host.name = 'SampleService'
     Host.run()
