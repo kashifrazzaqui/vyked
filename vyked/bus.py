@@ -16,6 +16,7 @@ from .registryclient import RegistryClient
 from .services import TCPServiceClient, HTTPServiceClient, HTTPApplicationService
 from .pinger import Pinger
 from .pubsub_handler import PubSubHandler
+from .packet import ControlPacket
 
 HTTP = 'http'
 TCP = 'tcp'
@@ -168,6 +169,7 @@ class Bus:
 
     def start(self, registry_host: str, registry_port: int, redis_host: str, redis_port: int):
         self._set_process_name()
+        ControlPacket.initialize()
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
 
