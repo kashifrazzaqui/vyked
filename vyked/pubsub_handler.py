@@ -6,7 +6,7 @@ import asyncio_redis as redis
 from vyked.utils.log import log
 
 
-class PubSubHandler:
+class PubSub:
     """
     Pub sub handler which uses redis.
     Can be used to publish an event or subscribe to a list of endpoints
