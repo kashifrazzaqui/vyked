@@ -18,8 +18,6 @@ class Registry:
         self._service_dependencies = {}
         self._service_protocols = {}
         self._dead_service_listeners = defaultdict(list)
-        self._subscription_list = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-        self._message_sub_list = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
         self._pingers = {}
 
     def _rfactory(self):
