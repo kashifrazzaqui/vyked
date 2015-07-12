@@ -1,11 +1,9 @@
-
-
 class SendQueue:
     """
     Queues packets to send when transport can send
     """
 
-    def __init__(self, transport, can_send_func=lambda:True, pre_process_func=lambda x:x):
+    def __init__(self, transport, can_send_func=lambda: True, pre_process_func=lambda x: x):
         self._q = []
         self._transport = transport
         self._can_send = can_send_func
