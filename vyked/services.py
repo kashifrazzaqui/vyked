@@ -25,7 +25,7 @@ def get_decorated_fun(method, path, required_params):
         def f(self, *args, **kwargs):
             if isinstance(self, HTTPServiceClient):
                 return (yield from make_request(func, self, args, kwargs, method))
-            elif isinstance(self, HTTPApplicationService):
+            elif isinstance(self, HTTPService):
                 if required_params is not None:
                     req = args[0]
                     query_params = req.GET
@@ -328,10 +328,10 @@ class _ServiceHost(_Service):
         return self._ip, self._port
 
 
-class _TCPServiceHost(_ServiceHost):
+class TCPService(_ServiceHost):
     def __init__(self, service_name, service_version, host_ip, host_port):
         # TODO: to be multi-tenant make app_name a list
-        super(_TCPServiceHost, self).__init__(service_name, service_version, host_ip, host_port)
+        super(TCPService, self).__init__(service_name, service_version, host_ip, host_port)
 
     def _publish(self, endpoint, payload):
         self._bus.publish(self.name, self.version, endpoint, payload)
@@ -359,10 +359,10 @@ def _default_preflight_response(self, request):
                     headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT',
                              'Access-Control-Allow-Headers': 'accept, content-type'})
 
-class _HTTPServiceHost(_ServiceHost, metaclass=OrderedClassMembers):
+class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
     def __init__(self, service_name, service_version, host_ip, host_port, ssl_context=None, allow_cross_domain=False,
                  preflight_response=_default_preflight_response):
-        super(_HTTPServiceHost, self).__init__(service_name, service_version, host_ip, host_port)
+        super(HTTPService, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context
         self._allow_cross_domain = allow_cross_domain
         self._preflight_response = preflight_response
@@ -381,30 +381,6 @@ class _HTTPServiceHost(_ServiceHost, metaclass=OrderedClassMembers):
 
     def pong(self, request):
         return Response()
-
-
-class TCPApplicationService(_TCPServiceHost):
-    pass
-
-
-class TCPDomainService(_TCPServiceHost):
-    pass
-
-
-class TCPInfraService(_TCPServiceHost):
-    pass
-
-
-class HTTPApplicationService(_HTTPServiceHost):
-    pass
-
-
-class HTTPDomainService(_HTTPServiceHost):
-    pass
-
-
-class HTTPInfraService(_HTTPServiceHost):
-    pass
 
 
 class HTTPServiceClient(_Service):
