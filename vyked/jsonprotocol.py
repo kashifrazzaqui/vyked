@@ -4,11 +4,9 @@ import logging
 
 from jsonstreamer import ObjectStreamer
 
-from .registry import Registry
-from .registryclient import RegistryClient
-from .services import TCPServiceClient
 from .sendqueue import SendQueue
 from .pinger import Pinger
+
 
 class JSONProtocol(asyncio.Protocol):
 
@@ -20,7 +18,8 @@ class JSONProtocol(asyncio.Protocol):
         self._transport = None
         self._obj_streamer = None
 
-    def _make_frame(self, packet):
+    @staticmethod
+    def _make_frame(packet):
         string = json.dumps(packet) + ','
         return string.encode()
 
@@ -80,6 +79,7 @@ class JSONProtocol(asyncio.Protocol):
         self.logger.info('Pair {}'.format(pair))
         raise RuntimeError('Received a key-value pair object - expected elements only')
 
+
 class PingProtocol(JSONProtocol):
 
     PING_INTERVAL = 10
@@ -122,70 +122,19 @@ class PingProtocol(JSONProtocol):
             self._timeout_handler.on_timeout()
 
 
-class ServiceHostProtocol(PingProtocol):
-    def __init__(self, bus):
+class VykedProtocol(PingProtocol):
+    def __init__(self, handler):
         super().__init__()
-        self._bus = bus
+        self._handler = handler
 
     def connection_made(self, transport):
-        peername = transport.get_extra_info('peername')
-        self.logger.info('Client Connection from {}'.format(peername))
-        super(ServiceHostProtocol, self).connection_made(transport)
+        peer_name = transport.get_extra_info('peername')
+        self.logger.info('Client Connection from {}'.format(peer_name))
+        super(VykedProtocol, self).connection_made(transport)
 
     def connection_lost(self, exc):
-        super(ServiceHostProtocol, self).connection_lost(exc)
-        # TODO: think about what needs to be done here
+        super(VykedProtocol, self).connection_lost(exc)
 
     def on_element(self, element):
         super().on_element(element)
-        self._bus.host_receive(packet=element, protocol=self)
-
-
-class ServiceClientProtocol(PingProtocol):
-    def __init__(self, bus):
-        super().__init__()
-        self._bus = bus
-
-    def set_service_client(self, service_client:TCPServiceClient):
-        self._service_client = service_client
-
-    def connection_made(self, transport):
-        peername = transport.get_extra_info('peername')
-        self.logger.info('Connected to server{}'.format(peername))
-        super(ServiceClientProtocol, self).connection_made(transport)
-
-    def on_element(self, element):
-        super().on_element(element)
-        self._bus.client_receive(packet=element, service_client=self._service_client)
-
-
-class RegistryProtocol(PingProtocol):
-    def __init__(self, registry:Registry):
-        super().__init__()
-        self._registry = registry
-
-    def connection_made(self, transport):
-        peername = transport.get_extra_info('peername')
-        self._transport = transport
-        self.logger.info('Connected from {}'.format(peername))
-        super(RegistryProtocol, self).connection_made(transport)
-        # TODO: pass protocol to registry
-
-    def on_element(self, element):
-        super().on_element(element)
-        self._registry.receive(packet=element, registry_protocol=self, transport=self._transport)
-
-
-class RegistryClientProtocol(PingProtocol):
-    def __init__(self, registry_client:RegistryClient):
-        super().__init__()
-        self._registry_client = registry_client
-
-    def connection_made(self, transport):
-        peername = transport.get_extra_info('peername')
-        self.logger.info('Connected to server{}'.format(peername))
-        super(RegistryClientProtocol, self).connection_made(transport)
-
-    def on_element(self, element):
-        super().on_element(element)
-        self._registry_client.receive(packet=element, registry_protocol=self)
+        self._handler.receive(packet=element, protocol=self)
