@@ -351,7 +351,7 @@ class RequestException(Exception):
     pass
 
 
-def _default_preflight_response(self, request):
+def _default_preflight_response(request):
     return Response(status=200,
                     headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT',
                              'Access-Control-Allow-Headers': 'accept, content-type'})
