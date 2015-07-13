@@ -14,7 +14,7 @@ from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from .registryclient import RegistryClient
 from .services import TCPServiceClient, HTTPServiceClient
 from .pinger import Pinger
-from .pubsub_handler import PubSub
+from .pubsub import PubSub
 from .packet import ControlPacket
 
 HTTP = 'http'
