@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 # vyked documentation build configuration file, created by
-# sphinx-quickstart on Mon Jul 13 16:38:24 2015.
+# sphinx-quickstart on Mon Jul 13 16:54:50 2015.
 #
 # This file is execfile()d with the current directory set to its
 # containing dir.
