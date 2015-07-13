@@ -9,7 +9,6 @@ from .utils.ordered_class_member import OrderedClassMembers
 
 # Service Client decorators
 
-
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
     entity = params.pop('entity', None)

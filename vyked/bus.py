@@ -55,16 +55,6 @@ class Bus:
         self._ronin = False
         self._registered = False
 
-    def serve_tcp(self, service_host):
-        #NOTE: should be in service not bus
-        self._tcp_host = service_host
-        self._tcp_host.bus = self
-
-    def serve_http(self, service_host):
-        #NOTE: should be in service not bus
-        self._http_host = service_host
-        self._http_host.bus = self
-
     def send(self, packet:dict):
         packet['from'] = self._host_id
         func = getattr(self, '_' + packet['type'] + '_sender')
