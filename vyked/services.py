@@ -218,6 +218,7 @@ class _Service:
         self._service_name = service_name
         self._service_version = service_version
         self._bus = None
+        self._service_clients = []
 
     @property
     def name(self):
@@ -247,6 +248,11 @@ class _Service:
 
         get_event_loop().call_later(timeout, timer_callback, future)
 
+    def require(self, clients):
+        for client in clients:
+            if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
+                client.bus = self
+                self._service_clients.append(client)
 
 class TCPServiceClient(_Service):
     REQUEST_TIMEOUT_SECS = 10
