@@ -1,29 +1,27 @@
 import asyncio
 import logging
-from aiohttp.web import Application
 from functools import partial
 import signal
 import os
 
+from vyked.bus import MessageBus
+from vyked.services import HTTPService, TCPService
+
+from aiohttp.web import Application
+
 _logger = logging.getLogger(__name__)
+
 
 class Host:
 
     registry = None
     pubsub = None
     name = None
+    ronin = True
     _host_id = None
     _tcp_service = None
     _http_service = None
-    _ronin = True
-
-    @classmethod
-    def set_ronin(cls, ronin):
-        cls._ronin = ronin
-
-    @classmethod
-    def ronin(cls):
-        return cls._ronin
+    _bus = MessageBus()
 
     @classmethod
     def _set_process_name(cls):
@@ -31,17 +29,21 @@ class Host:
         setproctitle('{}_{}'.format(cls.name, cls._host_id))
 
     @classmethod
-    def _stop(cls, signame:str):
+    def _stop(cls, signame: str):
         _logger.info('\ngot signal {} - exiting'.format(signame))
         asyncio.get_event_loop().stop()
 
     @classmethod
-    def attach_tcp_service(cls, service):
-        cls._tcp_service = service
-
-    @classmethod
-    def attach_http_service(cls, service):
-        cls._http_service = service
+    def attach_service(cls, service):
+        service.bus = cls._bus
+        if isinstance(service, HTTPService):
+            cls._http_service = service
+            cls._bus._http_host = service
+        elif isinstance(service, TCPService):
+            cls._tcp_service = service
+            cls._bus._tcp_host = service
+        else:
+            _logger.error('Invalid argument attached as service')
 
     @classmethod
     def run(cls):
@@ -63,8 +65,8 @@ class Host:
         if cls._tcp_service:
             host_ip, host_port = cls._tcp_service.socket_address
             #TODO : protocol factory
-            host_coro = asyncio.get_event_loop().create_server(cls._host_factory, host_ip, host_port)
-            return asyncio.get_event_loop().run_until_complete(host_coro)
+            task = asyncio.get_event_loop().create_server(cls._host_factory, host_ip, host_port)
+            return asyncio.get_event_loop().run_until_complete(task)
 
     @classmethod
     def _create_http_server(cls):
@@ -82,8 +84,8 @@ class Host:
             fn = getattr(cls._http_service, 'pong')
             app.router.add_route('GET', '/ping', fn)
             handler = app.make_handler()
-            http_coro = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
-            return asyncio.get_event_loop().run_until_complete(http_coro)
+            task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
+            return asyncio.get_event_loop().run_until_complete(task)
         
     @classmethod
     def _set_host_id(cls):

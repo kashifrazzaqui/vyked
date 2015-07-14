@@ -1,18 +1,15 @@
 import asyncio
 from functools import partial
 import json
-import os
 import logging
-import signal
 
 from again.utils import unique_hex
 
 from retrial.retrial import retry
 import aiohttp
 
-from .jsonprotocol import ServiceHostProtocol, ServiceClientProtocol
 from .registryclient import RegistryClient
-from .services import TCPServiceClient, HTTPServiceClient
+from .services import TCPServiceClient
 from .pinger import Pinger
 from .pubsub import PubSub
 from .packet import ControlPacket
@@ -35,9 +32,13 @@ def _retry_for_exception(e):
     return True
 
 
-class Bus:
+class ControlBus:
     def __init__(self):
+        pass
 
+
+class MessageBus:
+    def __init__(self):
         self._registry_client = None
 
         self._client_protocols = {}
@@ -55,14 +56,14 @@ class Bus:
         self._ronin = False
         self._registered = False
 
-    def send(self, packet:dict):
+    def send(self, packet: dict):
         packet['from'] = self._host_id
         func = getattr(self, '_' + packet['type'] + '_sender')
         func(packet)
 
-    def send_http_request(self, app:str, service:str, version:str, method:str, entity:str, params:dict):
+    def send_http_request(self, app: str, service: str, version: str, method: str, entity: str, params: dict):
         """
-        a convenience method that allows you to send a well formatted http request to another service
+        A convenience method that allows you to send a well formatted http request to another service
         """
         host, port, node_id, service_type = self._registry_client.resolve(service, version, entity, HTTP)
 
@@ -84,13 +85,13 @@ class Bus:
 
     def _request_sender(self, packet: dict):
         """
-        sends a request to a server from a ServiceClient
+        Sends a request to a server from a ServiceClient
         auto dispatch method called from self.send()
         """
         self._pending_requests.append(packet)
         self._clear_request_queue()
 
-    def host_receive(self, packet: dict, protocol: ServiceHostProtocol):
+    def receive(self, packet: dict, protocol):
         if packet['type'] == 'ping':
             self._handle_ping(packet, protocol)
         elif packet['type'] == 'pong':
@@ -120,7 +121,7 @@ class Bus:
         else:
             print('no api found for packet: ', packet)
 
-    def client_receive(self, service_client:TCPServiceClient, packet:dict):
+    def client_receive(self, service_client: TCPServiceClient, packet: dict):
         _logger.info('service client {}, packet {}'.format(service_client, packet))
         _logger.info('active pingers {}'.format(self._pingers))
         if packet['type'] == 'ping':
@@ -137,46 +138,15 @@ class Bus:
     def _client_factory(self):
         return ServiceClientProtocol(self)
 
-    def start(self, registry_host: str, registry_port: int, redis_host: str, redis_port: int):
-
-        self._set_process_name()
-        ControlPacket.initialize()
-        asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
-        asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
-        tcp_server = self._create_tcp_service_host()
-        http_server = self._create_http_service_host()
-        self._create_pubsub_handler(redis_host, redis_port)
+    def register(self, registry_host: str, registry_port: int):
         if not self.ronin:
             self._setup_registry_client(registry_host, registry_port)
             if self._tcp_host:
                 tcp_host_ip, tcp_host_port = self._tcp_host.socket_address
-                self._registry_client.register_tcp(self._service_clients, tcp_host_ip, tcp_host_port,
-                                               *self._tcp_host.properties)
+                self._registry_client.register_tcp(self._service_clients, tcp_host_ip, tcp_host_port, *self._tcp_host.properties)
             if self._http_host:
                 ip, port = self._http_host.socket_address
                 self._registry_client.register_http(self._service_clients, ip, port, *self._http_host.properties)
-
-        if tcp_server:
-            _logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
-        if http_server:
-            _logger.info('Serving HTTP on {}'.format(http_server.sockets[0].getsockname()))
-        _logger.info("Event loop running forever, press CTRL+c to interrupt.")
-        _logger.info("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
-
-        try:
-            asyncio.get_event_loop().run_forever()
-        except Exception as e:
-            print(e)
-        finally:
-            if tcp_server:
-                tcp_server.close()
-                asyncio.get_event_loop().run_until_complete(tcp_server.wait_closed())
-
-            if http_server:
-                http_server.close()
-                asyncio.get_event_loop().run_until_complete(http_server.wait_closed())
-
-            asyncio.get_event_loop().close()
 
     def _register_for_subscription(self):
         subscription_list = []
@@ -254,16 +224,11 @@ class Bus:
         return {'app': app, 'service': service, 'version': version}
 
     def _handle_ping(self, packet, protocol):
-        pong_packet = self._make_pong_packet(packet['node_id'], packet['count'])
-        protocol.send(pong_packet)
+        protocol.send(ControlPacket.pong(packet['node_id'], packet['count']))
 
     def _handle_pong(self, node_id, count):
         pinger = self._pingers[node_id]
         asyncio.async(pinger.pong_received(count))
-
-    def _make_pong_packet(self, node_id, count):
-        packet = {'type': 'pong', 'node_id': node_id, 'count': count}
-        return packet
 
     def _clear_request_queue(self):
         self._pending_requests[:] = [each for each in self._pending_requests if not self._send_packet(each)]
@@ -298,18 +263,3 @@ class Bus:
         if service_props is not None:
             host, port, _node_id, _type = service_props
             asyncio.async(self._connect_to_client(host, _node_id, port, _type))
-
-if __name__ == '__main__':
-    REGISTRY_HOST = '127.0.0.1'
-    REGISTRY_PORT = 4500
-    REDIS_HOST = '127.0.0.1'
-    REDIS_PORT = 6379
-    HOST_IP = '127.0.0.1'
-    HOST_PORT = 8000
-    Host.registry = RegistryClient(REGISTRY_HOST, REGISTRY_PORT)
-    Host.pubsub = PubSub(REDIS_HOST, REDIS_PORT)
-    Host.attach_tcp_service(tcp_service)
-    Host.attach_http_service(http_service)
-    Host.name = 'SampleService'
-    Host.run()
-
