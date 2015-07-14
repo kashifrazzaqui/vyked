@@ -1,4 +1,5 @@
 from asyncio import Future
+import asyncio
 import logging
 import random
 from collections import defaultdict
@@ -32,8 +33,11 @@ class RegistryClient:
         self._protocol.send(packet)
 
     def get_instances(self, service, version):
+        future = asyncio.Future()
         packet = ControlPacket.instances(service, version)
         self._protocol.send(packet)
+        self._pending_requests[packet['request_id']] = future
+        return future
 
     def register_http(self, vendors, ip, port, service, version):
         self._register_service(ip, port, service, vendors, version, 'http')
@@ -65,6 +69,9 @@ class RegistryClient:
             self._handle_subscription_list(packet)
         elif packet['type'] == 'message_subscription_list':
             self._handle_subscription_list(packet)
+        elif packet['type'] == 'instances':
+            future = self._pending_requests.pop(packet['request_id'])
+            future.set_result(packet['params']['instances'])
 
     def get_all_addresses(self, full_service_name):
         return self._available_services.get(
@@ -101,7 +108,6 @@ class RegistryClient:
                 return host, port, node_id, service_type
         else:
             return self.get_random_service(service_name, service_type)
-
 
     @staticmethod
     def _get_full_service_name(service, version):

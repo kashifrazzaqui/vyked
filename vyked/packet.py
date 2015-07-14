@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 class _Packet:
     _pid = 0
 
@@ -40,6 +42,7 @@ class ControlPacket(_Packet):
                   'type': 'get_instances',
                   'service': service,
                   'version': version,
-                  'params': params}
+                  'params': params,
+                  'request_id': str(uuid4())}
 
         return packet

@@ -253,7 +253,7 @@ class Registry:
             instances = [{'host': host, 'port': port, 'node': node, 'type': service_type} for host, port, node, service_type in
                          self._registered_services[service_name]]
         instance_packet_params = {'service': service, 'version': version, 'instances': instances}
-        instance_packet = {'type': 'instances', 'params': instance_packet_params}
+        instance_packet = {'type': 'instances', 'request_id': packet['request_id'], 'params': instance_packet_params}
         registry_protocol.send(instance_packet)
 
 
