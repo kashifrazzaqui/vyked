@@ -17,7 +17,6 @@ class Registry:
         self._client_protocols = {}
         self._service_dependencies = {}
         self._service_protocols = {}
-        self._dead_service_listeners = defaultdict(list)
         self._pingers = {}
 
     def _rfactory(self):
@@ -180,28 +179,6 @@ class Registry:
         packet = {'type': 'deregister'}
         params = {'node_id': node_id, 'vendor': vendor}
         packet['params'] = params
-        return packet
-
-    def _add_service_death_listener(self, packet):
-        service, version, node = packet['service'], packet['version'], packet['node']
-        params = packet['params']
-        service_name = self._get_full_service_name(params['service'], params['version'])
-        self._dead_service_listeners[service_name].append(node)
-
-    def _remove_service_death_listener(self, node_id):
-        for service, listeners in self._dead_service_listeners.items():
-            if node_id in listeners:
-                listeners.remove()
-
-    def _notify_service_death_listeners(self, service, node_id):
-        for node in self._dead_service_listeners[service]:
-            protocol = self._client_protocols[node]
-            protocol.send(self._make_service_dead_packet(service, node_id))
-
-    @staticmethod
-    def _make_service_dead_packet(service, node_id):
-        params = {'node_id': node_id, 'service': service.split('/')[0], 'version': service.split('/')[1]}
-        packet = {'type': 'service_dead', 'params': params}
         return packet
 
     def _get_service_instances(self, packet, registry_protocol):
