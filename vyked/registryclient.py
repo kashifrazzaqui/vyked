@@ -1,9 +1,9 @@
-from asyncio import Future
 import logging
 import random
 from collections import defaultdict
 
 from again.utils import unique_hex
+
 from .packet import ControlPacket
 
 
@@ -32,7 +32,7 @@ class RegistryClient:
         self._protocol.send(packet)
 
     def get_instances(self, service, version):
-        packet = ControlPacket.instances(service, version)
+        packet = ControlPacket.get_instances(service, version)
         self._protocol.send(packet)
 
     def register_http(self, vendors, ip, port, service, version):

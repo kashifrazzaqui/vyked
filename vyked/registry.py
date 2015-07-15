@@ -3,9 +3,9 @@ import asyncio
 from functools import partial
 from collections import defaultdict
 
-from again.utils import unique_hex
-
 from .pinger import Pinger
+from .packet import ControlPacket
+
 
 class Registry:
     def __init__(self, ip, port):
@@ -48,8 +48,6 @@ class Registry:
             self._register_service(packet, registry_protocol, *transport.get_extra_info('peername'))
         elif request_type == 'pong':
             self._handle_pong(packet['node_id'], packet['count'])
-        elif request_type == 'service_death_sub':
-            self._add_service_death_listener(packet)
         elif request_type == 'get_instances':
             self._get_service_instances(packet, registry_protocol)
 
@@ -64,8 +62,6 @@ class Registry:
                     self._client_protocols.pop(node_id, None)
             if service_present:
                 self._notify_consumers(service, node_id)
-                self._remove_service_death_listener(node_id)
-                self._notify_service_death_listeners(service, node_id)
                 if not len(nodes):
                     for consumer in self._get_consumers(service):
                         self._pending_services[consumer] = [node_id for host, port, node_id, service_type in
@@ -114,27 +110,8 @@ class Registry:
         pass
 
     def _make_activated_packet(self, vendors):
-        vendors_packet = []
-        for vendor in vendors:
-            vendor_packet = defaultdict(list)
-            vendor_name = self._get_full_service_name(vendor['service'], vendor['version'])
-            for host, port, node, service_type in self._registered_services[vendor_name]:
-                vendor_node_packet = {
-                    'host': host,
-                    'port': port,
-                    'node_id': node,
-                    'type': service_type
-                }
-                vendor_packet['name'] = vendor_name
-                vendor_packet['addresses'].append(vendor_node_packet)
-            vendors_packet.append(vendor_packet)
-        params = {
-            'vendors': vendors_packet
-        }
-        packet = {'pid': unique_hex(),
-                  'type': 'registered',
-                  'params': params}
-        return packet
+        vendor_names = [self._get_full_service_name(vendor['service'], vendor['version']) for vendor in vendors]
+        return ControlPacket.activated(vendor_names, self._registered_services)
 
     def _connect_to_service(self, host, port, node_id, service_type):
         if service_type == 'tcp':
@@ -169,28 +146,19 @@ class Registry:
         return consumers
 
     def _notify_consumers(self, vendor, node_id):
-        packet = self._make_deregister_packet(node_id, vendor)
+        packet = ControlPacket.deregister(node_id, vendor)
         for consumer in self._get_consumers(vendor):
             for host, port, node, service_type in self._registered_services[consumer]:
                 protocol = self._client_protocols[node]
                 protocol.send(packet)
 
-    def _make_deregister_packet(self, node_id, vendor):
-        packet = {'type': 'deregister'}
-        params = {'node_id': node_id, 'vendor': vendor}
-        packet['params'] = params
-        return packet
-
     def _get_service_instances(self, packet, registry_protocol):
         params = packet['params']
         service, version = params['service'], params['version']
         service_name = self._get_full_service_name(service, version)
-        instances = []
-        if service_name in self._registered_services:
-            instances = [{'host': host, 'port': port, 'node': node, 'type': service_type} for host, port, node, service_type in
-                         self._registered_services[service_name]]
-        instance_packet_params = {'service': service, 'version': version, 'instances': instances}
-        instance_packet = {'type': 'instances', 'params': instance_packet_params}
+        instance_packet = ControlPacket.send_instances(service, version, self._registered_services[
+            service_name]) if service_name in self._registered_services else ControlPacket.send_instances(service,
+                                                                                                          version, [])
         registry_protocol.send(instance_packet)
 
 
