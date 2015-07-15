@@ -6,7 +6,7 @@ import os
 
 from vyked.bus import MessageBus
 from vyked.services import HTTPService, TCPService
-
+from .protocol_factory import get_vyked_protocol
 from aiohttp.web import Application
 
 _logger = logging.getLogger(__name__)
@@ -64,8 +64,7 @@ class Host:
     def _create_tcp_server(cls):
         if cls._tcp_service:
             host_ip, host_port = cls._tcp_service.socket_address
-            #TODO : protocol factory
-            task = asyncio.get_event_loop().create_server(cls._host_factory, host_ip, host_port)
+            task = asyncio.get_event_loop().create_server(get_vyked_protocol(cls._bus), host_ip, host_port)
             return asyncio.get_event_loop().run_until_complete(task)
 
     @classmethod
