@@ -5,7 +5,6 @@ import logging
 from jsonstreamer import ObjectStreamer
 
 from .sendqueue import SendQueue
-from .pinger import Pinger
 
 
 class JSONProtocol(asyncio.Protocol):
@@ -80,56 +79,14 @@ class JSONProtocol(asyncio.Protocol):
         raise RuntimeError('Received a key-value pair object - expected elements only')
 
 
-class PingProtocol(JSONProtocol):
-
-    PING_INTERVAL = 10
-    PING_TIMEOUT = 15
-
-    logger = logging.getLogger(__name__)
-
-    def __init__(self):
-        super().__init__()
-        self._pinger = Pinger(self, self.PING_INTERVAL, self.PING_TIMEOUT)
-        self._timeout_handler = None
-
-    @property
-    def timeout_handler(self):
-        return self._timeout_handler
-
-    @timeout_handler.setter
-    def timeout_handler(self, handler):
-        self._timeout_handler = handler
-
-    def connection_made(self, transport):
-        super().connection_made(transport)
-        asyncio.async(self._pinger.send_ping())
-
-    def on_element(self, element):
-        if 'type' in element:
-            if element['type'] == 'pong':
-                asyncio.async(self._pinger.pong_received())
-            elif element['type'] == 'ping':
-                asyncio.async(self.send_pong())
-
-    def send_ping(self):
-        self.send({'type': 'ping'})
-
-    def send_pong(self):
-        self.send({'type': 'pong'})
-
-    def on_timeout(self):
-        if self._timeout_handler:
-            self._timeout_handler.on_timeout()
-
-
-class VykedProtocol(PingProtocol):
+class VykedProtocol(JSONProtocol):
     def __init__(self, handler):
         super().__init__()
         self._handler = handler
 
     def connection_made(self, transport):
         peer_name = transport.get_extra_info('peername')
-        self.logger.info('Client Connection from {}'.format(peer_name))
+        self.logger.info('Connection from {}'.format(peer_name))
         super(VykedProtocol, self).connection_made(transport)
 
     def connection_lost(self, exc):
