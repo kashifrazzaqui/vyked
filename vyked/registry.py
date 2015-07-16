@@ -4,7 +4,7 @@ from functools import partial
 from collections import defaultdict, namedtuple
 
 from .packet import ControlPacket
-
+from .protocol_factory import get_vyked_protocol
 
 # TODO : Better objects
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
@@ -77,26 +77,21 @@ class Registry:
         self._service_protocols = {}
         self._repository = Repository()
 
-    def _rfactory(self):
-        from vyked.jsonprotocol import RegistryProtocol
-
-        return RegistryProtocol(self)
-
     def start(self):
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
-        registry_coro = self._loop.create_server(self._rfactory, self._ip, self._port)
-        self._server = self._loop.run_until_complete(registry_coro)
+        registry_coroutine = self._loop.create_server(get_vyked_protocol(self), self._ip, self._port)
+        server = self._loop.run_until_complete(registry_coroutine)
         try:
             self._loop.run_forever()
         except Exception as e:
             print(e)
         finally:
-            self._server.close()
-            self._loop.run_until_complete(self._server.wait_closed())
+            server.close()
+            self._loop.run_until_complete(server.wait_closed())
             self._loop.close()
 
-    def _stop(self, signame:str):
+    def _stop(self, signame: str):
         print('\ngot signal {} - exiting'.format(signame))
         self._loop.stop()
 
@@ -132,6 +127,7 @@ class Registry:
         packet = self._make_activated_packet(service, version)
         protocol.send(packet)
 
+    # TODO : refactor
     def _handle_pending_registrations(self):
         for service, version in self._repository.get_pending_services():
             vendors = self._repository.get_vendors(service, version)
@@ -154,7 +150,7 @@ class Registry:
 
     def _connect_to_service(self, host, port, node_id, service_type):
         if service_type == 'tcp':
-            coro = self._loop.create_connection(self._rfactory, host, port)
+            coro = self._loop.create_connection(get_vyked_protocol(self), host, port)
             future = asyncio.async(coro)
             future.add_done_callback(partial(self._handle_service_connection, node_id))
 
