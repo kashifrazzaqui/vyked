@@ -59,24 +59,26 @@ class ControlPacket(_Packet):
         return {'pid': cls._next_pid(), 'type': 'instances', 'params': instance_packet_params}
 
     @classmethod
-    def deregister(cls, node_id, vendor):
-        params = {'node_id': node_id, 'vendor': vendor}
+    # TODO : fix parsing on client side
+    def deregister(cls, service, version, node_id):
+        params = {'node_id': node_id, 'service': service, 'version': version}
         packet = {'pid': cls._next_pid(), 'type': 'deregister', 'params': params}
         return packet
 
     @classmethod
-    def activated(cls, vendor_names, registered_services):
+    def activated(cls, instances):
         vendors_packet = []
-        for vendor_name in vendor_names:
+        for k, v in instances.items():
             vendor_packet = defaultdict(list)
-            for host, port, node, service_type in registered_services[vendor_name]:
+            vendor_packet['name'] = k[0]
+            vendor_packet['version'] = k[1]
+            for host, port, node, service_type in v:
                 vendor_node_packet = {
                     'host': host,
                     'port': port,
                     'node_id': node,
                     'type': service_type
                 }
-                vendor_packet['name'] = vendor_name
                 vendor_packet['addresses'].append(vendor_node_packet)
             vendors_packet.append(vendor_packet)
         params = {
@@ -89,4 +91,15 @@ class ControlPacket(_Packet):
 
 
 class MessagePacket(_Packet):
-    pass
+    @classmethod
+    def request(cls, name, version, app_name, packet_type, endpoint, params, entity):
+        packet = {'pid': cls._next_pid(),
+                  'app': app_name,
+                  'service': name,
+                  'version': version,
+                  'entity': entity,
+                  'endpoint': endpoint,
+                  'type': packet_type,
+                  'payload': params}
+        return packet
+

@@ -4,6 +4,7 @@ import json
 
 from again.utils import unique_hex
 from aiohttp.web import Response
+from .packet import MessagePacket
 
 from .utils.ordered_class_member import OrderedClassMembers
 
@@ -120,23 +121,6 @@ def request(func):
     return wrapper
 
 
-def message_sub(func):
-    """
-    use to listen for publications from a specific endpoint of a service,
-    this method receives a publication from a remote service
-    """
-
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        params = func(self, *args, **kwargs)
-        entity = params.pop('entity')
-        app_name = params.pop('app_name', None)
-        self._send_message_sub(app_name, endpoint=func.__name__, entity=entity)
-
-    wrapper.is_directed_subscribe = True
-    return wrapper
-
-
 # Service Host Decorators
 
 def publish(func):
@@ -210,8 +194,6 @@ class _Service:
     _PUB_PKT_STR = 'publish'
     _REQ_PKT_STR = 'request'
     _RES_PKT_STR = 'response'
-    _MSG_PUB_PKT_STR = 'message_pub'
-    _MSG_SUB_PKT_STR = 'message_sub'
 
     def __init__(self, service_name, service_version):
         self._service_name = service_name
@@ -253,6 +235,7 @@ class _Service:
                 client.bus = self
                 self._service_clients.append(client)
 
+
 class TCPServiceClient(_Service):
     REQUEST_TIMEOUT_SECS = 10
 
@@ -261,7 +244,7 @@ class TCPServiceClient(_Service):
         self._pending_requests = {}
 
     def _send_request(self, app_name, endpoint, entity, params):
-        packet = self._make_packet(app_name, _Service._REQ_PKT_STR, endpoint, params, entity)
+        packet = MessagePacket.request(self.name, self.version, app_name, _Service._REQ_PKT_STR, endpoint, params, entity)
         future = Future()
         request_id = params['request_id']
         self._pending_requests[request_id] = future
@@ -269,9 +252,16 @@ class TCPServiceClient(_Service):
         _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
 
-    def _send_message_sub(self, app_name, endpoint, entity):
-        packet = self._make_packet(app_name, _Service._MSG_SUB_PKT_STR, endpoint, None, entity)
-        self._bus.send(packet)
+    def receive(self, packet: dict, protocol, transport):
+        _logger.info('service client {}, packet {}'.format(self, packet))
+        _logger.info('active pingers {}'.format(self._pingers))
+        if packet['type'] == 'ping':
+            self._handle_ping(packet['node_id'], packet['count'])
+        elif packet['type'] == 'pong':
+            pinger = self._pingers[packet['node_id']]
+            asyncio.async(pinger.pong_received(packet['count']))
+        else:
+            self._process_response(packet)
 
     def process_packet(self, packet):
         if packet['type'] == _Service._RES_PKT_STR:
@@ -301,16 +291,6 @@ class TCPServiceClient(_Service):
         func = getattr(self, endpoint)
         func(**packet['payload'])
 
-    def _make_packet(self, app_name, packet_type, endpoint, params, entity):
-        packet = {'pid': unique_hex(),
-                  'app': app_name,
-                  'service': self.name,
-                  'version': self.version,
-                  'entity': entity,
-                  'endpoint': endpoint,
-                  'type': packet_type,
-                  'payload': params}
-        return packet
 
 
 class _ServiceHost(_Service):

@@ -150,8 +150,8 @@ class Registry:
 
     def _connect_to_service(self, host, port, node_id, service_type):
         if service_type == 'tcp':
-            coro = self._loop.create_connection(get_vyked_protocol(self), host, port)
-            future = asyncio.async(coro)
+            coroutine = self._loop.create_connection(get_vyked_protocol(self), host, port)
+            future = asyncio.async(coroutine)
             future.add_done_callback(partial(self._handle_service_connection, node_id))
 
     def _handle_service_connection(self, node_id, future):

@@ -93,5 +93,4 @@ class VykedProtocol(JSONProtocol):
         super(VykedProtocol, self).connection_lost(exc)
 
     def on_element(self, element):
-        super().on_element(element)
-        self._handler.receive(packet=element, protocol=self)
+        self._handler.receive(packet=element, protocol=self, transport=self._transport)

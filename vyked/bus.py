@@ -13,6 +13,7 @@ from .services import TCPServiceClient
 from .pinger import Pinger
 from .pubsub import PubSub
 from .packet import ControlPacket
+from .protocol_factory import get_vyked_protocol
 
 HTTP = 'http'
 TCP = 'tcp'
@@ -25,30 +26,23 @@ def _retry_for_client_conn(result):
         return not isinstance(result[0], asyncio.transports.Transport) or not isinstance(result[1], asyncio.Protocol)
     return True
 
+
 def _retry_for_pub(result):
     return not result
+
 
 def _retry_for_exception(e):
     return True
 
 
-class ControlBus:
-    def __init__(self):
-        pass
-
-
-class MessageBus:
+class Bus:
     def __init__(self):
         self._registry_client = None
-
         self._client_protocols = {}
         self._pingers = {}
         self._service_clients = []
         self._node_clients = {}
-
         self._pending_requests = []
-        self._unacked_publish = {}
-
         self._tcp_host = None
         self._http_host = None
         self._host_id = unique_hex()
@@ -61,28 +55,6 @@ class MessageBus:
         func = getattr(self, '_' + packet['type'] + '_sender')
         func(packet)
 
-    def send_http_request(self, app: str, service: str, version: str, method: str, entity: str, params: dict):
-        """
-        A convenience method that allows you to send a well formatted http request to another service
-        """
-        host, port, node_id, service_type = self._registry_client.resolve(service, version, entity, HTTP)
-
-        url = 'http://{}:{}{}'.format(host, port, params.pop('path'))
-
-        http_keys = ['data', 'headers', 'cookies', 'auth', 'allow_redirects', 'compress', 'chunked']
-        kwargs = {k: params[k] for k in http_keys if k in params}
-
-        query_params = params.pop('params', {})
-
-        if app is not None:
-            query_params['app'] = app
-
-        query_params['version'] = version
-        query_params['service'] = service
-
-        response = yield from aiohttp.request(method, url, params=query_params, **kwargs)
-        return response
-
     def _request_sender(self, packet: dict):
         """
         Sends a request to a server from a ServiceClient
@@ -91,59 +63,13 @@ class MessageBus:
         self._pending_requests.append(packet)
         self._clear_request_queue()
 
-    def receive(self, packet: dict, protocol):
-        if packet['type'] == 'ping':
-            self._handle_ping(packet, protocol)
-        elif packet['type'] == 'pong':
-            self._handle_pong(packet['node_id'], packet['count'])
-        elif packet['type'] == 'ack':
-            pid = packet['pid']
-            self._unacked_publish.pop(pid)
-        else:
-            if self._tcp_host.is_for_me(packet['service'], packet['version']):
-                func = getattr(self, '_' + packet['type'] + '_receiver')
-                func(packet, protocol)
-            else:
-                _logger.warn('wrongly routed packet: ', packet)
-
-    def _request_receiver(self, packet, protocol):
-        api_fn = getattr(self._tcp_host, packet['endpoint'])
-        if api_fn.is_api:
-            from_node_id = packet['from']
-            entity = packet['entity']
-            future = asyncio.async(api_fn(from_id=from_node_id, entity=entity, **packet['payload']))
-
-            def send_result(f):
-                result_packet = f.result()
-                protocol.send(result_packet)
-
-            future.add_done_callback(send_result)
-        else:
-            print('no api found for packet: ', packet)
-
-    def client_receive(self, service_client: TCPServiceClient, packet: dict):
-        _logger.info('service client {}, packet {}'.format(service_client, packet))
-        _logger.info('active pingers {}'.format(self._pingers))
-        if packet['type'] == 'ping':
-            self._handle_ping(packet['node_id'], packet['count'])
-        elif packet['type'] == 'pong':
-            pinger = self._pingers[packet['node_id']]
-            asyncio.async(pinger.pong_received(packet['count']))
-        else:
-            service_client.process_packet(packet)
-
-    def _host_factory(self):
-        return ServiceHostProtocol(self)
-
-    def _client_factory(self):
-        return ServiceClientProtocol(self)
-
     def register(self, registry_host: str, registry_port: int):
         if not self.ronin:
             self._setup_registry_client(registry_host, registry_port)
             if self._tcp_host:
                 tcp_host_ip, tcp_host_port = self._tcp_host.socket_address
-                self._registry_client.register_tcp(self._service_clients, tcp_host_ip, tcp_host_port, *self._tcp_host.properties)
+                self._registry_client.register_tcp(self._service_clients, tcp_host_ip, tcp_host_port,
+                                                   *self._tcp_host.properties)
             if self._http_host:
                 ip, port = self._http_host.socket_address
                 self._registry_client.register_http(self._service_clients, ip, port, *self._http_host.properties)
@@ -192,21 +118,21 @@ class MessageBus:
         for sc in self._service_clients:
             for host, port, node_id, service_type in self._registry_client.get_all_addresses(sc.properties):
                 self._node_clients[node_id] = sc
-                future = self._connect_to_client(host, node_id, port, service_type)
+                future = self._connect_to_client(host, node_id, port, service_type, sc)
                 futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
     @retry(should_retry_for_result=_retry_for_client_conn, should_retry_for_exception=_retry_for_exception, timeout=10,
            strategy=[0, 2, 2, 4])
-    def _connect_to_client(self, host, node_id, port, service_type):
+    def _connect_to_client(self, host, node_id, port, service_type, service_client):
         _logger.info('node_id' + node_id)
-        future = asyncio.async(asyncio.get_event_loop().create_connection(self._client_factory, host, port))
+        future = asyncio.async(asyncio.get_event_loop().create_connection(get_vyked_protocol(service_client), host, port))
         future.add_done_callback(
             partial(self._service_client_connection_callback, self._node_clients[node_id], node_id, service_type))
         return future
 
     def _service_client_connection_callback(self, sc, node_id, service_type, future):
-        _ , protocol = future.result()
+        _, protocol = future.result()
         protocol.set_service_client(sc)
         if service_type == TCP:
             pinger = Pinger(self, asyncio.get_event_loop())
@@ -250,11 +176,6 @@ class MessageBus:
         node = self._registry_client.resolve(service, version, entity, TCP)
         return node[2] if node else None
 
-    @staticmethod
-    def send_ack(protocol, pid):
-        packet = {'type': 'ack', 'pid': pid}
-        protocol.send(packet)
-
     def handle_ping_timeout(self, node_id):
         _logger.info("Service client connection timed out {}".format(node_id))
         self._pingers.pop(node_id, None)
@@ -263,3 +184,52 @@ class MessageBus:
         if service_props is not None:
             host, port, _node_id, _type = service_props
             asyncio.async(self._connect_to_client(host, _node_id, port, _type))
+
+    def receive(self, packet: dict, protocol, transport):
+        if packet['type'] == 'ping':
+            self._handle_ping(packet, protocol)
+        elif packet['type'] == 'pong':
+            self._handle_pong(packet['node_id'], packet['count'])
+        else:
+            if self._tcp_host.is_for_me(packet['service'], packet['version']):
+                func = getattr(self, '_' + packet['type'] + '_receiver')
+                func(packet, protocol)
+            else:
+                _logger.warn('wrongly routed packet: ', packet)
+
+    def _request_receiver(self, packet, protocol):
+        api_fn = getattr(self._tcp_host, packet['endpoint'])
+        if api_fn.is_api:
+            from_node_id = packet['from']
+            entity = packet['entity']
+            future = asyncio.async(api_fn(from_id=from_node_id, entity=entity, **packet['payload']))
+
+            def send_result(f):
+                result_packet = f.result()
+                protocol.send(result_packet)
+
+            future.add_done_callback(send_result)
+        else:
+            print('no api found for packet: ', packet)
+
+    def send_http_request(self, app: str, service: str, version: str, method: str, entity: str, params: dict):
+        """
+        A convenience method that allows you to send a well formatted http request to another service
+        """
+        host, port, node_id, service_type = self._registry_client.resolve(service, version, entity, HTTP)
+
+        url = 'http://{}:{}{}'.format(host, port, params.pop('path'))
+
+        http_keys = ['data', 'headers', 'cookies', 'auth', 'allow_redirects', 'compress', 'chunked']
+        kwargs = {k: params[k] for k in http_keys if k in params}
+
+        query_params = params.pop('params', {})
+
+        if app is not None:
+            query_params['app'] = app
+
+        query_params['version'] = version
+        query_params['service'] = service
+
+        response = yield from aiohttp.request(method, url, params=query_params, **kwargs)
+        return response
