@@ -5,10 +5,11 @@ import json
 from again.utils import unique_hex
 from aiohttp.web import Response
 from .packet import MessagePacket
-
+from .exceptions import RequestException
 from .utils.ordered_class_member import OrderedClassMembers
 
 # Service Client decorators
+
 
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
@@ -329,14 +330,11 @@ class TCPService(_ServiceHost):
         return packet
 
 
-class RequestException(Exception):
-    pass
-
-
 def _default_preflight_response(self, request):
     return Response(status=200,
                     headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT',
                              'Access-Control-Allow-Headers': 'accept, content-type'})
+
 
 class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
     def __init__(self, service_name, service_version, host_ip, host_port, ssl_context=None, allow_cross_domain=False,
