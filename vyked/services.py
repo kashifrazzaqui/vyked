@@ -1,6 +1,5 @@
-from asyncio import Future, get_event_loop, coroutine, iscoroutinefunction
+from asyncio import Future, get_event_loop
 import asyncio
-from functools import wraps
 
 from again.utils import unique_hex
 from aiohttp.web import Response
@@ -112,7 +111,6 @@ class TCPServiceClient(_Service):
         func(**packet['payload'])
 
 
-
 class _ServiceHost(_Service):
     def __init__(self, service_name, service_version, host_ip, host_port):
         super(_ServiceHost, self).__init__(service_name, service_version)
@@ -149,14 +147,11 @@ class TCPService(_ServiceHost):
         return packet
 
 
-class RequestException(Exception):
-    pass
-
-
 def _default_preflight_response(self, request):
     return Response(status=200,
                     headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT',
                              'Access-Control-Allow-Headers': 'accept, content-type'})
+
 
 class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
     def __init__(self, service_name, service_version, host_ip, host_port, ssl_context=None, allow_cross_domain=False,
