@@ -7,6 +7,7 @@ from again.utils import unique_hex
 from .packet import ControlPacket
 
 
+# TODO : rename registryclient to registry_client
 class RegistryClient:
     logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class RegistryClient:
         self._available_services = defaultdict(list)
         self._assigned_services = defaultdict(lambda: defaultdict(list))
 
-    def _register_service(self, ip, port, service, vendors, version, service_type):
+    def register(self, ip, port, service, version, service_type, vendors):
         self._service = service
         self._version = version
         self._node_id = '{}_{}_{}'.format(service, version, unique_hex())
@@ -34,12 +35,6 @@ class RegistryClient:
     def get_instances(self, service, version):
         packet = ControlPacket.get_instances(service, version)
         self._protocol.send(packet)
-
-    def register_http(self, vendors, ip, port, service, version):
-        self._register_service(ip, port, service, vendors, version, 'http')
-
-    def register_tcp(self, vendors, ip, port, service, version):
-        self._register_service(ip, port, service, vendors, version, 'tcp')
 
     def subscribe_for_message(self, packet):
         packet['node_id'] = self._node_id

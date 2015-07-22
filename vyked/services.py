@@ -1,5 +1,6 @@
 from asyncio import Future, get_event_loop
 import asyncio
+import logging
 
 from again.utils import unique_hex
 from aiohttp.web import Response
@@ -7,6 +8,9 @@ from aiohttp.web import Response
 from .packet import MessagePacket
 from .exceptions import RequestException
 from .utils.ordered_class_member import OrderedClassMembers
+
+
+_logger = logging.getLogger(__name__)
 
 
 class _Service:
@@ -48,12 +52,6 @@ class _Service:
 
         get_event_loop().call_later(timeout, timer_callback, future)
 
-    def require(self, clients):
-        for client in clients:
-            if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
-                client.bus = self
-                self._service_clients.append(client)
-
 
 class TCPServiceClient(_Service):
     REQUEST_TIMEOUT_SECS = 10
@@ -63,7 +61,8 @@ class TCPServiceClient(_Service):
         self._pending_requests = {}
 
     def _send_request(self, app_name, endpoint, entity, params):
-        packet = MessagePacket.request(self.name, self.version, app_name, _Service._REQ_PKT_STR, endpoint, params, entity)
+        packet = MessagePacket.request(self.name, self.version, app_name, _Service._REQ_PKT_STR, endpoint, params,
+                                       entity)
         future = Future()
         request_id = params['request_id']
         self._pending_requests[request_id] = future
@@ -120,6 +119,12 @@ class _ServiceHost(_Service):
     def is_for_me(self, service, version):
         return service == self.name and int(version) == self.version
 
+    def require(self, clients):
+        self._bus.require(clients)
+
+    def register(self):
+        raise NotImplementedError
+
     @property
     def socket_address(self):
         return self._ip, self._port
@@ -133,7 +138,8 @@ class TCPService(_ServiceHost):
     def _publish(self, endpoint, payload):
         self._bus.publish(self.name, self.version, endpoint, payload)
 
-    def _make_response_packet(self, request_id: str, from_id: str, entity: str, result: object, error: object):
+    @staticmethod
+    def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object):
         if error:
             payload = {'request_id': request_id, 'error': error}
         else:
@@ -146,6 +152,8 @@ class TCPService(_ServiceHost):
                   'payload': payload}
         return packet
 
+    def register(self):
+        self._bus.register(self._ip, self._port, self.name, self.version, self._service_clients)
 
 def _default_preflight_response(self, request):
     return Response(status=200,

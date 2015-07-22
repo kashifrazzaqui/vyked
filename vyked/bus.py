@@ -4,13 +4,11 @@ import json
 import logging
 
 from again.utils import unique_hex
-
 from retrial.retrial import retry
 import aiohttp
 
-from .registryclient import RegistryClient
-from .services import TCPServiceClient
-from .pinger import Pinger
+from .registry_client import RegistryClient
+from .services import TCPServiceClient, HTTPServiceClient
 from .pubsub import PubSub
 from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
@@ -35,13 +33,40 @@ def _retry_for_exception(e):
     return True
 
 
-class Bus:
+class HTTPBus:
+
+    def __init__(self, registry_client):
+        self._registry_client = registry_client
+
+    def send_http_request(self, app: str, service: str, version: str, method: str, entity: str, params: dict):
+        """
+        A convenience method that allows you to send a well formatted http request to another service
+        """
+        host, port, node_id, service_type = self._registry_client.resolve(service, version, entity, HTTP)
+
+        url = 'http://{}:{}{}'.format(host, port, params.pop('path'))
+
+        http_keys = ['data', 'headers', 'cookies', 'auth', 'allow_redirects', 'compress', 'chunked']
+        kwargs = {k: params[k] for k in http_keys if k in params}
+
+        query_params = params.pop('params', {})
+
+        if app is not None:
+            query_params['app'] = app
+
+        query_params['version'] = version
+        query_params['service'] = service
+
+        response = yield from aiohttp.request(method, url, params=query_params, **kwargs)
+        return response
+
+class TCPBus:
     def __init__(self):
         self._registry_client = None
         self._client_protocols = {}
         self._pingers = {}
-        self._service_clients = []
         self._node_clients = {}
+        self._service_clients = []
         self._pending_requests = []
         self._tcp_host = None
         self._http_host = None
@@ -49,6 +74,35 @@ class Bus:
         self._pubsub_handler = None
         self._ronin = False
         self._registered = False
+
+    def add_service_clients(self, clients):
+        for client in clients:
+            if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
+                client.bus = self
+                self._service_clients.append(client)
+
+    def create_service_clients(self):
+        futures = []
+        for sc in self._service_clients:
+            for host, port, node_id, service_type in self._registry_client.get_all_addresses(sc.properties):
+                self._node_clients[node_id] = sc
+                future = self._connect_to_client(host, node_id, port, service_type, sc)
+                futures.append(future)
+        return asyncio.gather(*futures, return_exceptions=False)
+
+    def register(self, host, port, service, version, clients, type):
+        self._registry_client.register(host, port, service, version, clients)
+
+    def registration_complete(self):
+        if not self._registered:
+            f = self.create_service_clients()
+            self._registered = True
+
+            def fun(fut):
+                if self._tcp_host:
+                    self._clear_request_queue()
+
+            f.add_done_callback(fun)
 
     def send(self, packet: dict):
         packet['from'] = self._host_id
@@ -63,65 +117,6 @@ class Bus:
         self._pending_requests.append(packet)
         self._clear_request_queue()
 
-    def register(self, registry_host: str, registry_port: int):
-        if not self.ronin:
-            self._setup_registry_client(registry_host, registry_port)
-            if self._tcp_host:
-                tcp_host_ip, tcp_host_port = self._tcp_host.socket_address
-                self._registry_client.register_tcp(self._service_clients, tcp_host_ip, tcp_host_port,
-                                                   *self._tcp_host.properties)
-            if self._http_host:
-                ip, port = self._http_host.socket_address
-                self._registry_client.register_http(self._service_clients, ip, port, *self._http_host.properties)
-
-    def _register_for_subscription(self):
-        subscription_list = []
-        for client in self._service_clients:
-            if isinstance(client, TCPServiceClient):
-                for each in dir(client):
-                    fn = getattr(client, each)
-                    if callable(fn) and getattr(fn, 'is_subscribe', False):
-                        subscription_list.append((client.name, client.version, fn.__name__))
-        yield from self._pubsub_handler.subscribe(subscription_list, handler=self.subscription_handler)
-
-    def publish(self, service, version, endpoint, payload):
-        asyncio.async(self._retry_publish(service, version, endpoint, payload))
-
-    @retry(should_retry_for_result=_retry_for_pub, should_retry_for_exception=_retry_for_exception, timeout=10,
-           strategy=[0, 2, 2, 4])
-    def _retry_publish(self, service, version, endpoint, payload):
-        return (yield from self._pubsub_handler.publish(service, version, endpoint, payload))
-
-    def subscription_handler(self, service, version, endpoint, payload):
-        client = [sc for sc in self._service_clients if (sc.name == service and sc.version == version)][0]
-        func = getattr(client, endpoint)
-        asyncio.async(func(**json.loads(payload)))
-
-    def registration_complete(self):
-        if not self._registered:
-            f = self._create_service_clients()
-            self._registered = True
-
-            def fun(fut):
-                if self._tcp_host:
-                    self._clear_request_queue()
-
-            f.add_done_callback(fun)
-
-    def _create_pubsub_handler(self, host, port):
-        self._pubsub_handler = PubSub(host, port)
-        asyncio.get_event_loop().run_until_complete(self._pubsub_handler.connect())
-        asyncio.async(self._register_for_subscription())
-
-    def _create_service_clients(self):
-        futures = []
-        for sc in self._service_clients:
-            for host, port, node_id, service_type in self._registry_client.get_all_addresses(sc.properties):
-                self._node_clients[node_id] = sc
-                future = self._connect_to_client(host, node_id, port, service_type, sc)
-                futures.append(future)
-        return asyncio.gather(*futures, return_exceptions=False)
-
     @retry(should_retry_for_result=_retry_for_client_conn, should_retry_for_exception=_retry_for_exception, timeout=10,
            strategy=[0, 2, 2, 4])
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
@@ -134,11 +129,12 @@ class Bus:
     def _service_client_connection_callback(self, sc, node_id, service_type, future):
         _, protocol = future.result()
         protocol.set_service_client(sc)
-        if service_type == TCP:
-            pinger = Pinger(self, asyncio.get_event_loop())
-            self._pingers[node_id] = pinger
-            pinger.register_tcp_service(protocol, node_id)
-            asyncio.async(pinger.start_ping())
+        # TODO : handle pinging
+        # if service_type == TCP:
+        #     pinger = Pinger(self, asyncio.get_event_loop())
+        #     self._pingers[node_id] = pinger
+        #     pinger.register_tcp_service(protocol, node_id)
+        #     asyncio.async(pinger.start_ping())
         self._client_protocols[node_id] = protocol
 
     def _setup_registry_client(self, host: str, port: int):
@@ -212,24 +208,36 @@ class Bus:
         else:
             print('no api found for packet: ', packet)
 
-    def send_http_request(self, app: str, service: str, version: str, method: str, entity: str, params: dict):
-        """
-        A convenience method that allows you to send a well formatted http request to another service
-        """
-        host, port, node_id, service_type = self._registry_client.resolve(service, version, entity, HTTP)
 
-        url = 'http://{}:{}{}'.format(host, port, params.pop('path'))
+class PubSubBus:
+    def __init__(self):
+        self._pubsub_handler = None
+        self._clients = None
 
-        http_keys = ['data', 'headers', 'cookies', 'auth', 'allow_redirects', 'compress', 'chunked']
-        kwargs = {k: params[k] for k in http_keys if k in params}
+    def create_pubsub_handler(self, host, port):
+        self._pubsub_handler = PubSub(host, port)
+        asyncio.get_event_loop().run_until_complete(self._pubsub_handler.connect())
 
-        query_params = params.pop('params', {})
+    def register_for_subscription(self, clients, handler):
+        self._clients = clients
+        subscription_list = []
+        for client in clients:
+            if isinstance(client, TCPServiceClient):
+                for each in dir(client):
+                    fn = getattr(client, each)
+                    if callable(fn) and getattr(fn, 'is_subscribe', False):
+                        subscription_list.append((client.name, client.version, fn.__name__))
+        yield from self._pubsub_handler.subscribe(subscription_list, handler=self.subscription_handler)
 
-        if app is not None:
-            query_params['app'] = app
+    def publish(self, service, version, endpoint, payload):
+        asyncio.async(self._retry_publish(service, version, endpoint, payload))
 
-        query_params['version'] = version
-        query_params['service'] = service
+    @retry(should_retry_for_result=_retry_for_pub, should_retry_for_exception=_retry_for_exception, timeout=10,
+           strategy=[0, 2, 2, 4])
+    def _retry_publish(self, service, version, endpoint, payload):
+        return (yield from self._pubsub_handler.publish(service, version, endpoint, payload))
 
-        response = yield from aiohttp.request(method, url, params=query_params, **kwargs)
-        return response
+    def subscription_handler(self, service, version, endpoint, payload):
+        client = [sc for sc in self._clients if (sc.name == service and sc.version == version)][0]
+        func = getattr(client, endpoint)
+        asyncio.async(func(**json.loads(payload)))
