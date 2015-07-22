@@ -5,10 +5,11 @@ import json
 from again.utils import unique_hex
 from aiohttp.web import Response
 from .packet import MessagePacket
-
+from .exceptions import RequestException
 from .utils.ordered_class_member import OrderedClassMembers
 
 # Service Client decorators
+
 
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
