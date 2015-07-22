@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import random
 from collections import defaultdict
@@ -33,7 +34,10 @@ class RegistryClient:
 
     def get_instances(self, service, version):
         packet = ControlPacket.get_instances(service, version)
+        future = asyncio.Future()
         self._protocol.send(packet)
+        self._pending_requests[packet['request_id']] = future
+        return future
 
     def subscribe_for_message(self, packet):
         packet['node_id'] = self._node_id
