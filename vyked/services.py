@@ -1,14 +1,13 @@
 from asyncio import Future, get_event_loop
-import asyncio
 import logging
 
 from again.utils import unique_hex
+
 from aiohttp.web import Response
 
 from .packet import MessagePacket
 from .exceptions import RequestException
 from .utils.ordered_class_member import OrderedClassMembers
-
 
 _logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ class _Service:
         self._bus = bus
 
     @staticmethod
-    def time_future(future:Future, timeout:int):
+    def time_future(future: Future, timeout: int):
         def timer_callback(f):
             if not f.done() and not f.cancelled():
                 f.set_exception(TimeoutError())
@@ -72,12 +71,13 @@ class TCPServiceClient(_Service):
 
     def receive(self, packet: dict, protocol, transport):
         _logger.info('service client {}, packet {}'.format(self, packet))
-        _logger.info('active pingers {}'.format(self._pingers))
+        # _logger.info('active pingers {}'.format(self._pingers))
         if packet['type'] == 'ping':
-            self._handle_ping(packet['node_id'], packet['count'])
-        elif packet['type'] == 'pong':
-            pinger = self._pingers[packet['node_id']]
-            asyncio.async(pinger.pong_received(packet['count']))
+            pass
+        # self._handle_ping(packet['node_id'], packet['count'])
+        # elif packet['type'] == 'pong':
+        #     pinger = self._pingers[packet['node_id']]
+        #     asyncio.async(pinger.pong_received(packet['count']))
         else:
             self._process_response(packet)
 
@@ -153,17 +153,18 @@ class TCPService(_ServiceHost):
         return packet
 
     def register(self):
-        self._bus.register(self._ip, self._port, self.name, self.version, self._service_clients)
+        self._bus.register(self._ip, self._port, self.name, self.version, self._service_clients, 'tcp')
 
-def _default_preflight_response(self, request):
-    return Response(status=200,
-                    headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT',
-                             'Access-Control-Allow-Headers': 'accept, content-type'})
+
+def default_preflight_response(self, request):
+    headers = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE',
+               'Access-Control-Allow-Headers': 'accept, content-type'}
+    return Response(status=200, headers=headers)
 
 
 class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
     def __init__(self, service_name, service_version, host_ip, host_port, ssl_context=None, allow_cross_domain=False,
-                 preflight_response=_default_preflight_response):
+                 preflight_response=default_preflight_response):
         super(HTTPService, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context
         self._allow_cross_domain = allow_cross_domain
@@ -181,8 +182,12 @@ class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
     def preflight_response(self):
         return self._preflight_response
 
-    def pong(self, request):
+    @staticmethod
+    def pong(_):
         return Response()
+
+    def register(self):
+        self._bus.register(self._ip, self._port, self.name, self.version, self._service_clients, 'http')
 
 
 class HTTPServiceClient(_Service):

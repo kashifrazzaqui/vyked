@@ -4,6 +4,7 @@ import json
 import logging
 
 from again.utils import unique_hex
+
 from retrial.retrial import retry
 import aiohttp
 
@@ -29,12 +30,11 @@ def _retry_for_pub(result):
     return not result
 
 
-def _retry_for_exception(e):
+def _retry_for_exception(_):
     return True
 
 
 class HTTPBus:
-
     def __init__(self, registry_client):
         self._registry_client = registry_client
 
@@ -60,6 +60,7 @@ class HTTPBus:
         response = yield from aiohttp.request(method, url, params=query_params, **kwargs)
         return response
 
+
 class TCPBus:
     def __init__(self):
         self._registry_client = None
@@ -71,7 +72,6 @@ class TCPBus:
         self._tcp_host = None
         self._http_host = None
         self._host_id = unique_hex()
-        self._pubsub_handler = None
         self._ronin = False
         self._registered = False
 
@@ -90,15 +90,15 @@ class TCPBus:
                 futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
-    def register(self, host, port, service, version, clients, type):
-        self._registry_client.register(host, port, service, version, clients)
+    def register(self, host, port, service, version, clients, service_type):
+        self._registry_client.register(host, port, service, version, clients, service_type)
 
     def registration_complete(self):
         if not self._registered:
             f = self.create_service_clients()
             self._registered = True
 
-            def fun(fut):
+            def fun(_):
                 if self._tcp_host:
                     self._clear_request_queue()
 
@@ -121,7 +121,8 @@ class TCPBus:
            strategy=[0, 2, 2, 4])
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
         _logger.info('node_id' + node_id)
-        future = asyncio.async(asyncio.get_event_loop().create_connection(get_vyked_protocol(service_client), host, port))
+        future = asyncio.async(
+            asyncio.get_event_loop().create_connection(get_vyked_protocol(service_client), host, port))
         future.add_done_callback(
             partial(self._service_client_connection_callback, self._node_clients[node_id], node_id, service_type))
         return future
@@ -145,7 +146,8 @@ class TCPBus:
     def _create_json_service_name(app, service, version):
         return {'app': app, 'service': service, 'version': version}
 
-    def _handle_ping(self, packet, protocol):
+    @staticmethod
+    def _handle_ping(packet, protocol):
         protocol.send(ControlPacket.pong(packet['node_id'], packet['count']))
 
     def _handle_pong(self, node_id, count):
@@ -181,7 +183,7 @@ class TCPBus:
             host, port, _node_id, _type = service_props
             asyncio.async(self._connect_to_client(host, _node_id, port, _type))
 
-    def receive(self, packet: dict, protocol, transport):
+    def receive(self, packet: dict, protocol, _):
         if packet['type'] == 'ping':
             self._handle_ping(packet, protocol)
         elif packet['type'] == 'pong':
@@ -218,7 +220,7 @@ class PubSubBus:
         self._pubsub_handler = PubSub(host, port)
         asyncio.get_event_loop().run_until_complete(self._pubsub_handler.connect())
 
-    def register_for_subscription(self, clients, handler):
+    def register_for_subscription(self, clients):
         self._clients = clients
         subscription_list = []
         for client in clients:

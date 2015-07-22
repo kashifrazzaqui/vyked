@@ -93,13 +93,11 @@ class ControlPacket(_Packet):
 class MessagePacket(_Packet):
     @classmethod
     def request(cls, name, version, app_name, packet_type, endpoint, params, entity):
-        packet = {'pid': cls._next_pid(),
-                  'app': app_name,
-                  'service': name,
-                  'version': version,
-                  'entity': entity,
-                  'endpoint': endpoint,
-                  'type': packet_type,
-                  'payload': params}
-        return packet
-
+        return {'pid': cls._next_pid(),
+                'app': app_name,
+                'service': name,
+                'version': version,
+                'entity': entity,
+                'endpoint': endpoint,
+                'type': packet_type,
+                'payload': params}

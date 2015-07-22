@@ -7,7 +7,6 @@ from again.utils import unique_hex
 from .packet import ControlPacket
 
 
-# TODO : rename registryclient to registry_client
 class RegistryClient:
     logger = logging.getLogger(__name__)
 
@@ -47,10 +46,10 @@ class RegistryClient:
         return p
 
     def connect(self):
-        coro = self._loop.create_connection(self._protocol_factory, self._host, self._port)
-        self._transport, self._protocol = self._loop.run_until_complete(coro)
+        coroutine = self._loop.create_connection(self._protocol_factory, self._host, self._port)
+        self._transport, self._protocol = self._loop.run_until_complete(coroutine)
 
-    def receive(self, packet: dict, registry_protocol):
+    def receive(self, packet: dict, _):
         if packet['type'] == 'registered':
             self.cache_vendors(packet['params']['vendors'])
             self._bus.registration_complete()

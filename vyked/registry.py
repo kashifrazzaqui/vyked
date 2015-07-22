@@ -6,6 +6,7 @@ from collections import defaultdict, namedtuple
 from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
 
+
 # TODO : Better objects
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
 
