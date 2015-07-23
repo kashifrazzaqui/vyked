@@ -7,7 +7,7 @@ from jsonstreamer import ObjectStreamer
 from .registry import Registry
 from .registryclient import RegistryClient
 from .services import TCPServiceClient
-from .utils.log import ping_logs_enabled
+from .utils.log import is_ping_logging_enabled
 
 class JSONProtocol(asyncio.Protocol):
 
@@ -47,9 +47,10 @@ class JSONProtocol(asyncio.Protocol):
         if self._connected:
             self._transport.write(string.encode())
             if 'ping' in string or 'pong' in string:
-                if ping_logs_enabled:
+                if is_ping_logging_enabled():
                     self.logger.debug('Data sent: {}'.format(string))
-            self.logger.debug('Data sent: {}'.format(string))
+            else:
+                self.logger.debug('Data sent: {}'.format(string))
         else:
             self._pending_data.append(packet)
             self.logger.debug('Appended data: {}'.format(self._pending_data))
@@ -61,9 +62,10 @@ class JSONProtocol(asyncio.Protocol):
     def data_received(self, byte_data):
         string_data = byte_data.decode()
         if 'ping' in string_data or 'pong' in string_data:
-            if ping_logs_enabled:
+            if is_ping_logging_enabled():
                 self.logger.debug('Data received: {}'.format(string_data))
-        self.logger.debug('Data received: {}'.format(string_data))
+        else:
+            self.logger.debug('Data received: {}'.format(string_data))
         self._obj_streamer.consume(string_data)
 
     def on_object_stream_start(self):

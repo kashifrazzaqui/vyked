@@ -19,6 +19,8 @@ END = '\033[0m'
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = False
 
+def is_ping_logging_enabled():
+    return ping_logs_enabled
 
 def config_logs(enable_ping_logs=False, log_level=logging.INFO):
     global ping_logs_enabled
