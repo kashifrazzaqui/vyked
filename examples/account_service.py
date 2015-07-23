@@ -60,7 +60,6 @@ def setup_accounts_service():
     identity_client = IdentityClient()
     bus.require([identity_client])
     bus.serve_tcp(accounts_service)
-    asyncio.async(identity_client.repeat_request())
     bus.start(REGISTRY_HOST, REGISTRY_PORT, REDIS_HOST, REDIS_PORT)
 
 

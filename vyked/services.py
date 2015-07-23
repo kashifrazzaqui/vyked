@@ -20,7 +20,8 @@ class _Service:
     def __init__(self, service_name, service_version):
         self._service_name = service_name
         self._service_version = service_version
-        self._bus = None
+        self._tcp_bus = None
+        self._pubsub_bus = None
         self._service_clients = []
 
     @property
@@ -36,12 +37,28 @@ class _Service:
         return self.name, self.version
 
     @property
-    def bus(self):
-        return self._bus
+    def tcp_bus(self):
+        return self._tcp_bus
 
-    @bus.setter
-    def bus(self, bus):
-        self._bus = bus
+    @tcp_bus.setter
+    def tcp_bus(self, bus):
+        self._tcp_bus = bus
+
+    @property
+    def http_bus(self):
+        return self._http_bus
+
+    @http_bus.setter
+    def http_bus(self, bus):
+        self._http_bus = bus
+
+    @property
+    def pubsub_bus(self):
+        return self._pubsub_bus
+
+    @pubsub_bus.setter
+    def pubsub_bus(self, bus):
+        self._pubsub_bus = bus
 
     @staticmethod
     def time_future(future: Future, timeout: int):
@@ -65,7 +82,7 @@ class TCPServiceClient(_Service):
         future = Future()
         request_id = params['request_id']
         self._pending_requests[request_id] = future
-        self._bus.send(packet)
+        self._tcp_bus.send(packet)
         _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
 
@@ -120,7 +137,7 @@ class _ServiceHost(_Service):
         return service == self.name and int(version) == self.version
 
     def require(self, clients):
-        self._bus.require(clients)
+        self._tcp_bus.require(clients)
 
     def register(self):
         raise NotImplementedError
@@ -132,11 +149,10 @@ class _ServiceHost(_Service):
 
 class TCPService(_ServiceHost):
     def __init__(self, service_name, service_version, host_ip, host_port):
-        # TODO: to be multi-tenant make app_name a list
         super(TCPService, self).__init__(service_name, service_version, host_ip, host_port)
 
     def _publish(self, endpoint, payload):
-        self._bus.publish(self.name, self.version, endpoint, payload)
+        self._pubsub_bus.publish(self.name, self.version, endpoint, payload)
 
     @staticmethod
     def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object):
@@ -153,7 +169,7 @@ class TCPService(_ServiceHost):
         return packet
 
     def register(self):
-        self._bus.register(self._ip, self._port, self.name, self.version, self._service_clients, 'tcp')
+        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self._service_clients, 'tcp')
 
 
 def default_preflight_response(self, request):
@@ -187,7 +203,7 @@ class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
         return Response()
 
     def register(self):
-        self._bus.register(self._ip, self._port, self.name, self.version, self._service_clients, 'http')
+        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self._service_clients, 'http')
 
 
 class HTTPServiceClient(_Service):
@@ -195,6 +211,6 @@ class HTTPServiceClient(_Service):
         super(HTTPServiceClient, self).__init__(service_name, service_version)
 
     def _send_http_request(self, app_name, method, entity, params):
-        response = yield from self._bus.send_http_request(app_name, self.name, self.version, method, entity,
+        response = yield from self._http_bus.send_http_request(app_name, self.name, self.version, method, entity,
                                                           params)
         return response

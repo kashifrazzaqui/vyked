@@ -8,6 +8,8 @@ from vyked import Bus
 
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
+REDIS_HOST = '127.0.0.1'
+REDIS_PORT = 6379
 
 
 class Hello(HTTPApplicationService):

@@ -1,5 +1,4 @@
 from asyncio import sleep
-import asyncio
 import json
 
 from aiohttp.web import Response, Request
@@ -36,6 +35,7 @@ class IdentityHTTPService(HTTPApplicationService):
         data = yield from request.json()
         return Response(status=200, body=(json.dumps(data)).encode())
 
+
 class IdentityTCPService(TCPApplicationService):
     def __init__(self, ip, port):
         super(IdentityTCPService, self).__init__("IdentityService", 1, ip, port)
@@ -56,11 +56,6 @@ class IdentityTCPService(TCPApplicationService):
         yield from sleep(5)
         return '{} {}'.format(user_name, password)
 
-    def repeat_publish(self):
-        yield from sleep(5)
-        self.password_changed('hello')
-        yield from self.repeat_publish()
-
 
 def setup_identity_service():
     bus = Bus()
@@ -68,10 +63,8 @@ def setup_identity_service():
     tcp = IdentityTCPService(IDENTITY_HOST, IDENTITY_TCP_PORT)
     bus.serve_http(http)
     bus.serve_tcp(tcp)
-    asyncio.async(tcp.repeat_publish())
     bus.start(REGISTRY_HOST, REGISTRY_PORT, REDIS_HOST, REDIS_PORT)
 
 
 if __name__ == '__main__':
     setup_identity_service()
-

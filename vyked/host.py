@@ -4,7 +4,6 @@ from functools import partial
 import signal
 import os
 
-from vyked.bus import MessageBus
 from vyked.services import HTTPService, TCPService
 from .protocol_factory import get_vyked_protocol
 from aiohttp.web import Application
@@ -21,7 +20,6 @@ class Host:
     _host_id = None
     _tcp_service = None
     _http_service = None
-    _bus = MessageBus()
 
     @classmethod
     def _set_process_name(cls):
