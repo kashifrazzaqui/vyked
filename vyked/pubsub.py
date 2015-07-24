@@ -3,8 +3,6 @@ import asyncio
 
 import asyncio_redis as redis
 
-from vyked.utils.log import log
-
 
 class PubSub:
     """
