@@ -1,15 +1,31 @@
 from logging import Handler
+from logging.handlers import TimedRotatingFileHandler
 from queue import Queue
 import sys
+import os
 from threading import Thread
 import logging
 import asyncio
 from functools import partial, wraps
 
+LOGS_DIR = 'logs'
+LOG_FILE_NAME = 'vyked.log'
+
 RED = '\033[91m'
 BLUE = '\033[94m'
 BOLD = '\033[1m'
 END = '\033[0m'
+
+stream_handler = logging.StreamHandler()
+ping_logs_enabled = False
+
+def is_ping_logging_enabled():
+    return ping_logs_enabled
+
+def config_logs(enable_ping_logs=False, log_level=logging.INFO):
+    global ping_logs_enabled
+    ping_logs_enabled = enable_ping_logs
+    stream_handler.setLevel(log_level)
 
 
 def patch_async_emit(handler: Handler):
@@ -44,14 +60,26 @@ def patch_add_handler(logger):
     return async_add_handler
 
 
-def setup():
+def create_logging_directory():
+    log_dir = os.path.join(os.getcwd(), LOGS_DIR)
+    if not os.path.exists(log_dir):
+        os.mkdir(LOGS_DIR)
+
+
+def setup_logging():
+    create_logging_directory()
     logger = logging.getLogger()
     logger.handlers = []
     logger.addHandler = patch_add_handler(logger)
-    handler = patch_async_emit(logging.StreamHandler())
+    stream_handler.setLevel(logging.INFO)
+    logger.addHandler(stream_handler)
+    #logger.addHandler(TimedRotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME), when='s', interval=10, backupCount=5))
+
+
+def add_handler(h):
+    handler = patch_async_emit(h)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
-    logger.addHandler(handler)
 
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):
@@ -132,5 +160,3 @@ def logx(supress_args=[], supress_all_args=False, supress_result=False, logger=l
         return func
 
     return decorator
-
-

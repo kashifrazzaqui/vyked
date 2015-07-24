@@ -7,7 +7,7 @@ from jsonstreamer import ObjectStreamer
 from .registry import Registry
 from .registryclient import RegistryClient
 from .services import TCPServiceClient
-
+from .utils.log import is_ping_logging_enabled
 
 class JSONProtocol(asyncio.Protocol):
 
@@ -46,10 +46,14 @@ class JSONProtocol(asyncio.Protocol):
         string = json.dumps(packet) + ','
         if self._connected:
             self._transport.write(string.encode())
-            self.logger.info('Data sent: {}'.format(string))
+            if 'ping' in string or 'pong' in string:
+                if is_ping_logging_enabled():
+                    self.logger.debug('Data sent: {}'.format(string))
+            else:
+                self.logger.debug('Data sent: {}'.format(string))
         else:
             self._pending_data.append(packet)
-            self.logger.info('Appended data: {}'.format(self._pending_data))
+            self.logger.debug('Appended data: {}'.format(self._pending_data))
 
     def close(self):
         self._transport.write('bye]'.encode())  # end the json array
@@ -57,7 +61,11 @@ class JSONProtocol(asyncio.Protocol):
 
     def data_received(self, byte_data):
         string_data = byte_data.decode()
-        self.logger.info('Data received: {}'.format(string_data))
+        if 'ping' in string_data or 'pong' in string_data:
+            if is_ping_logging_enabled():
+                self.logger.debug('Data received: {}'.format(string_data))
+        else:
+            self.logger.debug('Data received: {}'.format(string_data))
         self._obj_streamer.consume(string_data)
 
     def on_object_stream_start(self):
@@ -68,14 +76,14 @@ class JSONProtocol(asyncio.Protocol):
         raise RuntimeError('Incorrect JSON Streaming Format: expect a JSON Array to end at root, got object')
 
     def on_array_stream_start(self):
-        self.logger.info('Array Stream started')
+        self.logger.debug('Array Stream started')
 
     def on_array_stream_end(self):
         del self._obj_streamer
-        self.logger.info('Array Stream ended')
+        self.logger.debug('Array Stream ended')
 
     def on_pair(self, pair):
-        self.logger.info('Pair {}'.format(pair))
+        self.logger.debug('Pair {}'.format(pair))
         raise RuntimeError('Received a key-value pair object - expected elements only')
 
     def is_connected(self):
