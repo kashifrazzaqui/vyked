@@ -16,6 +16,7 @@ class JSONProtocol(asyncio.Protocol):
         self._connected = False
         self._transport = None
         self._obj_streamer = None
+        self._pending_data = []
 
     @staticmethod
     def _make_frame(packet):
