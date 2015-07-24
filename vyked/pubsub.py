@@ -33,7 +33,6 @@ class PubSub:
         return self._conn
 
     @asyncio.coroutine
-    @log(logger=_logger.error)
     def publish(self, endpoint: str, payload: str):
         """
         Publish to an endpoint.

@@ -230,15 +230,14 @@ class PubSubBus:
 
     def publish(self, service, version, endpoint, payload):
         endpoint = self._get_pubsub_key(service, version, endpoint)
-        asyncio.async(self._retry_publish(endpoint, payload))
+        asyncio.async(self._retry_publish(endpoint, json.dumps(payload)))
 
-    @retry(should_retry_for_result=_retry_for_pub, should_retry_for_exception=_retry_for_exception, timeout=10,
-           strategy=[0, 2, 2, 4])
-    def _retry_publish(self, service, version, endpoint, payload):
-        return (yield from self._pubsub_handler.publish(service, version, endpoint, payload))
+    def _retry_publish(self, endpoint, payload):
+        return (yield from self._pubsub_handler.publish(endpoint, payload))
 
-    def subscription_handler(self, service, version, endpoint, payload):
-        client = [sc for sc in self._clients if (sc.name == service and sc.version == version)][0]
+    def subscription_handler(self, endpoint, payload):
+        service, version, endpoint = endpoint.split('/')
+        client = [sc for sc in self._clients if (sc.name == service and sc.version == int(version))][0]
         func = getattr(client, endpoint)
         asyncio.async(func(**json.loads(payload)))
 
