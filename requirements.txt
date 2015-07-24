@@ -1,14 +1,1 @@
-jsonstreamer
-asyncio_redis
-setuptools>=18.0
-again==1.2.21
-aiohttp==0.16.5
-aiopg==0.7.0
-async-retrial==0.2
-asyncio-redis==0.13.4
-flake8==2.4.1
-pep8==1.5.7
-psycopg2==2.6.1
-pyflakes==0.8.1
-setproctitle==1.1.8
-wheel==0.24.0
+-r requirements/base.txt

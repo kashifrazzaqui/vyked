@@ -9,5 +9,6 @@ from .decorators.tcp import (api, request, subscribe, publish)
 from .registry import Registry
 from .utils import log
 from .exceptions import RequestException
+from .utils.log import setup_logging, config_logs
 
-log.setup()
+setup_logging()
