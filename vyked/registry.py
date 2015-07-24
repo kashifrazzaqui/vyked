@@ -96,12 +96,12 @@ class Registry:
         print('\ngot signal {} - exiting'.format(signame))
         self._loop.stop()
 
-    def receive(self, packet: dict, registry_protocol, transport):
+    def receive(self, packet: dict, protocol, transport):
         request_type = packet['type']
         if request_type == 'register':
-            self.register_service(packet, registry_protocol, *transport.get_extra_info('peername'))
+            self.register_service(packet, protocol, *transport.get_extra_info('peername'))
         elif request_type == 'get_instances':
-            self.get_service_instances(packet, registry_protocol)
+            self.get_service_instances(packet, protocol)
 
     def deregister_service(self, node_id):
         service = self._repository.get_node(node_id)

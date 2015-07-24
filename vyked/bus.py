@@ -120,14 +120,13 @@ class TCPBus:
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
         _logger.info('node_id' + node_id)
         future = asyncio.async(
-            asyncio.get_event_loop().create_connection(get_vyked_protocol(service_client), host, port))
+            asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, service_client), host, port))
         future.add_done_callback(
             partial(self._service_client_connection_callback, self._node_clients[node_id], node_id, service_type))
         return future
 
     def _service_client_connection_callback(self, sc, node_id, service_type, future):
         _, protocol = future.result()
-        protocol.set_service_client(sc)
         # TODO : handle pinging
         # if service_type == TCP:
         #     pinger = Pinger(self, asyncio.get_event_loop())
@@ -226,11 +225,12 @@ class PubSubBus:
                 for each in dir(client):
                     fn = getattr(client, each)
                     if callable(fn) and getattr(fn, 'is_subscribe', False):
-                        subscription_list.append((client.name, client.version, fn.__name__))
+                        subscription_list.append(self._get_pubsub_key(client.name, client.version, fn.__name__))
         yield from self._pubsub_handler.subscribe(subscription_list, handler=self.subscription_handler)
 
     def publish(self, service, version, endpoint, payload):
-        asyncio.async(self._retry_publish(service, version, endpoint, payload))
+        endpoint = self._get_pubsub_key(service, version, endpoint)
+        asyncio.async(self._retry_publish(endpoint, payload))
 
     @retry(should_retry_for_result=_retry_for_pub, should_retry_for_exception=_retry_for_exception, timeout=10,
            strategy=[0, 2, 2, 4])
@@ -241,3 +241,7 @@ class PubSubBus:
         client = [sc for sc in self._clients if (sc.name == service and sc.version == version)][0]
         func = getattr(client, endpoint)
         asyncio.async(func(**json.loads(payload)))
+
+    @staticmethod
+    def _get_pubsub_key(service, version, endpoint):
+        return '/'.join((service, str(version), endpoint))

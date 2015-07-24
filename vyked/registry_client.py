@@ -48,7 +48,7 @@ class RegistryClient:
         coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), self._host, self._port)
         self._transport, self._protocol = self._loop.run_until_complete(coroutine)
 
-    def receive(self, packet: dict, _):
+    def receive(self, packet: dict, protocol, transport):
         if packet['type'] == 'registered':
             self.cache_vendors(packet['params']['vendors'])
             self._bus.registration_complete()
@@ -97,7 +97,7 @@ class RegistryClient:
 
     def cache_vendors(self, vendors):
         for vendor in vendors:
-            vendor_name = vendor['name']
+            vendor_name = self._get_full_service_name(vendor['name'], vendor['version'])
             for address in vendor['addresses']:
                 self._available_services[vendor_name].append(
                     (address['host'], address['port'], address['node_id'], address['type']))

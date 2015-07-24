@@ -24,7 +24,6 @@ class _Service:
         self._tcp_bus = None
         self._pubsub_bus = None
         self._http_bus = None
-        self._service_clients = []
 
     @property
     def name(self):
@@ -182,7 +181,7 @@ class TCPService(_ServiceHost):
         return packet
 
     def register(self):
-        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self._service_clients, 'tcp')
+        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self._clients, 'tcp')
 
 
 def default_preflight_response(self, request):
@@ -216,7 +215,7 @@ class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
         return Response()
 
     def register(self):
-        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self._service_clients, 'http')
+        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self._clients, 'http')
 
 
 class HTTPServiceClient(_Service):

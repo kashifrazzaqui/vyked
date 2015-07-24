@@ -128,7 +128,7 @@ class Host:
         if cls._tcp_service:
             asyncio.get_event_loop().run_until_complete(
                 cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
-        elif cls._http_service:
+        if cls._http_service:
             asyncio.get_event_loop().run_until_complete(
                 cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
 
@@ -145,7 +145,7 @@ class Host:
         service.pubsub_bus = PubSubBus()
         if isinstance(service, TCPService):
             tcp_bus.tcp_host = service
-        elif isinstance(service, HTTPService):
+        if isinstance(service, HTTPService):
             tcp_bus.http_host = service
         tcp_bus.setup_registry_client(cls.registry_host, cls.registry_port)
         service.tcp_bus = tcp_bus

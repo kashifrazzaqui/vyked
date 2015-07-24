@@ -15,5 +15,5 @@ class SendQueue:
         if self._can_send():
             for each in self._q:
                 each = self._pre_process(each)
-                self._transport.send(each)
+                self._transport.write(each)
             self._q.clear()
