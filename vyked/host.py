@@ -14,8 +14,10 @@ _logger = logging.getLogger(__name__)
 
 
 class Host:
-    registry = None
-    pubsub = None
+    registry_host = None
+    registry_port = None
+    pubsub_host = None
+    pubsub_port = None
     name = None
     ronin = True
     _host_id = None
@@ -125,10 +127,10 @@ class Host:
     def _create_pubsub_handler(cls):
         if cls._tcp_service:
             asyncio.get_event_loop().run_until_complete(
-                cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub.host, cls.pubsub.port))
+                cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
         elif cls._http_service:
             asyncio.get_event_loop().run_until_complete(
-                cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub.host, cls.pubsub.port))
+                cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
 
     @classmethod
     def _subscribe(cls):
@@ -146,7 +148,7 @@ class Host:
             tcp_bus.tcp_host = service
         elif isinstance(service, HTTPService):
             tcp_bus.http_host = service
-        tcp_bus.setup_registry_client(cls.registry.host, cls.registry.port)
+        tcp_bus.setup_registry_client(cls.registry_host, cls.registry_port)
         service.tcp_bus = tcp_bus
         service.pubsub_bus = PubSubBus()
 
@@ -156,5 +158,3 @@ class Host:
             cls._tcp_service.register()
         if cls._http_service:
             cls._http_service.register()
-
-
