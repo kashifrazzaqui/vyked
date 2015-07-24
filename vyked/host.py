@@ -4,15 +4,16 @@ from functools import partial
 import signal
 import os
 
+from aiohttp.web import Application
+
+from .bus import TCPBus, PubSubBus
 from vyked.services import HTTPService, TCPService
 from .protocol_factory import get_vyked_protocol
-from aiohttp.web import Application
 
 _logger = logging.getLogger(__name__)
 
 
 class Host:
-
     registry = None
     pubsub = None
     name = None
@@ -24,6 +25,7 @@ class Host:
     @classmethod
     def _set_process_name(cls):
         from setproctitle import setproctitle
+
         setproctitle('{}_{}'.format(cls.name, cls._host_id))
 
     @classmethod
@@ -33,13 +35,11 @@ class Host:
 
     @classmethod
     def attach_service(cls, service):
-        service.bus = cls._bus
+        cls._set_bus(service)
         if isinstance(service, HTTPService):
             cls._http_service = service
-            cls._bus._http_host = service
         elif isinstance(service, TCPService):
             cls._tcp_service = service
-            cls._bus._tcp_host = service
         else:
             _logger.error('Invalid argument attached as service')
 
@@ -62,7 +62,8 @@ class Host:
     def _create_tcp_server(cls):
         if cls._tcp_service:
             host_ip, host_port = cls._tcp_service.socket_address
-            task = asyncio.get_event_loop().create_server(get_vyked_protocol(cls._bus), host_ip, host_port)
+            task = asyncio.get_event_loop().create_server(get_vyked_protocol(cls._tcp_service.tcp_bus), host_ip,
+                                                          host_port)
             return asyncio.get_event_loop().run_until_complete(task)
 
     @classmethod
@@ -83,10 +84,11 @@ class Host:
             handler = app.make_handler()
             task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             return asyncio.get_event_loop().run_until_complete(task)
-        
+
     @classmethod
     def _set_host_id(cls):
         from uuid import uuid4
+
         cls._host_id = uuid4()
 
     @classmethod
@@ -94,6 +96,8 @@ class Host:
         tcp_server = cls._create_tcp_server()
         http_server = cls._create_http_server()
         cls._create_pubsub_handler()
+        cls._subscribe()
+        cls._register_services()
         if tcp_server:
             _logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
         if http_server:
@@ -116,6 +120,35 @@ class Host:
 
             asyncio.get_event_loop().close()
 
+    # TODO : get rid of duplication
     @classmethod
     def _create_pubsub_handler(cls):
-        asyncio.get_event_loop().run_until_complete(cls.pubsub.connect())
+        if cls._tcp_service:
+            asyncio.get_event_loop().run_until_complete(
+                cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub.host, cls.pubsub.port))
+        elif cls._http_service:
+            asyncio.get_event_loop().run_until_complete(
+                cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub.host, cls.pubsub.port))
+
+    @classmethod
+    def _subscribe(cls):
+        if cls._tcp_service:
+            asyncio.get_event_loop().run_until_complete(
+                cls._tcp_service.pubub_bus.register_for_subscription(cls._tcp_service.clients))
+        if cls._http_service:
+            asyncio.get_event_loop().run_until_complete(
+                cls._http_service.pubub_bus.register_for_subscription(cls._http_service.clients))
+
+    @classmethod
+    def _set_bus(cls, service):
+        service.tcp_bus = TCPBus()
+        service.pubsub_bus = PubSubBus()
+
+    @classmethod
+    def _register_services(cls):
+        if cls._tcp_service:
+            cls._tcp_service.register()
+        if cls._http_service:
+            cls._http_service.register()
+
+

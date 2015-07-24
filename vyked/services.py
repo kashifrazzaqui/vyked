@@ -22,6 +22,7 @@ class _Service:
         self._service_version = service_version
         self._tcp_bus = None
         self._pubsub_bus = None
+        self._http_bus = None
         self._service_clients = []
 
     @property
@@ -132,12 +133,23 @@ class _ServiceHost(_Service):
         super(_ServiceHost, self).__init__(service_name, service_version)
         self._ip = host_ip
         self._port = host_port
+        self._clients = []
 
     def is_for_me(self, service, version):
         return service == self.name and int(version) == self.version
 
-    def require(self, clients):
-        self._tcp_bus.require(clients)
+    @property
+    def clients(self):
+        return self._clients
+
+    @clients.setter
+    def clients(self, clients):
+        for client in clients:
+            if isinstance(client, TCPServiceClient):
+                client._tcp_bus = self._tcp_bus
+            elif isinstance(client, HTTPServiceClient):
+                client._http_bus = self._http_bus
+        self._clients = clients
 
     def register(self):
         raise NotImplementedError

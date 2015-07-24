@@ -75,13 +75,7 @@ class TCPBus:
         self._ronin = False
         self._registered = False
 
-    def add_service_clients(self, clients):
-        for client in clients:
-            if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
-                client.bus = self
-                self._service_clients.append(client)
-
-    def create_service_clients(self):
+    def _create_service_clients(self):
         futures = []
         for sc in self._service_clients:
             for host, port, node_id, service_type in self._registry_client.get_all_addresses(sc.properties):
@@ -91,11 +85,15 @@ class TCPBus:
         return asyncio.gather(*futures, return_exceptions=False)
 
     def register(self, host, port, service, version, clients, service_type):
+        for client in clients:
+            if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
+                client.bus = self
+        self._service_clients = clients
         self._registry_client.register(host, port, service, version, clients, service_type)
 
     def registration_complete(self):
         if not self._registered:
-            f = self.create_service_clients()
+            f = self._create_service_clients()
             self._registered = True
 
             def fun(_):
@@ -218,7 +216,7 @@ class PubSubBus:
 
     def create_pubsub_handler(self, host, port):
         self._pubsub_handler = PubSub(host, port)
-        asyncio.get_event_loop().run_until_complete(self._pubsub_handler.connect())
+        yield from self._pubsub_handler.connect()
 
     def register_for_subscription(self, clients):
         self._clients = clients
