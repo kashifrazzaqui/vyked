@@ -1,5 +1,4 @@
-from vyked import Bus
-from vyked import TCPApplicationService, TCPServiceClient, api, publish, request, subscribe
+from vyked import Host, TCPService, TCPServiceClient, api, publish, request, subscribe
 import asyncio
 
 REGISTRY_HOST = '127.0.0.1'
@@ -12,7 +11,7 @@ ACCOUNTS_HOST = '127.0.0.1'
 ACCOUNTS_PORT = 4503
 
 
-class AccountService(TCPApplicationService):
+class AccountService(TCPService):
     def __init__(self, host, port):
         super(AccountService, self).__init__("AccountService", 1, host, port)
 
@@ -54,15 +53,13 @@ class IdentityClient(TCPServiceClient):
         yield from self.create('test', 'test@123')
         yield from self.repeat_request()
 
-def setup_accounts_service():
-    bus = Bus()
-    accounts_service = AccountService(ACCOUNTS_HOST, ACCOUNTS_PORT)
-    identity_client = IdentityClient()
-    bus.require([identity_client])
-    bus.serve_tcp(accounts_service)
-    bus.start(REGISTRY_HOST, REGISTRY_PORT, REDIS_HOST, REDIS_PORT)
-
-
 if __name__ == '__main__':
-    setup_accounts_service()
-
+    tcp = AccountService(ACCOUNTS_HOST, ACCOUNTS_PORT)
+    tcp.clients = [IdentityClient()]
+    Host.registry_host = REGISTRY_HOST
+    Host.registry_port = REGISTRY_PORT
+    Host.pubsub_host = REDIS_HOST
+    Host.pubsub_port = REDIS_PORT
+    Host.name = 'Identity'
+    Host.attach_service(tcp)
+    Host.run()

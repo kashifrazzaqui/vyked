@@ -25,7 +25,7 @@ class IdentityHTTPService(HTTPService):
         super(IdentityHTTPService, self).__init__("IdentityService", 1, ip, port)
 
     @get(path='/users/{username}')
-    def create(self, request: Request):
+    def get(self, request: Request):
         username = request.match_info.get('username')
         return Response(status=200, body=("Hello {}".format(username)).encode())
 
