@@ -141,7 +141,13 @@ class Host:
 
     @classmethod
     def _set_bus(cls, service):
-        service.tcp_bus = TCPBus()
+        tcp_bus = TCPBus()
+        if isinstance(service, TCPService):
+            tcp_bus.tcp_host = service
+        elif isinstance(service, HTTPService):
+            tcp_bus.http_host = service
+        tcp_bus.setup_registry_client(cls.registry.host, cls.registry.port)
+        service.tcp_bus = tcp_bus
         service.pubsub_bus = PubSubBus()
 
     @classmethod

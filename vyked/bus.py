@@ -69,8 +69,8 @@ class TCPBus:
         self._node_clients = {}
         self._service_clients = []
         self._pending_requests = []
-        self._tcp_host = None
-        self._http_host = None
+        self.tcp_host = None
+        self.http_host = None
         self._host_id = unique_hex()
         self._ronin = False
         self._registered = False
@@ -97,7 +97,7 @@ class TCPBus:
             self._registered = True
 
             def fun(_):
-                if self._tcp_host:
+                if self.tcp_host:
                     self._clear_request_queue()
 
             f.add_done_callback(fun)
@@ -136,7 +136,7 @@ class TCPBus:
         #     asyncio.async(pinger.start_ping())
         self._client_protocols[node_id] = protocol
 
-    def _setup_registry_client(self, host: str, port: int):
+    def setup_registry_client(self, host: str, port: int):
         self._registry_client = RegistryClient(asyncio.get_event_loop(), host, port, self)
         self._registry_client.connect()
 
@@ -187,14 +187,14 @@ class TCPBus:
         elif packet['type'] == 'pong':
             self._handle_pong(packet['node_id'], packet['count'])
         else:
-            if self._tcp_host.is_for_me(packet['service'], packet['version']):
+            if self.tcp_host.is_for_me(packet['service'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
                 func(packet, protocol)
             else:
                 _logger.warn('wrongly routed packet: ', packet)
 
     def _request_receiver(self, packet, protocol):
-        api_fn = getattr(self._tcp_host, packet['endpoint'])
+        api_fn = getattr(self.tcp_host, packet['endpoint'])
         if api_fn.is_api:
             from_node_id = packet['from']
             entity = packet['entity']
