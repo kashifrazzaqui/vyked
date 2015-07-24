@@ -64,9 +64,11 @@ class Host:
     def _create_tcp_server(cls):
         if cls._tcp_service:
             host_ip, host_port = cls._tcp_service.socket_address
-            task = asyncio.get_event_loop().create_server(get_vyked_protocol(cls._tcp_service.tcp_bus), host_ip,
-                                                          host_port)
-            return asyncio.get_event_loop().run_until_complete(task)
+            task = asyncio.get_event_loop().create_server(partial(get_vyked_protocol, cls._tcp_service.tcp_bus),
+                                                          host_ip, host_port)
+            result = asyncio.get_event_loop().run_until_complete(task)
+            print(result)
+            return result
 
     @classmethod
     def _create_http_server(cls):
@@ -106,7 +108,6 @@ class Host:
             _logger.info('Serving HTTP on {}'.format(http_server.sockets[0].getsockname()))
         _logger.info("Event loop running forever, press CTRL+c to interrupt.")
         _logger.info("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
-
         try:
             asyncio.get_event_loop().run_forever()
         except Exception as e:

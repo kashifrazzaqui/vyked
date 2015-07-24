@@ -180,7 +180,7 @@ class TCPBus:
             host, port, _node_id, _type = service_props
             asyncio.async(self._connect_to_client(host, _node_id, port, _type))
 
-    def receive(self, packet: dict, protocol, _):
+    def receive(self, packet: dict, protocol, transport):
         if packet['type'] == 'ping':
             self._handle_ping(packet, protocol)
         elif packet['type'] == 'pong':

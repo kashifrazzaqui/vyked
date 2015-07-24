@@ -37,30 +37,6 @@ class _Service:
     def properties(self):
         return self.name, self.version
 
-    @property
-    def tcp_bus(self):
-        return self._tcp_bus
-
-    @tcp_bus.setter
-    def tcp_bus(self, bus):
-        self._tcp_bus = bus
-
-    @property
-    def http_bus(self):
-        return self._http_bus
-
-    @http_bus.setter
-    def http_bus(self, bus):
-        self._http_bus = bus
-
-    @property
-    def pubsub_bus(self):
-        return self._pubsub_bus
-
-    @pubsub_bus.setter
-    def pubsub_bus(self, bus):
-        self._pubsub_bus = bus
-
     @staticmethod
     def time_future(future: Future, timeout: int):
         def timer_callback(f):
@@ -83,7 +59,8 @@ class TCPServiceClient(_Service):
         future = Future()
         request_id = params['request_id']
         self._pending_requests[request_id] = future
-        self._tcp_bus.send(packet)
+        print("djfhdjksfhdjskhfjkdsh")
+        self.tcp_bus.send(packet)
         _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
 
@@ -139,16 +116,41 @@ class _ServiceHost(_Service):
         return service == self.name and int(version) == self.version
 
     @property
+    def tcp_bus(self):
+        return self._tcp_bus
+
+    @tcp_bus.setter
+    def tcp_bus(self, bus):
+        for client in self._clients:
+            if isinstance(client, TCPServiceClient):
+                client.tcp_bus = bus
+        self._tcp_bus = bus
+
+    @property
+    def http_bus(self):
+        return self._http_bus
+
+    @http_bus.setter
+    def http_bus(self, bus):
+        for client in self._clients:
+            if isinstance(client, HTTPServiceClient):
+                client._http_bus = self._http_bus
+        self._http_bus = bus
+
+    @property
+    def pubsub_bus(self):
+        return self._pubsub_bus
+
+    @pubsub_bus.setter
+    def pubsub_bus(self, bus):
+        self._pubsub_bus = bus
+
+    @property
     def clients(self):
         return self._clients
 
     @clients.setter
     def clients(self, clients):
-        for client in clients:
-            if isinstance(client, TCPServiceClient):
-                client._tcp_bus = self._tcp_bus
-            elif isinstance(client, HTTPServiceClient):
-                client._http_bus = self._http_bus
         self._clients = clients
 
     def register(self):
