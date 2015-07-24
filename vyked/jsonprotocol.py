@@ -23,7 +23,6 @@ class JSONProtocol(asyncio.Protocol):
         string = json.dumps(packet) + ','
         return string.encode()
 
-    @property
     def is_connected(self):
         return self._connected
 
@@ -47,7 +46,7 @@ class JSONProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc):
         self._connected = False
-        self.logger.info('Peer closed', self._transport.get_extra_info('peername'))
+        self.logger.info('Peer closed %s', self._transport.get_extra_info('peername'))
 
     def send(self, packet: dict):
         self._send_q.send(self._make_frame(packet))
@@ -87,7 +86,7 @@ class VykedProtocol(JSONProtocol):
 
     def connection_made(self, transport):
         peer_name = transport.get_extra_info('peername')
-        self.logger.info('Connection from {}'.format(peer_name))
+        self.logger.info('Connection from %s', peer_name)
         super(VykedProtocol, self).connection_made(transport)
 
     def connection_lost(self, exc):

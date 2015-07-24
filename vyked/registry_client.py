@@ -4,9 +4,10 @@ import random
 from collections import defaultdict
 
 from again.utils import unique_hex
+from functools import partial
 
 from .packet import ControlPacket
-
+from .protocol_factory import get_vyked_protocol
 
 class RegistryClient:
     logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ class RegistryClient:
         self._available_services = defaultdict(list)
         self._assigned_services = defaultdict(lambda: defaultdict(list))
 
-    def register(self, ip, port, service, version, service_type, vendors):
+    def register(self, ip, port, service, version, vendors, service_type):
         self._service = service
         self._version = version
         self._node_id = '{}_{}_{}'.format(service, version, unique_hex())
@@ -43,14 +44,8 @@ class RegistryClient:
         packet['node_id'] = self._node_id
         self._protocol.send(packet)
 
-    def _protocol_factory(self):
-        from vyked.jsonprotocol import RegistryClientProtocol
-
-        p = RegistryClientProtocol(self)
-        return p
-
     def connect(self):
-        coroutine = self._loop.create_connection(self._protocol_factory, self._host, self._port)
+        coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), self._host, self._port)
         self._transport, self._protocol = self._loop.run_until_complete(coroutine)
 
     def receive(self, packet: dict, _):

@@ -135,22 +135,20 @@ class Host:
     @classmethod
     def _subscribe(cls):
         if cls._tcp_service:
-            asyncio.get_event_loop().run_until_complete(
-                cls._tcp_service.pubub_bus.register_for_subscription(cls._tcp_service.clients))
+            asyncio.async(cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.clients))
         if cls._http_service:
-            asyncio.get_event_loop().run_until_complete(
-                cls._http_service.pubub_bus.register_for_subscription(cls._http_service.clients))
+            asyncio.async(cls._http_service.pubsub_bus.register_for_subscription(cls._http_service.clients))
 
     @classmethod
     def _set_bus(cls, service):
         tcp_bus = TCPBus()
+        service.pubsub_bus = PubSubBus()
         if isinstance(service, TCPService):
             tcp_bus.tcp_host = service
         elif isinstance(service, HTTPService):
             tcp_bus.http_host = service
         tcp_bus.setup_registry_client(cls.registry_host, cls.registry_port)
         service.tcp_bus = tcp_bus
-        service.pubsub_bus = PubSubBus()
 
     @classmethod
     def _register_services(cls):

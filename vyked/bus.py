@@ -159,7 +159,7 @@ class TCPBus:
         node_id = self._get_node_id_for_packet(packet)
         if node_id is not None:
             client_protocol = self._client_protocols[node_id]
-            if client_protocol.is_connected:
+            if client_protocol.is_connected():
                 packet['to'] = node_id
                 client_protocol.send(packet)
                 return True

@@ -3,8 +3,7 @@ import json
 
 from aiohttp.web import Response, Request
 
-from vyked import Bus, get, post
-from vyked import TCPApplicationService, HTTPApplicationService, api, publish
+from vyked import Host, HTTPService, TCPService, get, post, api, publish
 
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
@@ -21,7 +20,7 @@ class UserException(BaseException):
     pass
 
 
-class IdentityHTTPService(HTTPApplicationService):
+class IdentityHTTPService(HTTPService):
     def __init__(self, ip, port):
         super(IdentityHTTPService, self).__init__("IdentityService", 1, ip, port)
 
@@ -36,7 +35,7 @@ class IdentityHTTPService(HTTPApplicationService):
         return Response(status=200, body=(json.dumps(data)).encode())
 
 
-class IdentityTCPService(TCPApplicationService):
+class IdentityTCPService(TCPService):
     def __init__(self, ip, port):
         super(IdentityTCPService, self).__init__("IdentityService", 1, ip, port)
 
@@ -57,14 +56,14 @@ class IdentityTCPService(TCPApplicationService):
         return '{} {}'.format(user_name, password)
 
 
-def setup_identity_service():
-    bus = Bus()
+if __name__ == '__main__':
     http = IdentityHTTPService(IDENTITY_HOST, IDENTITY_HTTP_PORT)
     tcp = IdentityTCPService(IDENTITY_HOST, IDENTITY_TCP_PORT)
-    bus.serve_http(http)
-    bus.serve_tcp(tcp)
-    bus.start(REGISTRY_HOST, REGISTRY_PORT, REDIS_HOST, REDIS_PORT)
-
-
-if __name__ == '__main__':
-    setup_identity_service()
+    Host.registry_host = REGISTRY_HOST
+    Host.registry_port = REGISTRY_PORT
+    Host.pubsub_host = REDIS_HOST
+    Host.pubsub_port = REDIS_PORT
+    Host.name = 'Identity'
+    Host.attach_service(http)
+    Host.attach_service(tcp)
+    Host.run()

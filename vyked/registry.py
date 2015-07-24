@@ -81,7 +81,7 @@ class Registry:
     def start(self):
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
-        registry_coroutine = self._loop.create_server(get_vyked_protocol(self), self._ip, self._port)
+        registry_coroutine = self._loop.create_server(partial(get_vyked_protocol, self), self._ip, self._port)
         server = self._loop.run_until_complete(registry_coroutine)
         try:
             self._loop.run_forever()
@@ -151,7 +151,7 @@ class Registry:
 
     def _connect_to_service(self, host, port, node_id, service_type):
         if service_type == 'tcp':
-            coroutine = self._loop.create_connection(get_vyked_protocol(self), host, port)
+            coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), host, port)
             future = asyncio.async(coroutine)
             future.add_done_callback(partial(self._handle_service_connection, node_id))
 
@@ -176,7 +176,6 @@ class Registry:
 
 if __name__ == '__main__':
     from setproctitle import setproctitle
-
     setproctitle("registry")
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500
