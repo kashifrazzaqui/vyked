@@ -19,7 +19,7 @@ class _Service:
     _RES_PKT_STR = 'response'
 
     def __init__(self, service_name, service_version):
-        self._service_name = service_name
+        self._service_name = service_name.lower()
         self._service_version = service_version
         self._tcp_bus = None
         self._pubsub_bus = None
