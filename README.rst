@@ -15,7 +15,7 @@ Installation
     $ pip install vyked
     
 Vyked uses jsonstreamer_, a fast streaming JSON parser for Python that 
-generates SAX-like events using fast C library yajl. To install yajl:
+generates SAX-like events using the yajl C library. To install yajl:
 
 .. code-block:: bash
 
@@ -28,12 +28,13 @@ generates SAX-like events using fast C library yajl. To install yajl:
 Getting Started
 ---------------
 
-Registry
-^^^^^^^^
-One of the core ideas of Service Oriented Architecture is a registry. 
-A registry allows service providers to discover and communicate with consumers 
-efficiently, creating a link between service providers and service customers.
-To start the vyked registry:
+Service Registry
+^^^^^^^^^^^^^^^^
+When Vyked services start they register with the service registry by advertising their name, ip,port and the names of other Vyked services they might require to function. The registry then co-ordinates all Vyked services and even balances loads across multiple instances of each service.
+
+Vyked uses redis for pub-sub and registry storage, you must start a redis instance before you start the vyked registry.
+
+You must start the Vyked registry before any services, as such:
 
 .. code-block:: bash
 
@@ -52,6 +53,14 @@ Service
 ^^^^^^^
 Vyked allows you to host HTTP and TCP services. 
 
+TCP Services
+************
+Vyked TCP services provide an RPC-like api by decorating typical class methods with decorators. There are two types of api's available,
+
+* Request-Response using @api to provide such an api and @request to consume it from a remote client
+* Publish-Subscribe using @publish to automatically publish an event and @subscribe to receive it at a remote client
+
+The following basic examples illustrate these decorators for both Services and remote Clients.
 
 Sample TCP service:
 
@@ -73,11 +82,16 @@ Sample TCP service:
     
         @publish
         def password_changed(self, user_name):
-            return locals()
+            """ calling this method from within your code will cause a 'password_changed' event to be published
+            to all subscribing services
+            """
+            # @publish decorated methods must return a dict of values to be published
+            return locals() # easy way to return a dict containing all the params - in this case, user_name.
 
-Vyked uses aiohttp to setup HTTP server.
 
 Sample HTTP service:
+
+Vyked uses aiohttp to setup HTTP server.
 
 .. code-block:: python
 
@@ -103,8 +117,8 @@ To start a service:
 .. code-block:: python
 
     if __name__ == '__main__':
-        http = IdentityHTTPService('127.0.0.1', 4501)
-        tcp = IdentityTCPService('127.0.0.1', 4502)
+        http = IdentityHTTPService('0.0.0.0', 4501)
+        tcp = IdentityTCPService('0.0.0.0', 4502)
         Host.registry_host = '127.0.0.1'
         Host.registry_port = 4500
         Host.pubsub_host = '127.0.0.1'
@@ -133,7 +147,7 @@ Sample TCP client for IdentityService we saw in the above example:
     
         @request
         def create(self, user_name, password):
-            return locals()
+            return locals() #@request requires a dict containing params describing the request payload
     
         @subscribe
         def password_changed(self, user_name):
