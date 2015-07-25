@@ -162,7 +162,7 @@ class _ServiceHost(_Service):
 
 
 class TCPService(_ServiceHost):
-    def __init__(self, service_name, service_version, host_ip, host_port):
+    def __init__(self, service_name, service_version, host_ip=None, host_port=None):
         super(TCPService, self).__init__(service_name, service_version, host_ip, host_port)
 
     def _publish(self, endpoint, payload):
@@ -193,7 +193,7 @@ def default_preflight_response(self, request):
 
 
 class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
-    def __init__(self, service_name, service_version, host_ip, host_port, ssl_context=None, allow_cross_domain=False,
+    def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None, allow_cross_domain=False,
                  preflight_response=default_preflight_response):
         super(HTTPService, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context
