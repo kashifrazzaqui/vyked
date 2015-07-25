@@ -25,10 +25,14 @@ generates SAX-like events using fast C library yajl. To install yajl:
 
 .. _jsonstreamer: https://github.com/kashifrazzaqui/json-streamer
 
-Examples
-----------
-Vyked allows you to host HTTP and TCP services. One of the core ideas of Service Oriented Architecture 
-is a registry. A registry allows service providers to discover and communicate with consumers efficiently, creating a link between service providers and service customers.
+Getting Started
+---------------
+
+Registry
+^^^^^^^^
+One of the core ideas of Service Oriented Architecture is a registry. 
+A registry allows service providers to discover and communicate with consumers 
+efficiently, creating a link between service providers and service customers.
 To start the vyked registry:
 
 .. code-block:: bash
@@ -43,6 +47,11 @@ or :
     
     registry = Registry('127.0.0.1', 4500)
     registry.start()
+
+Service
+^^^^^^^
+Vyked allows you to host HTTP and TCP services. 
+
 
 Sample TCP service:
 
@@ -105,6 +114,8 @@ To start a service:
         Host.attach_service(tcp)
         Host.run()
 
+Client
+^^^^^^^
 So far, the examples have only covered standalone services. But a service might interact with other services. 
 To make such an interaction possible, vyked provides a TCP and HTTP client to interact with TCP and HTTP service respectively.
 
@@ -144,6 +155,13 @@ Sample HTTP Client:
             headers = {'Content-Type': 'application/json'}
             app_name = 'test'
             return locals()
+
+Documentation
+-------------
+
+View documentation at `read-the-docs`_
+
+.. _read-the-docs: http://vyked.readthedocs.org/en/latest/
 
 License
 -------
