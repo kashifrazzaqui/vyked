@@ -95,8 +95,7 @@ Vyked uses aiohttp to setup HTTP server.
 
 .. code-block:: python
 
-    from aiohttp.web import Response, Request
-    from vyked import Host, HTTPService, get, post
+    from vyked import Host, HTTPService, get, post, Response, Request
     
     class IdentityHTTPService(HTTPService):
         def __init__(self, ip, port):

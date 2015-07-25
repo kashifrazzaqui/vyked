@@ -1,9 +1,7 @@
 from asyncio import sleep
 import json
 
-from aiohttp.web import Response, Request
-
-from vyked import Host, HTTPService, TCPService, get, post, api, publish
+from vyked import Host, HTTPService, TCPService, get, post, api, publish, Request, Response
 
 REGISTRY_HOST = '127.0.0.1'
 REGISTRY_PORT = 4500
