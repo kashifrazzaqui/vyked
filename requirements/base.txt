@@ -4,7 +4,6 @@ aiohttp==0.16.5
 aiopg==0.7.0
 async-retrial==0.2
 asyncio-redis==0.13.4
-psycopg2==2.6.1
 setproctitle==1.1.8
 jsonstreamer>=1.3.5
 flake8==2.4.1
