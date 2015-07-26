@@ -57,43 +57,36 @@ class JSONProtocol(asyncio.Protocol):
         else:
             self.logger.debug('Data sent: {}'.format(packet))
 
+    def close(self):
+        self._transport.write(']'.encode())  # end the json array
+        self._transport.close()
 
-def close(self):
-    self._transport.write(']'.encode())  # end the json array
-    self._transport.close()
-
-
-def data_received(self, byte_data):
-    string_data = byte_data.decode()
-    if 'ping' in string_data or 'pong' in string_data:
-        if is_ping_logging_enabled():
+    def data_received(self, byte_data):
+        string_data = byte_data.decode()
+        if 'ping' in string_data or 'pong' in string_data:
+            if is_ping_logging_enabled():
+                self.logger.debug('Data received: {}'.format(string_data))
+        else:
             self.logger.debug('Data received: {}'.format(string_data))
-    else:
-        self.logger.debug('Data received: {}'.format(string_data))
-    self._obj_streamer.consume(string_data)
+        self._obj_streamer.consume(string_data)
 
+    def on_object_stream_start(self):
+        raise RuntimeError('Incorrect JSON Streaming Format: expect a JSON Array to start at root, got object')
 
-def on_object_stream_start(self):
-    raise RuntimeError('Incorrect JSON Streaming Format: expect a JSON Array to start at root, got object')
+    def on_object_stream_end(self):
+        del self._obj_streamer
+        raise RuntimeError('Incorrect JSON Streaming Format: expect a JSON Array to end at root, got object')
 
+    def on_array_stream_start(self):
+        self.logger.debug('Array Stream started')
 
-def on_object_stream_end(self):
-    del self._obj_streamer
-    raise RuntimeError('Incorrect JSON Streaming Format: expect a JSON Array to end at root, got object')
+    def on_array_stream_end(self):
+        del self._obj_streamer
+        self.logger.debug('Array Stream ended')
 
-
-def on_array_stream_start(self):
-    self.logger.debug('Array Stream started')
-
-
-def on_array_stream_end(self):
-    del self._obj_streamer
-    self.logger.debug('Array Stream ended')
-
-
-def on_pair(self, pair):
-    self.logger.debug('Pair {}'.format(pair))
-    raise RuntimeError('Received a key-value pair object - expected elements only')
+    def on_pair(self, pair):
+        self.logger.debug('Pair {}'.format(pair))
+        raise RuntimeError('Received a key-value pair object - expected elements only')
 
 
 class VykedProtocol(JSONProtocol):
