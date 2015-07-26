@@ -1,5 +1,9 @@
 Vyked
 ============================
+.. image:: https://api.travis-ci.org/kashifrazzaqui/vyked.svg?branch=master
+    :target: https://travis-ci.org/kashifrazzaqui/vyked
+    
+
 Vyked is an asyncio based python framework for service oriented architectures.
 
 Requirements
