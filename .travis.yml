@@ -1,0 +1,12 @@
+language : python
+python:
+    - "3.4"
+before_install:
+    - export LD_LIBRARY_PATH="/usr/local/lib/"
+    - sudo git clone https://github.com/lloyd/yajl.git
+    - cd yajl
+    - sudo ./configure
+    - sudo make install
+    - cd ..
+install: "pip install -r requirements.txt"
+script: py.test -v
