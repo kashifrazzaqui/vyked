@@ -7,6 +7,7 @@ import os
 from aiohttp.web import Application
 
 from .bus import TCPBus, PubSubBus
+from vyked.registry_client import RegistryClient
 from vyked.services import HTTPService, TCPService
 from .protocol_factory import get_vyked_protocol
 
@@ -142,14 +143,17 @@ class Host:
 
     @classmethod
     def _set_bus(cls, service):
-        tcp_bus = TCPBus()
-        service.pubsub_bus = PubSubBus()
+        registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port)
+        registry_client.connect()
+        tcp_bus = TCPBus(registry_client)
+        pubsub_bus = PubSubBus(registry_client)
+        registry_client.bus = tcp_bus
         if isinstance(service, TCPService):
             tcp_bus.tcp_host = service
         if isinstance(service, HTTPService):
             tcp_bus.http_host = service
-        tcp_bus.setup_registry_client(cls.registry_host, cls.registry_port)
         service.tcp_bus = tcp_bus
+        service.pubsub_bus = pubsub_bus
 
     @classmethod
     def _register_services(cls):

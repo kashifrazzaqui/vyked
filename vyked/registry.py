@@ -16,6 +16,7 @@ class Repository:
         self._registered_services = defaultdict(list)
         self._pending_services = defaultdict(list)
         self._service_dependencies = {}
+        self._subscribe_list = defaultdict(lambda : defaultdict(lambda : defaultdict(list)))
 
     def register_service(self, service: Service):
         service_name = self._get_full_service_name(service.name, service.version)
@@ -60,6 +61,16 @@ class Repository:
                     return Service(name, version, [], host, port, node, service_type)
         return None
 
+    def xsubscribe(self, service, version, host, port, node_id, endpoints):
+        entry = (service, version, host, port, node_id)
+        for endpoint in endpoints:
+            self._subscribe_list[endpoint['service']][endpoint['version']][endpoint['endpoint']].append(entry + (endpoint['strategy'],))
+        print(self._subscribe_list)
+
+    def get_subscribers(self, service, version, endpoint):
+        print(self._subscribe_list)
+        return self._subscribe_list[service][version][endpoint]
+
     @staticmethod
     def _get_full_service_name(service: str, version):
         return '{}/{}'.format(service, version)
@@ -67,6 +78,7 @@ class Repository:
     @staticmethod
     def _split_key(key: str):
         return tuple(key.split('/'))
+
 
 
 class Registry:
@@ -102,6 +114,10 @@ class Registry:
             self.register_service(packet, protocol, *transport.get_extra_info('peername'))
         elif request_type == 'get_instances':
             self.get_service_instances(packet, protocol)
+        elif request_type == 'xsubscribe':
+            self._xsubscribe(packet)
+        elif request_type == 'get_subscribers':
+            self.get_subscribers(packet, protocol)
 
     def deregister_service(self, node_id):
         service = self._repository.get_node(node_id)
@@ -173,8 +189,22 @@ class Registry:
         instance_packet = ControlPacket.send_instances(service, version, instances)
         registry_protocol.send(instance_packet)
 
+    def get_subscribers(self, packet, protocol):
+        params = packet['params']
+        request_id = packet['request_id']
+        service, version, endpoint = params['service'], params['version'], params['endpoint']
+        subscribers = self._repository.get_subscribers(service, version, endpoint)
+        packet = ControlPacket.subscribers(service, version, endpoint, request_id, subscribers)
+        protocol.send(packet)
+
+    def _xsubscribe(self, packet):
+        params = packet['params']
+        service, version, host, port, node_id = params['service'], params['version'], params['host'], params['port'], params['node_id']
+        endpoints = params['events']
+        self._repository.xsubscribe(service, version, host, port, node_id, endpoints)
 
 if __name__ == '__main__':
+    config_logs(log_level=logging.DEBUG)
     from setproctitle import setproctitle
     setproctitle("registry")
     REGISTRY_HOST = None

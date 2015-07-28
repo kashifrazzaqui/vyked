@@ -59,7 +59,6 @@ class TCPServiceClient(_Service):
         future = Future()
         request_id = params['request_id']
         self._pending_requests[request_id] = future
-        print("djfhdjksfhdjskhfjkdsh")
         self.tcp_bus.send(packet)
         _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
@@ -167,6 +166,9 @@ class TCPService(_ServiceHost):
 
     def _publish(self, endpoint, payload):
         self._pubsub_bus.publish(self.name, self.version, endpoint, payload)
+
+    def _xpublish(self, endpoint, payload, strategy):
+        self._pubsub_bus.xpublish(self.name, self.version, endpoint, payload, strategy)
 
     @staticmethod
     def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object):

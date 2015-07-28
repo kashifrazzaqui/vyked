@@ -1,6 +1,7 @@
 from collections import defaultdict
 from uuid import uuid4
 
+
 class _Packet:
     _pid = 0
 
@@ -9,6 +10,10 @@ class _Packet:
         from uuid import uuid4
 
         return str(uuid4())
+
+    @classmethod
+    def ack(cls):
+        return {'pid': cls._next_pid(), 'type': 'ack'}
 
     @classmethod
     def pong(cls, node_id):
@@ -42,7 +47,6 @@ class ControlPacket(_Packet):
     @classmethod
     def get_instances(cls, service, version):
         params = {'service': service, 'version': version}
-
         packet = {'pid': cls._next_pid(),
                   'type': 'get_instances',
                   'service': service,
@@ -50,6 +54,15 @@ class ControlPacket(_Packet):
                   'params': params,
                   'request_id': str(uuid4())}
 
+        return packet
+
+    @classmethod
+    def get_subscribers(cls, service, version, endpoint):
+        params = {'service': service, 'version': version, 'endpoint': endpoint}
+        packet = {'pid': cls._next_pid(),
+                  'type': 'get_subscribers',
+                  'params': params,
+                  'request_id': str(uuid4())}
         return packet
 
     @classmethod
@@ -90,6 +103,29 @@ class ControlPacket(_Packet):
                   'params': params}
         return packet
 
+    @classmethod
+    def xsubscribe(cls, service, version, host, port, node_id, endpoints):
+        params = {'service': service, 'version': version, 'host': host, 'port': port, 'node_id': node_id}
+        events = [{'service': service, 'version': version, 'endpoint': endpoint, 'strategy': strategy} for
+                  service, version, endpoint, strategy in endpoints]
+        params['events'] = events
+        packet = {'pid': cls._next_pid(),
+                  'type': 'xsubscribe',
+                  'params': params}
+        return packet
+
+    @classmethod
+    def subscribers(cls, service, version, endpoint, request_id, subscribers):
+        params = {'service': service, 'version': version, 'endpoint': endpoint}
+        subscribers = [{'service': service, 'version': version, 'host': host, 'port': port, 'node_id': node_id,
+                        'strategy': strategy} for service, version, host, port, node_id, strategy in subscribers]
+        params['subscribers'] = subscribers
+        packet = {'pid': cls._next_pid(),
+                  'request_id': request_id,
+                  'type': 'subscribers',
+                  'params': params}
+        return packet
+
 
 class MessagePacket(_Packet):
     @classmethod
@@ -102,3 +138,12 @@ class MessagePacket(_Packet):
                 'endpoint': endpoint,
                 'type': packet_type,
                 'payload': params}
+
+    @classmethod
+    def publish(cls, service, version, endpoint, payload):
+        return {'pid': cls._next_pid(),
+                'type': 'publish',
+                'service': service,
+                'version': version,
+                'endpoint': endpoint,
+                'payload': payload}

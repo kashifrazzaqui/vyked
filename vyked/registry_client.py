@@ -9,14 +9,17 @@ from functools import partial
 from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
 
+
 class RegistryClient:
     logger = logging.getLogger(__name__)
 
-    def __init__(self, loop, host, port, bus):
-        self._bus = bus
+    def __init__(self, loop, host, port):
         self._loop = loop
-        self._host = host
         self._port = port
+        self._host = host
+        self.bus = None
+        self._service_host = None
+        self._service_port = None
         self._transport = None
         self._protocol = None
         self._service = None
@@ -27,6 +30,8 @@ class RegistryClient:
         self._assigned_services = defaultdict(lambda: defaultdict(list))
 
     def register(self, ip, port, service, version, vendors, service_type):
+        self._service_host = ip
+        self._service_port = port
         self._service = service
         self._version = version
         self._node_id = '{}_{}_{}'.format(service, version, unique_hex())
@@ -40,8 +45,17 @@ class RegistryClient:
         self._pending_requests[packet['request_id']] = future
         return future
 
-    def subscribe_for_message(self, packet):
-        packet['node_id'] = self._node_id
+    def get_subscribers(self, service, version, endpoint):
+        packet = ControlPacket.get_subscribers(service, version, endpoint)
+        # TODO : remove duplication in get_instances and get_subscribers
+        future = asyncio.Future()
+        self._protocol.send(packet)
+        self._pending_requests[packet['request_id']] = future
+        return future
+
+    def x_subscribe(self, endpoints):
+        packet = ControlPacket.xsubscribe(self._service, self._version, self._service_host, self._service_port, self._node_id,
+                                          endpoints)
         self._protocol.send(packet)
 
     def connect(self):
@@ -51,9 +65,11 @@ class RegistryClient:
     def receive(self, packet: dict, protocol, transport):
         if packet['type'] == 'registered':
             self.cache_vendors(packet['params']['vendors'])
-            self._bus.registration_complete()
+            self.bus.registration_complete()
         elif packet['type'] == 'deregister':
             self._handle_deregistration(packet)
+        elif packet['type'] == 'subscribers':
+            self._handle_subscriber_packet(packet)
 
     def get_all_addresses(self, full_service_name):
         return self._available_services.get(
@@ -117,3 +133,8 @@ class RegistryClient:
                     stale_entities.append(entity)
             for entity in stale_entities:
                 entity_map.pop(entity)
+
+    def _handle_subscriber_packet(self, packet):
+        request_id = packet['request_id']
+        future = self._pending_requests[request_id]
+        future.set_result(packet['params']['subscribers'])
