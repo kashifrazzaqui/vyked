@@ -12,8 +12,8 @@ class _Packet:
         return str(uuid4())
 
     @classmethod
-    def ack(cls):
-        return {'pid': cls._next_pid(), 'type': 'ack'}
+    def ack(cls, request_id):
+        return {'pid': cls._next_pid(), 'type': 'ack', 'request_id': request_id}
 
     @classmethod
     def pong(cls, node_id):
@@ -140,10 +140,11 @@ class MessagePacket(_Packet):
                 'payload': params}
 
     @classmethod
-    def publish(cls, service, version, endpoint, payload):
+    def publish(cls, publish_id, service, version, endpoint, payload):
         return {'pid': cls._next_pid(),
                 'type': 'publish',
                 'service': service,
                 'version': version,
                 'endpoint': endpoint,
-                'payload': payload}
+                'payload': payload,
+                'publish_id': publish_id}

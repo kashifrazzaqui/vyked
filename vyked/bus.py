@@ -4,13 +4,13 @@ from functools import partial
 import json
 import logging
 import random
+import uuid
 
 from again.utils import unique_hex
 
 from retrial.retrial import retry
 import aiohttp
 
-from .registry_client import RegistryClient
 from .services import TCPServiceClient, HTTPServiceClient
 from .pubsub import PubSub
 from .packet import ControlPacket, MessagePacket
@@ -208,20 +208,23 @@ class TCPBus:
             print('no api found for packet: ', packet)
 
     def _handle_publish(self, packet, protocol):
-        service, version, endpoint, payload = packet['service'], packet['version'], packet['endpoint'], packet[
-            'payload']
+        service, version, endpoint, payload, publish_id = packet['service'], packet['version'], packet['endpoint'], \
+                                                          packet['payload'], packet['publish_id']
         for client in self._service_clients:
             if client.name == service and client.version == version:
                 fun = getattr(client, endpoint)
                 asyncio.async(fun(payload))
-        protocol.send(MessagePacket.ack())
+        protocol.send(MessagePacket.ack(publish_id))
 
 
 class PubSubBus:
+    PUBSUB_DELAY = 5
+
     def __init__(self, registry_client):
         self._pubsub_handler = None
         self._registry_client = registry_client
         self._clients = None
+        self._pending_publishes = {}
 
     def create_pubsub_handler(self, host, port):
         self._pubsub_handler = PubSub(host, port)
@@ -245,21 +248,29 @@ class PubSubBus:
     def publish(self, service, version, endpoint, payload):
         endpoint_key = self._get_pubsub_key(service, version, endpoint)
         asyncio.async(self._retry_publish(endpoint_key, json.dumps(payload)))
-        future = asyncio.async(self._registry_client.get_subscribers(service, version, endpoint))
-        future.add_done_callback(partial(self._subscriber_callback, service, version, endpoint, payload))
+        publish_id = str(uuid.uuid4())
+        future = asyncio.async(self.xpublish(publish_id, service, version, endpoint, payload))
+        self._pending_publishes[publish_id] = future
 
-    def _subscriber_callback(self, service, version, endpoint, payload, fut):
-        subscribers = fut.result()
+    def xpublish(self, publish_id, service, version, endpoint, payload):
+        subscribers = yield from self._registry_client.get_subscribers(service, version, endpoint)
         strategies = defaultdict(list)
         for subscriber in subscribers:
             strategies[(subscriber['service'], subscriber['version'])].append(
                 (subscriber['host'], subscriber['port'], subscriber['node_id'], subscriber['strategy']))
-        self._connect_and_publish(service, version, endpoint, strategies, payload)
+        if not len(subscribers):
+            future = self._pending_publishes[publish_id]
+            future.cancel()
+            return
+        yield from self._connect_and_publish(publish_id, service, version, endpoint, strategies, payload)
+        yield from asyncio.sleep(self.PUBSUB_DELAY)
+        yield from self.xpublish(publish_id, service, version, endpoint, payload)
 
     def receive(self, packet, transport, protocol):
         if packet['type'] == 'ack':
-            # TODO : remove from retrial
-            pass
+            future = self._pending_publishes.pop(packet['request_id'])
+            future.cancel()
+            transport.close()
 
     def _retry_publish(self, endpoint, payload):
         return (yield from self._pubsub_handler.publish(endpoint, payload))
@@ -274,20 +285,13 @@ class PubSubBus:
     def _get_pubsub_key(service, version, endpoint):
         return '/'.join((service, str(version), endpoint))
 
-    def _connect_and_publish(self, service, version, endpoint, strategies, payload):
-        print(strategies)
-
-        def publish(future):
-            transport, protocol = future.result()
-            packet = MessagePacket.publish(service, version, endpoint, payload)
-            protocol.send(packet)
-
+    def _connect_and_publish(self, publish_id, service, version, endpoint, strategies, payload):
         for key, value in strategies.items():
             if value[0][3] == 'LEADER':
                 host, port = value[0][0], value[0][1]
             else:
                 random_metadata = random.choice(value)
                 host, port = random_metadata[0], random_metadata[1]
-            fut = asyncio.async(
-                asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, self), host, port))
-            fut.add_done_callback(publish)
+            transport, protocol = yield from asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, self), host, port)
+            packet = MessagePacket.publish(publish_id, service, version, endpoint, payload)
+            protocol.send(packet)
