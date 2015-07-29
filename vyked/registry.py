@@ -202,7 +202,6 @@ class Registry:
         self._repository.xsubscribe(service, version, host, port, node_id, endpoints)
 
 if __name__ == '__main__':
-    config_logs(log_level=logging.DEBUG)
     from setproctitle import setproctitle
     setproctitle("registry")
     REGISTRY_HOST = None
