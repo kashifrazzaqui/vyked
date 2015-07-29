@@ -65,10 +65,8 @@ class Repository:
         entry = (service, version, host, port, node_id)
         for endpoint in endpoints:
             self._subscribe_list[endpoint['service']][endpoint['version']][endpoint['endpoint']].append(entry + (endpoint['strategy'],))
-        print(self._subscribe_list)
 
     def get_subscribers(self, service, version, endpoint):
-        print(self._subscribe_list)
         return self._subscribe_list[service][version][endpoint]
 
     @staticmethod
