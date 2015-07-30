@@ -30,7 +30,7 @@ def subscribe(func):
     return wrapper
 
 
-def xsubscribe(func=None, strategy='LEADER'):
+def xsubscribe(func=None, strategy='DESIGNATION'):
     """
     Used to listen for publications from a specific endpoint of a service. If multiple instances
     subscribe to an endpoint, only one of them receives the event. And the publish event is retried till
