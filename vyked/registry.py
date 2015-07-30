@@ -30,7 +30,7 @@ class Repository:
         self._pending_services[self._get_full_service_name(service, version)].append(node_id)
 
     def get_pending_services(self):
-        return [self._split_key(key) for key in self._pending_services.keys()]
+        return [self._split_key(k) for k, v in self._pending_services.items() if len(v)]
 
     def get_pending_instances(self, service, version):
         return self._pending_services.get(self._get_full_service_name(service, version), [])
@@ -76,7 +76,6 @@ class Repository:
     @staticmethod
     def _split_key(key: str):
         return tuple(key.split('/'))
-
 
 
 class Registry:
@@ -200,6 +199,7 @@ class Registry:
         service, version, host, port, node_id = params['service'], params['version'], params['host'], params['port'], params['node_id']
         endpoints = params['events']
         self._repository.xsubscribe(service, version, host, port, node_id, endpoints)
+
 
 if __name__ == '__main__':
     from setproctitle import setproctitle
