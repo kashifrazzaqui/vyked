@@ -24,8 +24,8 @@ class Repository:
         service_name = self._get_full_service_name(service.name, service.version)
         service_entry = (service.host, service.port, service.node_id, service.type)
         self._registered_services[service_name].append(service_entry)
+        self._pending_services[service_name].append(service.node_id)
         if len(service.dependencies):
-            self._pending_services[service_name].append(service.node_id)
             if self._service_dependencies.get(service_name) is None:
                 self._service_dependencies[service_name] = service.dependencies
 
