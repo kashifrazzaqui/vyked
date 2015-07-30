@@ -120,7 +120,7 @@ class RegistryClient:
 
     def _handle_deregistration(self, packet):
         params = packet['params']
-        vendor = params['vendor']
+        vendor = self._get_full_service_name(params['service'], params['version'])
         node = params['node_id']
         for each in self._available_services[vendor]:
             if each[2] == node:

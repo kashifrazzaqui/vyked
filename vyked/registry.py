@@ -1,14 +1,23 @@
+import logging
 import signal
 import asyncio
 from functools import partial
 from collections import defaultdict, namedtuple
+from aiohttp import request
 
+from .utils.log import config_logs
 from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
 
 
 # TODO : Better objects
+from vyked.pinger import Pinger
+
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
+
+
+PING_TIMEOUT = 5
+PING_INTERVAL = 5
 
 
 class Repository:
@@ -43,11 +52,11 @@ class Repository:
         return self._registered_services.get(service_name, [])
 
     def get_consumers(self, service_name, service_version):
-        consumers = []
+        consumers = set()
         for service, vendors in self._service_dependencies.items():
             for each in vendors:
-                if each['service'] == service_name and each['version'] == service_version:
-                    consumers.append(self._split_key(service))
+                if each['service'] == service_name and int(each['version']) == int(service_version):
+                    consumers.add(self._split_key(service))
         return consumers
 
     def get_vendors(self, service, version):
@@ -59,6 +68,14 @@ class Repository:
                 if node_id == node:
                     name, version = self._split_key(service)
                     return Service(name, version, [], host, port, node, service_type)
+        return None
+
+    def remove_node(self, node_id):
+        for service, instances in self._registered_services.items():
+            for instance in instances:
+                host, port, node, service_type = instance
+                if node_id == node:
+                    instances.remove(instance)
         return None
 
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
@@ -86,6 +103,7 @@ class Registry:
         self._client_protocols = {}
         self._service_protocols = {}
         self._repository = Repository()
+        self._pingers = {}
 
     def start(self):
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
@@ -115,17 +133,21 @@ class Registry:
             self._xsubscribe(packet)
         elif request_type == 'get_subscribers':
             self.get_subscribers(packet, protocol)
+        elif request_type == 'pong':
+            self._pong(packet)
 
     def deregister_service(self, node_id):
         service = self._repository.get_node(node_id)
+        self._repository.remove_node(node_id)
         if service is not None:
             self._service_protocols.pop(node_id, None)
             self._client_protocols.pop(node_id, None)
             self._notify_consumers(service.name, service.version, node_id)
             if not len(self._repository.get_instances(service.name, service.version)):
-                consumer_name, consumer_version = self._repository.get_consumers(service.name, service.version)
-                for _, _, node_id, _ in self._repository.get_instances(service.name, service.version):
-                    self._repository.add_pending_service(consumer_name, consumer_version, node_id)
+                consumers = self._repository.get_consumers(service.name, service.version)
+                for consumer_name, consumer_version in consumers:
+                    for _, _, node_id, _ in self._repository.get_instances(service.name, service.version):
+                        self._repository.add_pending_service(consumer_name, consumer_version, node_id)
 
     def register_service(self, packet: dict, registry_protocol, host, port):
         params = packet['params']
@@ -167,13 +189,21 @@ class Registry:
             coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), host, port)
             future = asyncio.async(coroutine)
             future.add_done_callback(partial(self._handle_service_connection, node_id))
+        elif service_type == 'http':
+            pinger = HTTPPinger(node_id, host, port, self)
+            self._pingers[node_id] = pinger
+            pinger.ping()
 
     def _handle_service_connection(self, node_id, future):
         transport, protocol = future.result()
         self._service_protocols[node_id] = protocol
+        pinger = TCPPinger(node_id, protocol, self)
+        self._pingers[node_id] = pinger
+        pinger.ping()
 
     def _notify_consumers(self, service, version, node_id):
         packet = ControlPacket.deregister(service, version, node_id)
+        print(self._repository.get_consumers(service, version))
         for consumer_name, consumer_version in self._repository.get_consumers(service, version):
             for host, port, node, service_type in self._repository.get_instances(consumer_name, consumer_version):
                 protocol = self._client_protocols[node]
@@ -200,8 +230,61 @@ class Registry:
         endpoints = params['events']
         self._repository.xsubscribe(service, version, host, port, node_id, endpoints)
 
+    def _pong(self, packet):
+        pinger = self._pingers[packet['node_id']]
+        pinger.pong_received()
+
+    def on_timeout(self, node_id):
+        self.deregister_service(node_id)
+
+
+class TCPPinger:
+    def __init__(self, node_id, protocol, handler):
+        self._pinger = Pinger(self, PING_INTERVAL, PING_TIMEOUT)
+        self._node_id = node_id
+        self._protocol = protocol
+        self._handler = handler
+
+    def ping(self):
+        asyncio.async(self._pinger.send_ping())
+
+    def send_ping(self):
+        self._protocol.send(ControlPacket.ping(self._node_id))
+
+    def on_timeout(self):
+        self._handler.on_timeout(self._node_id)
+
+    def pong_received(self):
+        self._pinger.pong_received()
+
+
+class HTTPPinger:
+    def __init__(self, node_id, host, port, handler):
+        self._pinger = Pinger(self, PING_INTERVAL, PING_TIMEOUT)
+        self._node_id = node_id
+        self._handler = handler
+        self._url = 'http://{}:{}/ping'.format(host, port)
+
+    def ping(self):
+        asyncio.async(self._pinger.send_ping())
+
+    def send_ping(self):
+        asyncio.async(self.ping_coroutine())
+
+    def ping_coroutine(self):
+        res = yield from request('get', self._url)
+        if res.status == 200:
+            self.pong_received()
+
+    def on_timeout(self):
+        self._handler.on_timeout(self._node_id)
+
+    def pong_received(self):
+        self._pinger.pong_received()
+
 
 if __name__ == '__main__':
+    config_logs(enable_ping_logs=True, log_level=logging.DEBUG)
     from setproctitle import setproctitle
     setproctitle("registry")
     REGISTRY_HOST = None

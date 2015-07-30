@@ -143,7 +143,7 @@ class TCPBus:
 
     @staticmethod
     def _handle_ping(packet, protocol):
-        protocol.send(ControlPacket.pong(packet['node_id'], packet['count']))
+        protocol.send(ControlPacket.pong(packet['node_id']))
 
     def _handle_pong(self, node_id, count):
         pinger = self._pingers[node_id]
