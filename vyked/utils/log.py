@@ -104,7 +104,7 @@ def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):
                                                                                              kwargs))
         logger.log(debug_level, string)
         wrapped_fn = fn
-        if not asyncio.iscoroutinefunction(fn):
+        if not asyncio.iscoroutine(fn):
             wrapped_fn = asyncio.coroutine(fn)
         try:
             result = yield from wrapped_fn(*args, **kwargs)
@@ -148,7 +148,7 @@ def logx(supress_args=[], supress_all_args=False, supress_result=False, logger=l
                 logger.log(debug_level, string)
 
             wrapped_fn = fn
-            if not asyncio.iscoroutinefunction(fn):
+            if not asyncio.iscoroutine(fn):
                 wrapped_fn = asyncio.coroutine(fn)
             result = yield from wrapped_fn(*args, **kwargs)
 

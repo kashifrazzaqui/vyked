@@ -1,4 +1,4 @@
-from asyncio import iscoroutinefunction, coroutine
+from asyncio import iscoroutine, coroutine
 from functools import wraps, partial
 from again.utils import unique_hex
 
@@ -53,7 +53,7 @@ def _get_subscribe_decorator(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         coroutine_func = func
-        if not iscoroutinefunction(func):
+        if not iscoroutine(func):
             coroutine_func = coroutine(func)
         return (yield from coroutine_func(*args, **kwargs))
 
@@ -100,7 +100,7 @@ def api(func):  # incoming
         wrapped_func = func
         result = None
         error = None
-        if not iscoroutinefunction(func):
+        if not iscoroutine(func):
             wrapped_func = coroutine(func)
         try:
             result = yield from wrapped_func(self, **kwargs)

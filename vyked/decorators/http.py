@@ -1,4 +1,4 @@
-from asyncio import iscoroutinefunction, coroutine
+from asyncio import iscoroutine, coroutine
 from functools import wraps
 import json
 from vyked import HTTPServiceClient, HTTPService
@@ -33,7 +33,7 @@ def get_decorated_fun(method, path, required_params):
                                         body=json.dumps({'error': 'Required params {} not found'.format(
                                             ','.join(missing_params))}).encode())
                 wrapped_func = func
-                if not iscoroutinefunction(func):
+                if not iscoroutine(func):
                     wrapped_func = coroutine(func)
                 return (yield from wrapped_func(self, *args, **kwargs))
 
