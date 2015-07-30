@@ -31,21 +31,24 @@ class Repository:
         service_name = self._get_full_service_name(service.name, service.version)
         service_entry = (service.host, service.port, service.node_id, service.type)
         self._registered_services[service_name].append(service_entry)
-        self._pending_services[service_name].append(service.node_id)
-        if self._service_dependencies.get(service_name) is None:
-            self._service_dependencies[service_name] = service.dependencies
+        if len(service.dependencies):
+            self._pending_services[service_name].append(service.node_id)
+            if self._service_dependencies.get(service_name) is None:
+                self._service_dependencies[service_name] = service.dependencies
 
     def add_pending_service(self, service, version, node_id):
         self._pending_services[self._get_full_service_name(service, version)].append(node_id)
 
     def get_pending_services(self):
-        return [self._split_key(k) for k, v in self._pending_services.items() if len(v)]
+        return [self._split_key(k) for k in self._pending_services.keys()]
 
     def get_pending_instances(self, service, version):
         return self._pending_services.get(self._get_full_service_name(service, version), [])
 
     def remove_pending_instance(self, service, version, node_id):
         self.get_pending_instances(service, version).remove(node_id)
+        if not len(self.get_pending_instances(service, version)):
+            self._pending_services.pop(self._get_full_service_name(service, version))
 
     def get_instances(self, service, version):
         service_name = self._get_full_service_name(service, version)
@@ -146,7 +149,7 @@ class Registry:
             if not len(self._repository.get_instances(service.name, service.version)):
                 consumers = self._repository.get_consumers(service.name, service.version)
                 for consumer_name, consumer_version in consumers:
-                    for _, _, node_id, _ in self._repository.get_instances(service.name, service.version):
+                    for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
                         self._repository.add_pending_service(consumer_name, consumer_version, node_id)
 
     def register_service(self, packet: dict, registry_protocol, host, port):
