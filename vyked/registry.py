@@ -92,13 +92,13 @@ class Repository:
 
 
 class Registry:
-    def __init__(self, ip, port):
+    def __init__(self, ip, port, repository):
         self._ip = ip
         self._port = port
         self._loop = asyncio.get_event_loop()
         self._client_protocols = {}
         self._service_protocols = {}
-        self._repository = Repository()
+        self._repository = repository
         self._pingers = {}
 
     def start(self):
@@ -243,5 +243,5 @@ if __name__ == '__main__':
     setproctitle("registry")
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500
-    registry = Registry(REGISTRY_HOST, REGISTRY_PORT)
+    registry = Registry(REGISTRY_HOST, REGISTRY_PORT, Repository())
     registry.start()
