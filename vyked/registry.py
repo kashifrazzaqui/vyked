@@ -55,7 +55,7 @@ class Repository:
         consumers = set()
         for service, vendors in self._service_dependencies.items():
             for each in vendors:
-                if each['service'] == service_name and int(each['version']) == int(service_version):
+                if each['service'] == service_name and each['version'] == service_version:
                     consumers.add(self._split_key(service))
         return consumers
 
@@ -203,7 +203,6 @@ class Registry:
 
     def _notify_consumers(self, service, version, node_id):
         packet = ControlPacket.deregister(service, version, node_id)
-        print(self._repository.get_consumers(service, version))
         for consumer_name, consumer_version in self._repository.get_consumers(service, version):
             for host, port, node, service_type in self._repository.get_instances(consumer_name, consumer_version):
                 protocol = self._client_protocols[node]

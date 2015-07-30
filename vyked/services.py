@@ -11,8 +11,6 @@ from .utils.ordered_class_member import OrderedClassMembers
 
 _logger = logging.getLogger(__name__)
 
-# TODO : mark methods coroutines
-
 class _Service:
     _PUB_PKT_STR = 'publish'
     _REQ_PKT_STR = 'request'
