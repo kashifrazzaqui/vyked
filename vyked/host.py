@@ -144,7 +144,7 @@ class Host:
     @classmethod
     def _set_bus(cls, service):
         registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port)
-        registry_client.connect()
+        asyncio.get_event_loop().run_until_complete(registry_client.connect())
         tcp_bus = TCPBus(registry_client)
         pubsub_bus = PubSubBus(registry_client)
         registry_client.bus = tcp_bus

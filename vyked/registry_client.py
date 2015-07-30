@@ -5,9 +5,20 @@ from collections import defaultdict
 
 from again.utils import unique_hex
 from functools import partial
-
+from retrial.retrial import retry
 from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
+from .pinger import TCPPinger
+
+
+def _retry_for_result(result):
+    if isinstance(result, tuple):
+        return not isinstance(result[0], asyncio.transports.Transport) or not isinstance(result[1], asyncio.Protocol)
+    return True
+
+
+def _retry_for_exception(_):
+    return True
 
 
 class RegistryClient:
@@ -25,6 +36,7 @@ class RegistryClient:
         self._service = None
         self._version = None
         self._node_id = None
+        self._pinger = None
         self._pending_requests = {}
         self._available_services = defaultdict(list)
         self._assigned_services = defaultdict(lambda: defaultdict(list))
@@ -54,13 +66,22 @@ class RegistryClient:
         return future
 
     def x_subscribe(self, endpoints):
-        packet = ControlPacket.xsubscribe(self._service, self._version, self._service_host, self._service_port, self._node_id,
+        packet = ControlPacket.xsubscribe(self._service, self._version, self._service_host, self._service_port,
+                                          self._node_id,
                                           endpoints)
         self._protocol.send(packet)
 
+    @retry(should_retry_for_result=_retry_for_result, should_retry_for_exception=_retry_for_exception,
+           strategy=[0, 2, 4, 8, 16, 32])
     def connect(self):
-        coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), self._host, self._port)
-        self._transport, self._protocol = self._loop.run_until_complete(coroutine)
+        self._transport, self._protocol = yield from self._loop.create_connection(partial(get_vyked_protocol, self),
+                                                                                  self._host, self._port)
+        self._pinger = TCPPinger('registry', self._protocol, self)
+        self._pinger.ping()
+        return self._transport, self._protocol
+
+    def on_timeout(self, node_id):
+        asyncio.async(self.connect())
 
     def receive(self, packet: dict, protocol, transport):
         if packet['type'] == 'registered':
@@ -70,6 +91,8 @@ class RegistryClient:
             self._handle_deregistration(packet)
         elif packet['type'] == 'subscribers':
             self._handle_subscriber_packet(packet)
+        elif packet['type'] == 'pong':
+            self._pinger.pong_received()
 
     def get_all_addresses(self, full_service_name):
         return self._available_services.get(

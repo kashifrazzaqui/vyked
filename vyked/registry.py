@@ -130,7 +130,9 @@ class Registry:
         elif request_type == 'get_subscribers':
             self.get_subscribers(packet, protocol)
         elif request_type == 'pong':
-            self._pong(packet)
+            self._ping(packet)
+        elif request_type == 'ping':
+            self._pong(packet, protocol)
 
     def deregister_service(self, node_id):
         service = self._repository.get_node(node_id)
@@ -218,18 +220,21 @@ class Registry:
         packet = ControlPacket.subscribers(service, version, endpoint, request_id, subscribers)
         protocol.send(packet)
 
+    def on_timeout(self, node_id):
+        self.deregister_service(node_id)
+
+    def _ping(self, packet):
+        pinger = self._pingers[packet['node_id']]
+        pinger.pong_received()
+
+    def _pong(self, packet, protocol):
+        protocol.send(ControlPacket.pong(packet['node_id']))
+
     def _xsubscribe(self, packet):
         params = packet['params']
         service, version, host, port, node_id = params['service'], params['version'], params['host'], params['port'], params['node_id']
         endpoints = params['events']
         self._repository.xsubscribe(service, version, host, port, node_id, endpoints)
-
-    def _pong(self, packet):
-        pinger = self._pingers[packet['node_id']]
-        pinger.pong_received()
-
-    def on_timeout(self, node_id):
-        self.deregister_service(node_id)
 
 
 if __name__ == '__main__':
