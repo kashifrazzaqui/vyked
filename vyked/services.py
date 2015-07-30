@@ -11,6 +11,7 @@ from .utils.ordered_class_member import OrderedClassMembers
 
 _logger = logging.getLogger(__name__)
 
+
 class _Service:
     _PUB_PKT_STR = 'publish'
     _REQ_PKT_STR = 'request'
@@ -63,13 +64,8 @@ class TCPServiceClient(_Service):
 
     def receive(self, packet: dict, protocol, transport):
         _logger.info('service client {}, packet {}'.format(self, packet))
-        # _logger.info('active pingers {}'.format(self._pingers))
         if packet['type'] == 'ping':
             pass
-        # self._handle_ping(packet['node_id'], packet['count'])
-        # elif packet['type'] == 'pong':
-        #     pinger = self._pingers[packet['node_id']]
-        #     asyncio.async(pinger.pong_received(packet['count']))
         else:
             self._process_response(packet)
 
@@ -193,7 +189,8 @@ def default_preflight_response(self, request):
 
 
 class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
-    def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None, allow_cross_domain=False,
+    def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None,
+                 allow_cross_domain=False,
                  preflight_response=default_preflight_response):
         super(HTTPService, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context
@@ -226,5 +223,5 @@ class HTTPServiceClient(_Service):
 
     def _send_http_request(self, app_name, method, entity, params):
         response = yield from self._http_bus.send_http_request(app_name, self.name, self.version, method, entity,
-                                                          params)
+                                                               params)
         return response
