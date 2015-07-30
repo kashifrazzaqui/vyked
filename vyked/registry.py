@@ -3,21 +3,14 @@ import signal
 import asyncio
 from functools import partial
 from collections import defaultdict, namedtuple
-from aiohttp import request
 
 from .utils.log import config_logs
 from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
+from vyked.pinger import TCPPinger, HTTPPinger
 
-
-# TODO : Better objects
-from vyked.pinger import Pinger
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
-
-
-PING_TIMEOUT = 5
-PING_INTERVAL = 5
 
 
 class Repository:
@@ -166,7 +159,6 @@ class Registry:
         packet = self._make_activated_packet(service, version)
         protocol.send(packet)
 
-    # TODO : refactor
     def _handle_pending_registrations(self):
         for service, version in self._repository.get_pending_services():
             vendors = self._repository.get_vendors(service, version)
@@ -238,51 +230,6 @@ class Registry:
 
     def on_timeout(self, node_id):
         self.deregister_service(node_id)
-
-
-class TCPPinger:
-    def __init__(self, node_id, protocol, handler):
-        self._pinger = Pinger(self, PING_INTERVAL, PING_TIMEOUT)
-        self._node_id = node_id
-        self._protocol = protocol
-        self._handler = handler
-
-    def ping(self):
-        asyncio.async(self._pinger.send_ping())
-
-    def send_ping(self):
-        self._protocol.send(ControlPacket.ping(self._node_id))
-
-    def on_timeout(self):
-        self._handler.on_timeout(self._node_id)
-
-    def pong_received(self):
-        self._pinger.pong_received()
-
-
-class HTTPPinger:
-    def __init__(self, node_id, host, port, handler):
-        self._pinger = Pinger(self, PING_INTERVAL, PING_TIMEOUT)
-        self._node_id = node_id
-        self._handler = handler
-        self._url = 'http://{}:{}/ping'.format(host, port)
-
-    def ping(self):
-        asyncio.async(self._pinger.send_ping())
-
-    def send_ping(self):
-        asyncio.async(self.ping_coroutine())
-
-    def ping_coroutine(self):
-        res = yield from request('get', self._url)
-        if res.status == 200:
-            self.pong_received()
-
-    def on_timeout(self):
-        self._handler.on_timeout(self._node_id)
-
-    def pong_received(self):
-        self._pinger.pong_received()
 
 
 if __name__ == '__main__':
