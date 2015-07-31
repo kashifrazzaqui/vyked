@@ -1,4 +1,4 @@
-from vyked.registry import Registry
+from vyked.registry import Registry, Repository
 from unittest import mock
 
 
@@ -6,7 +6,7 @@ def test_register_independent_service():
     s1 = {'service': 'service1', 'version': '1.0.0', 'vendors': [],
           'host': '192.168.1.2', 'port': 4002, 'node_id': 'n1', 'type': 'type1'}
 
-    r = Registry(ip='192.168.1.1', port=4001)
+    r = Registry(ip='192.168.1.1', port=4001, repository=Repository())
 
     r.register_service(packet={'params': s1}, registry_protocol=mock.Mock(),
                        host='192.168.1.1', port=2001)
@@ -15,7 +15,7 @@ def test_register_independent_service():
 
 
 def test_register_dependent_service():
-    r = Registry(ip='192.168.1.1', port=4001)
+    r = Registry(ip='192.168.1.1', port=4001, repository=Repository())
 
     s1 = {'service': 'service1', 'version': '1.0.0', 'vendors': [],
           'host': '192.168.1.2', 'port': 4002, 'node_id': 'n1', 'type': 'type1'}
@@ -35,7 +35,7 @@ def test_register_dependent_service():
 
 
 def test_deregister_dependent_service():
-    r = Registry(ip='192.168.1.1', port=4001)
+    r = Registry(ip='192.168.1.1', port=4001, repository=Repository())
 
     s1 = {'service': 'service1', 'version': '1.0.0', 'vendors': [],
           'host': '192.168.1.2', 'port': 4002, 'node_id': 'n1', 'type': 'type1'}
