@@ -170,7 +170,8 @@ class Bus:
 
     def start(self, registry_host: str, registry_port: int, redis_host: str, redis_port: int):
         self._set_process_name()
-        setup_logging()
+        service_name = self._tcp_host.name if self._tcp_host else self._http_host.name
+        setup_logging('{}_{}'.format(service_name, self._tcp_host.socket_address[1]))
         ControlPacket.initialize()
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         asyncio.get_event_loop().add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))

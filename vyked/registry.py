@@ -31,8 +31,7 @@ class Registry:
         return RegistryProtocol(self)
 
     def start(self):
-        setproctitle("registry")
-        setup_logging()
+        setup_logging("registry")
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
         registry_coro = self._loop.create_server(self._rfactory, self._ip, self._port)

@@ -7,11 +7,11 @@ from threading import Thread
 import logging
 import asyncio
 from functools import partial, wraps
-from setproctitle import getproctitle
 
 FILE_SIZE = 5 * 1024 * 1024
 
 LOGS_DIR = './logs'
+LOG_FILE_NAME = 'vyked-{}.log'
 LOG_FILE_NAME = 'vyked-{}.log'
 
 RED = '\033[91m'
@@ -71,7 +71,7 @@ def create_logging_directory():
         os.mkdir(LOGS_DIR)
 
 
-def setup_logging():
+def setup_logging(identifier):
     create_logging_directory()
     logger = logging.getLogger()
     logger.handlers = []
@@ -79,7 +79,7 @@ def setup_logging():
     stream_handler.setLevel(logging.INFO)
     logger.addHandler(stream_handler)
     logger.addHandler(
-        RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(getproctitle())), maxBytes=FILE_SIZE,
+        RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
                             backupCount=100))
 
 
