@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='vyked',
-      version='1.2.57',
+      version='1.2.58',
       author='Kashif Razzaqui, Ankit Chandawala',
       author_email='kashif.razzaqui@gmail.com, ankitchandawala@gmail.com',
       url='https://github.com/kashifrazzaqui/vyked',
