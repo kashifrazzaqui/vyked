@@ -12,5 +12,3 @@ from .bus import Bus
 from .registry import Registry
 from .utils.log import setup_logging, config_logs
 from .sql import PostgresStore, cursor, dict_cursor, nt_cursor, transaction
-
-setup_logging()

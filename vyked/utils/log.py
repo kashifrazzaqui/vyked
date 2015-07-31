@@ -1,5 +1,5 @@
 from logging import Handler
-from logging.handlers import TimedRotatingFileHandler
+from logging.handlers import RotatingFileHandler
 from queue import Queue
 import sys
 import os
@@ -7,9 +7,12 @@ from threading import Thread
 import logging
 import asyncio
 from functools import partial, wraps
+from setproctitle import getproctitle
 
-LOGS_DIR = 'logs'
-LOG_FILE_NAME = 'vyked.log'
+FILE_SIZE = 5 * 1024 * 1024
+
+LOGS_DIR = './logs'
+LOG_FILE_NAME = 'vyked-{}.log'
 
 RED = '\033[91m'
 BLUE = '\033[94m'
@@ -17,12 +20,14 @@ BOLD = '\033[1m'
 END = '\033[0m'
 
 stream_handler = logging.StreamHandler()
-ping_logs_enabled = False
+ping_logs_enabled = True
+
 
 def is_ping_logging_enabled():
     return ping_logs_enabled
 
-def config_logs(enable_ping_logs=False, log_level=logging.INFO):
+
+def config_logs(enable_ping_logs=True, log_level=logging.INFO):
     global ping_logs_enabled
     ping_logs_enabled = enable_ping_logs
     stream_handler.setLevel(log_level)
@@ -73,7 +78,9 @@ def setup_logging():
     logger.addHandler = patch_add_handler(logger)
     stream_handler.setLevel(logging.INFO)
     logger.addHandler(stream_handler)
-    #logger.addHandler(TimedRotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME), when='s', interval=10, backupCount=5))
+    logger.addHandler(
+        RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(getproctitle())), maxBytes=FILE_SIZE,
+                            backupCount=100))
 
 
 def add_handler(h):

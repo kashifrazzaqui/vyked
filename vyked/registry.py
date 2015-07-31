@@ -1,3 +1,4 @@
+from setproctitle import setproctitle
 import signal
 import asyncio
 from functools import partial
@@ -6,6 +7,7 @@ from collections import defaultdict
 from again.utils import unique_hex
 
 from .pinger import Pinger
+from .utils.log import setup_logging
 
 
 class Registry:
@@ -29,6 +31,8 @@ class Registry:
         return RegistryProtocol(self)
 
     def start(self):
+        setproctitle("registry")
+        setup_logging()
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
         registry_coro = self._loop.create_server(self._rfactory, self._ip, self._port)
@@ -258,9 +262,6 @@ class Registry:
 
 
 if __name__ == '__main__':
-    from setproctitle import setproctitle
-
-    setproctitle("registry")
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT)
