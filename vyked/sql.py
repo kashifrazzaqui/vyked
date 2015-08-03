@@ -150,7 +150,7 @@ class PostgresStore:
         if len(cls._connection_params) < 5:
             raise ConnectionError('Please call SQLStore.connect before calling this method')
         if not cls._pool:
-            cls._pool = yield from create_pool(minsize=50, maxsize=500, **cls._connection_params)
+            cls._pool = yield from create_pool(minsize=50, maxsize=50, **cls._connection_params)
         return cls._pool
 
     @classmethod
