@@ -19,6 +19,7 @@ BLUE = '\033[94m'
 BOLD = '\033[1m'
 END = '\033[0m'
 
+
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = True
 
@@ -60,6 +61,8 @@ def patch_add_handler(logger):
 
     def async_add_handler(handler):
         async_handler = patch_async_emit(handler)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        async_handler.setFormatter(formatter)
         base_add_handler(async_handler)
 
     return async_add_handler
@@ -81,12 +84,6 @@ def setup_logging(identifier):
     logger.addHandler(
         RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
                             backupCount=100))
-
-
-def add_handler(h):
-    handler = patch_async_emit(h)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
 
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):
