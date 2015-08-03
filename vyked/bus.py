@@ -251,21 +251,6 @@ class Bus:
             host_coro = asyncio.get_event_loop().create_server(self._host_factory, host_ip, host_port)
             return asyncio.get_event_loop().run_until_complete(host_coro)
 
-    def _verify_service_and_version(self, func):
-        def verified_func(*args, **kwargs):
-            query_dict = args[0].GET
-            if isinstance(self._http_host, HTTPApplicationService):
-                return func(*args, **kwargs)
-            if 'service' in query_dict and 'version' in query_dict:
-                if self._http_host.is_for_me(query_dict['service'], query_dict['version']):
-                    return func(*args, **kwargs)
-                else:
-                    return Response(status=421, body="421 wrongly routed request".encode())
-            else:
-                return Response(status=400, body="400 bad request".encode())
-
-        return verified_func
-
     def _create_http_service_host(self):
         if self._http_host:
             host_ip, host_port = self._http_host.socket_address
@@ -275,7 +260,7 @@ class Bus:
                 fn = getattr(self._http_host, each)
                 if callable(fn) and getattr(fn, 'is_http_method', False):
                     for path in fn.paths:
-                        app.router.add_route(fn.method, path, self._verify_service_and_version(fn))
+                        app.router.add_route(fn.method, path, fn)
                         if self._http_host.cross_domain_allowed:
                             app.router.add_route('options', path, self._http_host.preflight_response)
             fn = getattr(self._http_host, 'pong')
