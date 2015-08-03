@@ -19,7 +19,6 @@ BLUE = '\033[94m'
 BOLD = '\033[1m'
 END = '\033[0m'
 
-
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = True
 
@@ -75,6 +74,7 @@ def create_logging_directory():
 
 
 def setup_logging(identifier):
+    logging.getLogger('asyncio').setLevel(logging.WARNING)
     create_logging_directory()
     logger = logging.getLogger()
     logger.handlers = []
