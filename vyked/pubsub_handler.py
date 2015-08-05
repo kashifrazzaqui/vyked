@@ -38,7 +38,7 @@ class PubSubHandler:
         while True:
             payload = yield from subscriber.next_published()
             service, version, endpoint = payload.channel.split('.')
-            handler(service, int(version), endpoint, payload.value)
+            handler(service, version, endpoint, payload.value)
         return False
 
     @staticmethod

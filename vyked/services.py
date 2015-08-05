@@ -319,7 +319,7 @@ class _ServiceHost(_Service):
         self._port = host_port
 
     def is_for_me(self, service, version):
-        return service == self.name and int(version) == self.version
+        return service == self.name and version == self.version
 
     @property
     def socket_address(self):
