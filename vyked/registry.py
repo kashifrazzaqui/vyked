@@ -1,4 +1,3 @@
-from setproctitle import setproctitle
 import signal
 import asyncio
 from functools import partial
