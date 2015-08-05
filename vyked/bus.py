@@ -265,7 +265,7 @@ class Bus:
                             app.router.add_route('options', path, self._http_host.preflight_response)
             fn = getattr(self._http_host, 'pong')
             app.router.add_route('GET', '/ping', fn)
-            handler = app.make_handler()
+            handler = app.make_handler(access_log=logger)
             http_coro = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             return asyncio.get_event_loop().run_until_complete(http_coro)
 
