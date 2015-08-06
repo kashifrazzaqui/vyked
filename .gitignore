@@ -57,6 +57,7 @@ target/
 
 #pycharm
 .idea/
+*.iml
 
 #mac
 *.DS_Store
