@@ -10,6 +10,7 @@ from .bus import TCPBus, PubSubBus
 from vyked.registry_client import RegistryClient
 from vyked.services import HTTPService, TCPService
 from .protocol_factory import get_vyked_protocol
+from .utils.log import setup_logging
 
 _logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class Host:
             cls._set_host_id()
             cls._set_process_name()
             cls._set_signal_handlers()
+            cls._setup_logging()
             cls._start_server()
         else:
             _logger.error('No services to host')
@@ -160,3 +162,8 @@ class Host:
             cls._tcp_service.register()
         if cls._http_service:
             cls._http_service.register()
+
+    @classmethod
+    def _setup_logging(cls):
+        host = cls._tcp_service if cls._tcp_service else cls._tcp_service
+        setup_logging('{}_{}'.format(host.name, host.socket_address[1]))
