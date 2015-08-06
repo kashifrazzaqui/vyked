@@ -1,8 +1,10 @@
 from asyncio import coroutine
 from functools import wraps
 from enum import Enum
+import aiopg
 
 from aiopg import create_pool, Pool, Cursor
+
 import psycopg2
 
 _CursorType = Enum('CursorType', 'PLAIN, DICT, NAMEDTUPLE')
@@ -68,6 +70,7 @@ def nt_cursor(func):
 
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
+
         with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE)) as c:
             return (yield from func(cls, c, *args, **kwargs))
 
@@ -123,7 +126,7 @@ class PostgresStore:
     _COMMA = ', '
 
     @classmethod
-    def connect(cls, database:str, user:str, password:str, host:str, port:int):
+    def connect(cls, database: str, user: str, password: str, host: str, port: int, use_pool: bool=True):
         """
         Sets connection parameters
         """
@@ -132,6 +135,7 @@ class PostgresStore:
         cls._connection_params['password'] = password
         cls._connection_params['host'] = host
         cls._connection_params['port'] = port
+        cls._use_pool = use_pool
 
     @classmethod
     def use_pool(cls, pool:Pool):
@@ -150,7 +154,11 @@ class PostgresStore:
         if len(cls._connection_params) < 5:
             raise ConnectionError('Please call SQLStore.connect before calling this method')
         if not cls._pool:
-            cls._pool = yield from create_pool(minsize=1, maxsize=50, keepalives_idle=5, keepalives_interval=4, **cls._connection_params)
+            cls._pool = yield from create_pool(minsize=1,
+                                               maxsize=50,
+                                               keepalives_idle=5,
+                                               keepalives_interval=4,
+                                               **cls._connection_params)
         return cls._pool
 
     @classmethod
@@ -160,14 +168,23 @@ class PostgresStore:
         Yields:
             new client-side cursor from existing db connection pool
         """
-        pool = yield from cls.get_pool()
+        _cur = None
+        if cls._use_pool is True:
+            _connection_source = yield from cls.get_pool()
+        else:
+            _connection_source = yield from aiopg.connect(**cls._connection_params)
+
         if cursor_type == _CursorType.PLAIN:
-            c = yield from pool.cursor()
-            return c
+            _cur = yield from _connection_source.cursor()
         if cursor_type == _CursorType.NAMEDTUPLE:
-            return (yield from pool.cursor(cursor_factory=psycopg2.extras.NamedTupleCursor))
+            _cur = yield from _connection_source.cursor(cursor_factory=psycopg2.extras.NamedTupleCursor)
         if cursor_type == _CursorType.DICT:
-            return (yield from pool.cursor(cursor_factory=psycopg2.extras.DictCursor))
+            _cur = yield from _connection_source.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+        if cls._use_pool is False:
+            _cur = _VykedCursorContextManager(_connection_source, _cur)
+
+        return _cur
 
     @classmethod
     @coroutine
@@ -342,3 +359,23 @@ class PostgresStore:
         """
         yield from cur.execute(query, values)
         return (yield from cur.fetchall())
+
+
+class _VykedCursorContextManager:
+
+    __slots__ = ('_conn', '_cur')
+
+    def __init__(self, conn, cur):
+        self._conn = conn
+        self._cur = cur
+
+    def __enter__(self):
+        return self._cur
+
+    def __exit__(self, *args):
+        try:
+            self._cur._impl.close()
+            self._conn.close()
+        finally:
+            self._conn = None
+            self._cur = None
