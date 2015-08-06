@@ -165,5 +165,5 @@ class Host:
 
     @classmethod
     def _setup_logging(cls):
-        host = cls._tcp_service if cls._tcp_service else cls._tcp_service
+        host = cls._tcp_service if cls._tcp_service else cls._http_service
         setup_logging('{}_{}'.format(host.name, host.socket_address[1]))
