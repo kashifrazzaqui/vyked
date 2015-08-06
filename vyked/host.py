@@ -79,6 +79,8 @@ class Host:
             host_ip, host_port = cls._http_service.socket_address
             ssl_context = cls._http_service.ssl_context
             app = Application(loop=asyncio.get_event_loop())
+            fn = getattr(cls._http_service, 'pong')
+            app.router.add_route('GET', '/ping', fn)
             for each in cls._http_service.__ordered__:
                 fn = getattr(cls._http_service, each)
                 if callable(fn) and getattr(fn, 'is_http_method', False):
@@ -86,8 +88,6 @@ class Host:
                         app.router.add_route(fn.method, path, fn)
                         if cls._http_service.cross_domain_allowed:
                             app.router.add_route('options', path, cls._http_service.preflight_response)
-            fn = getattr(cls._http_service, 'pong')
-            app.router.add_route('GET', '/ping', fn)
             handler = app.make_handler()
             task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             return asyncio.get_event_loop().run_until_complete(task)
