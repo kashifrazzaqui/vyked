@@ -12,6 +12,7 @@ from .utils.log import setup_logging
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
 
+logger = logging.getLogger(__name__)
 
 class Repository:
     def __init__(self):
@@ -174,6 +175,9 @@ class Registry:
                 if should_activate:
                     self._send_activated_packet(service, version, node)
                     self._repository.remove_pending_instance(service, version, node)
+                    logger.info('%s activated', (service, version))
+                else:
+                    logger.info('%s can\'t register because it depends on %s', (service, version), vendor)
 
     def _make_activated_packet(self, service, version):
         vendors = self._repository.get_vendors(service, version)
