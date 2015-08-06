@@ -124,7 +124,6 @@ class Host:
 
             asyncio.get_event_loop().close()
 
-    # TODO : get rid of duplication
     @classmethod
     def _create_pubsub_handler(cls):
         if cls._tcp_service:

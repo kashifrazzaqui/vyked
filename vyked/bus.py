@@ -292,6 +292,7 @@ class PubSubBus:
             else:
                 random_metadata = random.choice(value)
                 host, port = random_metadata[0], random_metadata[1]
-            transport, protocol = yield from asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, self), host, port)
+            transport, protocol = yield from asyncio.get_event_loop().create_connection(
+                partial(get_vyked_protocol, self), host, port)
             packet = MessagePacket.publish(publish_id, service, version, endpoint, payload)
             protocol.send(packet)

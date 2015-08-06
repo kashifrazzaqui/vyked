@@ -7,8 +7,8 @@ from collections import defaultdict, namedtuple
 from .utils.log import config_logs
 from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
-from vyked.pinger import TCPPinger, HTTPPinger
-
+from .pinger import TCPPinger, HTTPPinger
+from .utils.log import setup_logging
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
 
@@ -102,6 +102,7 @@ class Registry:
         self._pingers = {}
 
     def start(self):
+        setup_logging("registry")
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
         registry_coroutine = self._loop.create_server(partial(get_vyked_protocol, self), self._ip, self._port)
