@@ -81,9 +81,10 @@ class TCPBus:
         futures = []
         for sc in self._service_clients:
             for host, port, node_id, service_type in self._registry_client.get_all_addresses(sc.properties):
-                self._node_clients[node_id] = sc
-                future = self._connect_to_client(host, node_id, port, service_type, sc)
-                futures.append(future)
+                if service_type == 'tcp':
+                    self._node_clients[node_id] = sc
+                    future = self._connect_to_client(host, node_id, port, service_type, sc)
+                    futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
     def register(self, host, port, service, version, clients, service_type):
@@ -120,7 +121,6 @@ class TCPBus:
     @retry(should_retry_for_result=_retry_for_client_conn, should_retry_for_exception=_retry_for_exception, timeout=10,
            strategy=[0, 2, 2, 4])
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
-        _logger.info('node_id' + node_id)
         future = asyncio.async(
             asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, service_client), host, port))
         future.add_done_callback(
@@ -292,7 +292,6 @@ class PubSubBus:
             else:
                 random_metadata = random.choice(value)
                 host, port = random_metadata[0], random_metadata[1]
-            transport, protocol = yield from asyncio.get_event_loop().create_connection(
-                partial(get_vyked_protocol, self), host, port)
+            transport, protocol = yield from asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, self), host, port)
             packet = MessagePacket.publish(publish_id, service, version, endpoint, payload)
             protocol.send(packet)
