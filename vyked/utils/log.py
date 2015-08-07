@@ -20,7 +20,7 @@ BOLD = '\033[1m'
 END = '\033[0m'
 
 stream_handler = logging.StreamHandler()
-ping_logs_enabled = True
+ping_logs_enabled = False
 
 
 def is_ping_logging_enabled():
