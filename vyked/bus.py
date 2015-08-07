@@ -277,7 +277,7 @@ class PubSubBus:
 
     def subscription_handler(self, endpoint, payload):
         service, version, endpoint = endpoint.split('/')
-        client = [sc for sc in self._clients if (sc.name == service and sc.version == int(version))][0]
+        client = [sc for sc in self._clients if (sc.name == service and sc.version == version)][0]
         func = getattr(client, endpoint)
         asyncio.async(func(**json.loads(payload)))
 
