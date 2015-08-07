@@ -88,7 +88,7 @@ class Host:
                         app.router.add_route(fn.method, path, fn)
                         if cls._http_service.cross_domain_allowed:
                             app.router.add_route('options', path, cls._http_service.preflight_response)
-            handler = app.make_handler()
+            handler = app.make_handler(access_log=_logger)
             task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             return asyncio.get_event_loop().run_until_complete(task)
 
