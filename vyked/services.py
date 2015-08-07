@@ -183,7 +183,7 @@ class TCPService(_ServiceHost):
         self._tcp_bus.register(self._ip, self._port, self.name, self.version, self._clients, 'tcp')
 
 
-def default_preflight_response(self, request):
+def default_preflight_response(request):
     headers = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE',
                'Access-Control-Allow-Headers': 'accept, content-type'}
     return Response(status=200, headers=headers)
