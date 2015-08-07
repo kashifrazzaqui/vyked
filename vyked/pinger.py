@@ -1,6 +1,7 @@
 import asyncio
 from aiohttp import request
 from vyked.packet import ControlPacket
+import traceback
 
 PING_TIMEOUT = 5
 PING_INTERVAL = 5
@@ -85,6 +86,7 @@ class HTTPPinger:
         res = yield from request('get', self._url)
         if res.status == 200:
             self.pong_received()
+            res.close()
 
     def on_timeout(self):
         self._handler.on_timeout(self._node_id)
