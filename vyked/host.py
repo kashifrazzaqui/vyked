@@ -21,7 +21,7 @@ class Host:
     pubsub_host = None
     pubsub_port = None
     name = None
-    ronin = True
+    ronin = False
     _host_id = None
     _tcp_service = None
     _http_service = None
@@ -128,24 +128,27 @@ class Host:
 
     @classmethod
     def _create_pubsub_handler(cls):
-        if cls._tcp_service:
-            asyncio.get_event_loop().run_until_complete(
-                cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
-        if cls._http_service:
-            asyncio.get_event_loop().run_until_complete(
-                cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
+        if not cls.ronin:
+            if cls._tcp_service:
+                asyncio.get_event_loop().run_until_complete(
+                    cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
+            if cls._http_service:
+                asyncio.get_event_loop().run_until_complete(
+                    cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
 
     @classmethod
     def _subscribe(cls):
-        if cls._tcp_service:
-            asyncio.async(cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.clients))
-        if cls._http_service:
-            asyncio.async(cls._http_service.pubsub_bus.register_for_subscription(cls._http_service.clients))
+        if not cls.ronin:
+            if cls._tcp_service:
+                asyncio.async(cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.clients))
+            if cls._http_service:
+                asyncio.async(cls._http_service.pubsub_bus.register_for_subscription(cls._http_service.clients))
 
     @classmethod
     def _set_bus(cls, service):
         registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port)
-        asyncio.get_event_loop().run_until_complete(registry_client.connect())
+        if not cls.ronin:
+            asyncio.get_event_loop().run_until_complete(registry_client.connect())
         tcp_bus = TCPBus(registry_client)
         pubsub_bus = PubSubBus(registry_client)
         registry_client.bus = tcp_bus
@@ -158,10 +161,11 @@ class Host:
 
     @classmethod
     def _register_services(cls):
-        if cls._tcp_service:
-            cls._tcp_service.register()
-        if cls._http_service:
-            cls._http_service.register()
+        if not cls.ronin:
+            if cls._tcp_service:
+                cls._tcp_service.register()
+            if cls._http_service:
+                cls._http_service.register()
 
     @classmethod
     def _setup_logging(cls):
