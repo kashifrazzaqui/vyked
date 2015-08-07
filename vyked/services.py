@@ -84,7 +84,7 @@ class TCPServiceClient(_Service):
         has_error = 'error' in payload
         future = self._pending_requests.pop(request_id)
         if has_result:
-            if not future.cancelled():
+            if not future.done() and not future.cancelled():
                 future.set_result(payload['result'])
         elif has_error:
             exception = RequestException()
