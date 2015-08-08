@@ -50,12 +50,13 @@ class JSONProtocol(asyncio.Protocol):
         self.logger.info('Peer closed %s', self._transport.get_extra_info('peername'))
 
     def send(self, packet: dict):
-        self._send_q.send(self._make_frame(packet))
-        if 'ping' in packet or 'pong' in packet:
+        frame = self._make_frame(packet)
+        self._send_q.send(frame)
+        if 'ping' in frame.decode() or 'pong' in frame.decode():
             if is_ping_logging_enabled():
-                self.logger.debug('Data sent: {}'.format(packet))
+                self.logger.debug('Data sent: %s', frame.decode())
         else:
-            self.logger.debug('Data sent: {}'.format(packet))
+            self.logger.debug('Data sent: %s', frame.decode())
 
     def close(self):
         self._transport.write(']'.encode())  # end the json array
@@ -65,9 +66,9 @@ class JSONProtocol(asyncio.Protocol):
         string_data = byte_data.decode()
         if 'ping' in string_data or 'pong' in string_data:
             if is_ping_logging_enabled():
-                self.logger.debug('Data received: {}'.format(string_data))
+                self.logger.debug('Data received: %s', string_data)
         else:
-            self.logger.debug('Data received: {}'.format(string_data))
+            self.logger.debug('Data received: %s', string_data)
         self._obj_streamer.consume(string_data)
 
     def on_object_stream_start(self):

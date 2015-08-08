@@ -243,7 +243,7 @@ class Registry:
 
 
 if __name__ == '__main__':
-    config_logs(enable_ping_logs=True, log_level=logging.DEBUG)
+    config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
     from setproctitle import setproctitle
     setproctitle("registry")
     REGISTRY_HOST = None
