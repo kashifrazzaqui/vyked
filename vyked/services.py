@@ -46,7 +46,7 @@ class _Service:
 
 
 class TCPServiceClient(_Service):
-    REQUEST_TIMEOUT_SECS = 10
+    REQUEST_TIMEOUT_SECS = 600
 
     def __init__(self, service_name, service_version):
         super(TCPServiceClient, self).__init__(service_name, service_version)
