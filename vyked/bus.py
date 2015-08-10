@@ -15,6 +15,7 @@ from .services import TCPServiceClient, HTTPServiceClient
 from .pubsub import PubSub
 from .packet import ControlPacket, MessagePacket
 from .protocol_factory import get_vyked_protocol
+from .utils.jsonencoder import VykedEncoder
 
 HTTP = 'http'
 TCP = 'tcp'
@@ -247,7 +248,7 @@ class PubSubBus:
 
     def publish(self, service, version, endpoint, payload):
         endpoint_key = self._get_pubsub_key(service, version, endpoint)
-        asyncio.async(self._retry_publish(endpoint_key, json.dumps(payload)))
+        asyncio.async(self._retry_publish(endpoint_key, json.dumps(payload, cls=VykedEncoder)))
         publish_id = str(uuid.uuid4())
         future = asyncio.async(self.xpublish(publish_id, service, version, endpoint, payload))
         self._pending_publishes[publish_id] = future

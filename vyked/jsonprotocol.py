@@ -7,6 +7,7 @@ from jsonstreamer import ObjectStreamer
 from .sendqueue import SendQueue
 
 from .utils.log import is_ping_logging_enabled
+from .utils.jsonencoder import VykedEncoder
 
 
 class JSONProtocol(asyncio.Protocol):
@@ -21,7 +22,7 @@ class JSONProtocol(asyncio.Protocol):
 
     @staticmethod
     def _make_frame(packet):
-        string = json.dumps(packet) + ','
+        string = json.dumps(packet, cls=VykedEncoder) + ','
         return string.encode()
 
     def is_connected(self):
