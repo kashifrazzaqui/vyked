@@ -1,5 +1,11 @@
 from asyncio import iscoroutine, coroutine
 from functools import wraps, partial
+import logging
+
+
+_logger = logging.getLogger()
+
+
 from again.utils import unique_hex
 
 
@@ -105,6 +111,7 @@ def api(func):  # incoming
         try:
             result = yield from wrapped_func(self, **kwargs)
         except BaseException as e:
+            _logger.exception('api request exception')
             error = str(e)
 
         return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result, error=error)
