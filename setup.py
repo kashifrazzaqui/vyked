@@ -31,11 +31,11 @@ install_requires = [i for i in lines("requirements/base.txt")]
 
 setup(
     name='vyked',
-    version='2.1.1',
+    version='2.1.2',
     author='Kashif Razzaqui, Ankit Chandawala',
     author_email='kashif.razzaqui@gmail.com, ankitchandawala@gmail.com',
     url='https://github.com/kashifrazzaqui/vyked',
     description='A micro-service framework for Python',
-    packages=find_packages(exclude=['examples', 'tests', 'docs', 'requirements']),
+    packages=find_packages(exclude=['examples', 'tests', 'docs']),
     install_requires=install_requires
 )
