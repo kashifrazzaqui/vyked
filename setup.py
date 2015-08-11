@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup, find_packages
 from os import getcwd, path
+from pip.req import parse_requirements
+from pip.download import PipSession
 
 if not path.dirname(__file__):  # setup.py without /path/to/
     _dirname = getcwd()  # /path/to/
@@ -27,12 +29,12 @@ def lines(name):
         filter(lambda t: not t.startswith('#'), txt.splitlines() if txt else [])
     )
 
-
-install_requires = [i for i in lines("requirements/base.txt")]
+install_reqs = parse_requirements("./requirements/base.txt", session=PipSession())
+install_requires = [str(ir.req) for ir in install_reqs]
 
 setup(
     name='vyked',
-    version='2.1.5',
+    version='2.1.6',
     author='Kashif Razzaqui, Ankit Chandawala',
     author_email='kashif.razzaqui@gmail.com, ankitchandawala@gmail.com',
     url='https://github.com/kashifrazzaqui/vyked',
