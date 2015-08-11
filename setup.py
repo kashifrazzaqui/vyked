@@ -27,15 +27,17 @@ def lines(name):
         filter(lambda t: not t.startswith('#'), txt.splitlines() if txt else [])
     )
 
+
 install_requires = [i for i in lines("requirements/base.txt")]
 
 setup(
     name='vyked',
-    version='2.1.3',
+    version='2.1.5',
     author='Kashif Razzaqui, Ankit Chandawala',
     author_email='kashif.razzaqui@gmail.com, ankitchandawala@gmail.com',
     url='https://github.com/kashifrazzaqui/vyked',
     description='A micro-service framework for Python',
     packages=find_packages(exclude=['examples', 'tests', 'docs']),
+    package_data={'requirements': ['*.txt']},
     install_requires=install_requires
 )
