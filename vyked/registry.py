@@ -168,7 +168,9 @@ class Registry:
             vendors = self._repository.get_vendors(service, version)
             should_activate = True
             for vendor in vendors:
-                if not len(self._repository.get_instances(vendor['service'], vendor['version'])):
+                instances = self._repository.get_instances(vendor['service'], vendor['version'])
+                tcp_instances = [instance for instance in instances if instance[3] == 'tcp']
+                if not len(tcp_instances):
                     should_activate = False
                     break
             for node in self._repository.get_pending_instances(service, version):
