@@ -63,7 +63,6 @@ class TCPServiceClient(_Service):
         return future
 
     def receive(self, packet: dict, protocol, transport):
-        _logger.info('service client {}, packet {}'.format(self, packet))
         if packet['type'] == 'ping':
             pass
         else:
