@@ -3,6 +3,7 @@ import signal
 import asyncio
 from functools import partial
 from collections import defaultdict, namedtuple
+from again.utils import natural_sort
 
 from .utils.log import config_logs
 from .packet import ControlPacket
@@ -14,17 +15,18 @@ Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'por
 
 logger = logging.getLogger(__name__)
 
+
 class Repository:
     def __init__(self):
-        self._registered_services = defaultdict(list)
+        self._registered_services = defaultdict(lambda: defaultdict(list))
         self._pending_services = defaultdict(list)
         self._service_dependencies = {}
-        self._subscribe_list = defaultdict(lambda : defaultdict(lambda : defaultdict(list)))
+        self._subscribe_list = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 
     def register_service(self, service: Service):
         service_name = self._get_full_service_name(service.name, service.version)
         service_entry = (service.host, service.port, service.node_id, service.type)
-        self._registered_services[service_name].append(service_entry)
+        self._registered_services[service.name][service.version].append(service_entry)
         self._pending_services[service_name].append(service.node_id)
         if len(service.dependencies):
             if self._service_dependencies.get(service_name) is None:
@@ -45,8 +47,11 @@ class Repository:
             self._pending_services.pop(self._get_full_service_name(service, version))
 
     def get_instances(self, service, version):
-        service_name = self._get_full_service_name(service, version)
-        return self._registered_services.get(service_name, [])
+        return self._registered_services[service][version]
+
+    def get_versioned_instances(self, service, version):
+        version = self._get_non_breaking_version(version, list(self._registered_services[service].keys()))
+        return self._registered_services[service][version]
 
     def get_consumers(self, service_name, service_version):
         consumers = set()
@@ -60,28 +65,43 @@ class Repository:
         return self._service_dependencies.get(self._get_full_service_name(service, version), [])
 
     def get_node(self, node_id):
-        for service, instances in self._registered_services.items():
-            for host, port, node, service_type in instances:
-                if node_id == node:
-                    name, version = self._split_key(service)
-                    return Service(name, version, [], host, port, node, service_type)
+        for name, versions in self._registered_services.items():
+            for version, instances in versions.items():
+                for host, port, node, service_type in instances:
+                    if node_id == node:
+                        return Service(name, version, [], host, port, node, service_type)
         return None
 
     def remove_node(self, node_id):
-        for service, instances in self._registered_services.items():
-            for instance in instances:
-                host, port, node, service_type = instance
-                if node_id == node:
-                    instances.remove(instance)
+        for name, versions in self._registered_services.items():
+            for version, instances in versions.items():
+                for instance in instances:
+                    host, port, node, service_type = instance
+                    if node_id == node:
+                        instances.remove(instance)
         return None
 
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
         entry = (service, version, host, port, node_id)
         for endpoint in endpoints:
-            self._subscribe_list[endpoint['service']][endpoint['version']][endpoint['endpoint']].append(entry + (endpoint['strategy'],))
+            self._subscribe_list[endpoint['service']][endpoint['version']][endpoint['endpoint']].append(
+                entry + (endpoint['strategy'],))
 
     def get_subscribers(self, service, version, endpoint):
         return self._subscribe_list[service][version][endpoint]
+
+    def _get_non_breaking_version(self, version, versions):
+        if version in versions:
+            return version
+        versions.sort(key=natural_sort, reverse=True)
+        for v in versions:
+            if self._is_non_breaking(v, version):
+                return v
+        return version
+
+    @staticmethod
+    def _is_non_breaking(v, version):
+        return version.split('.')[0] == v.split('.')[0]
 
     @staticmethod
     def _get_full_service_name(service: str, version):
@@ -168,7 +188,7 @@ class Registry:
             vendors = self._repository.get_vendors(service, version)
             should_activate = True
             for vendor in vendors:
-                instances = self._repository.get_instances(vendor['service'], vendor['version'])
+                instances = self._repository.get_versioned_instances(vendor['service'], vendor['version'])
                 tcp_instances = [instance for instance in instances if instance[3] == 'tcp']
                 if not len(tcp_instances):
                     should_activate = False
@@ -184,7 +204,8 @@ class Registry:
     def _make_activated_packet(self, service, version):
         vendors = self._repository.get_vendors(service, version)
         instances = {
-            (vendor['service'], vendor['version']): self._repository.get_instances(vendor['service'], vendor['version']) for
+            (vendor['service'], vendor['version']): self._repository.get_versioned_instances(vendor['service'], vendor['version'])
+            for
             vendor in vendors}
         return ControlPacket.activated(instances)
 
@@ -239,7 +260,8 @@ class Registry:
 
     def _xsubscribe(self, packet):
         params = packet['params']
-        service, version, host, port, node_id = params['service'], params['version'], params['host'], params['port'], params['node_id']
+        service, version, host, port, node_id = params['service'], params['version'], params['host'], params['port'], \
+                                                params['node_id']
         endpoints = params['events']
         self._repository.xsubscribe(service, version, host, port, node_id, endpoints)
 
@@ -247,6 +269,7 @@ class Registry:
 if __name__ == '__main__':
     config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
     from setproctitle import setproctitle
+
     setproctitle("registry")
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500
