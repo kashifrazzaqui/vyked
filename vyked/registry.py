@@ -175,7 +175,7 @@ class Registry:
                           params['node_id'], params['type'])
         self._repository.register_service(service)
         self._client_protocols[params['node_id']] = registry_protocol
-        self._connect_to_service(host, params['port'], params['node_id'], params['type'])
+        self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
         self._handle_pending_registrations()
 
     def _send_activated_packet(self, service, version, node):
