@@ -171,7 +171,7 @@ class Registry:
 
     def register_service(self, packet: dict, registry_protocol, host, port):
         params = packet['params']
-        service = Service(params['service'], params['version'], params['vendors'], host, params['port'],
+        service = Service(params['service'], params['version'], params['vendors'], params['host'], params['port'],
                           params['node_id'], params['type'])
         self._repository.register_service(service)
         self._client_protocols[params['node_id']] = registry_protocol
