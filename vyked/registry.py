@@ -235,9 +235,9 @@ class Registry:
 
     def get_service_instances(self, packet, registry_protocol):
         params = packet['params']
-        service, version = params['service'], params['version']
-        instances = self._repository.get_consumers(service, version)
-        instance_packet = ControlPacket.send_instances(service, version, instances)
+        service, version = params['service'].lower(), params['version']
+        instances = self._repository.get_instances(service, version)
+        instance_packet = ControlPacket.send_instances(service, version, packet['request_id'], instances)
         registry_protocol.send(instance_packet)
 
     def get_subscribers(self, packet, protocol):

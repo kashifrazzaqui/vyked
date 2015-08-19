@@ -93,6 +93,8 @@ class RegistryClient:
             self._handle_subscriber_packet(packet)
         elif packet['type'] == 'pong':
             self._pinger.pong_received()
+        elif packet['type'] == 'instances':
+            self._handle_get_instances(packet)
 
     def get_all_addresses(self, full_service_name):
         return self._available_services.get(
@@ -161,3 +163,7 @@ class RegistryClient:
         request_id = packet['request_id']
         future = self._pending_requests[request_id]
         future.set_result(packet['params']['subscribers'])
+
+    def _handle_get_instances(self, packet):
+        future = self._pending_requests[packet['request_id']]
+        future.set_result(packet['params']['instances'])

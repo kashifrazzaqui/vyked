@@ -66,11 +66,11 @@ class ControlPacket(_Packet):
         return packet
 
     @classmethod
-    def send_instances(cls, service, version, instances):
-        instances = [{'host': host, 'port': port, 'node': node, 'type': service_type} for host, port, node, service_type
-                     in instances]
-        instance_packet_params = {'service': service, 'version': version, 'instances': instances}
-        return {'pid': cls._next_pid(), 'type': 'instances', 'params': instance_packet_params}
+    def send_instances(cls, service, version, request_id, instances):
+        instance_packet = [{'host': host, 'port': port, 'node': node, 'type': service_type} for
+                           host, port, node, service_type in instances]
+        instance_packet_params = {'service': service, 'version': version, 'instances': instance_packet}
+        return {'pid': cls._next_pid(), 'type': 'instances', 'params': instance_packet_params, 'request_id': request_id}
 
     @classmethod
     # TODO : fix parsing on client side
