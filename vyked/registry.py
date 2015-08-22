@@ -4,6 +4,7 @@ import asyncio
 from functools import partial
 from collections import defaultdict, namedtuple
 from again.utils import natural_sort
+import time
 
 from .utils.log import config_logs
 from .packet import ControlPacket
@@ -12,6 +13,7 @@ from .pinger import TCPPinger, HTTPPinger
 from .utils.log import setup_logging
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
+tree = lambda: defaultdict(tree)
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +24,14 @@ class Repository:
         self._pending_services = defaultdict(list)
         self._service_dependencies = {}
         self._subscribe_list = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        self._uptimes = tree()
 
     def register_service(self, service: Service):
         service_name = self._get_full_service_name(service.name, service.version)
         service_entry = (service.host, service.port, service.node_id, service.type)
         self._registered_services[service.name][service.version].append(service_entry)
         self._pending_services[service_name].append(service.node_id)
+        self._uptimes[service_name][service.node_id]['uptime'] = int(time.time())
         if len(service.dependencies):
             if self._service_dependencies.get(service_name) is None:
                 self._service_dependencies[service_name] = service.dependencies
@@ -79,7 +83,14 @@ class Repository:
                     host, port, node, service_type = instance
                     if node_id == node:
                         instances.remove(instance)
+        for name, nodes in self._uptimes.items():
+            for node, uptimes in nodes.items():
+                if node == node_id:
+                    uptimes['downtime'] = int(time.time())
         return None
+
+    def get_uptimes(self):
+        return self._uptimes
 
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
         entry = (service, version, host, port, node_id)
@@ -113,7 +124,7 @@ class Repository:
 
 
 class Registry:
-    def __init__(self, ip, port, repository):
+    def __init__(self, ip, port, repository: Repository):
         self._ip = ip
         self._port = port
         self._loop = asyncio.get_event_loop()
@@ -155,6 +166,8 @@ class Registry:
             self._ping(packet)
         elif request_type == 'ping':
             self._pong(packet, protocol)
+        elif request_type == 'uptime_reprt':
+            self._get_uptime_report(packet, protocol)
 
     def deregister_service(self, node_id):
         service = self._repository.get_node(node_id)
@@ -265,6 +278,9 @@ class Registry:
         endpoints = params['events']
         self._repository.xsubscribe(service, version, host, port, node_id, endpoints)
 
+    def _get_uptime_report(self, packet, protocol):
+        uptimes = self._repository.get_uptimes()
+        protocol.send(ControlPacket.uptime(uptimes))
 
 if __name__ == '__main__':
     config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
