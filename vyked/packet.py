@@ -129,7 +129,7 @@ class ControlPacket(_Packet):
     @classmethod
     def uptime(cls, uptimes):
         packet = {'pid': cls._next_pid(),
-                  'type': 'subscribers',
+                  'type': 'uptime_report',
                   'params': dict(uptimes)}
         return packet
 

@@ -166,7 +166,7 @@ class Registry:
             self._ping(packet)
         elif request_type == 'ping':
             self._pong(packet, protocol)
-        elif request_type == 'uptime_reprt':
+        elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
 
     def deregister_service(self, node_id):
