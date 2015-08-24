@@ -19,7 +19,7 @@ class _Service:
 
     def __init__(self, service_name, service_version):
         self._service_name = service_name.lower()
-        self._service_version = service_version
+        self._service_version = str(service_version)
         self._tcp_bus = None
         self._pubsub_bus = None
         self._http_bus = None
