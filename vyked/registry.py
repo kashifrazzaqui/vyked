@@ -192,9 +192,10 @@ class Registry:
         self._handle_pending_registrations()
 
     def _send_activated_packet(self, service, version, node):
-        protocol = self._client_protocols[node]
-        packet = self._make_activated_packet(service, version)
-        protocol.send(packet)
+        protocol = self._client_protocols.get(node, None)
+        if protocol:
+            packet = self._make_activated_packet(service, version)
+            protocol.send(packet)
 
     def _handle_pending_registrations(self):
         for service, version in self._repository.get_pending_services():
