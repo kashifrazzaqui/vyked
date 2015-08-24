@@ -13,6 +13,6 @@ class ServiceTests(TestCase):
 
     def test_service_identifier(self):
         self.assertEquals(self._test_service.name, 'TestService'.lower())
-        self.assertEquals(self._test_service.version, 1)
+        self.assertEquals(self._test_service.version, str(1))
 
 
