@@ -7,8 +7,6 @@ import random
 import uuid
 
 from again.utils import unique_hex
-
-from retrial.retrial import retry
 import aiohttp
 
 from .services import TCPServiceClient, HTTPServiceClient
@@ -21,12 +19,6 @@ HTTP = 'http'
 TCP = 'tcp'
 
 _logger = logging.getLogger(__name__)
-
-
-def _retry_for_client_conn(result):
-    if isinstance(result, tuple):
-        return not isinstance(result[0], asyncio.transports.Transport) or not isinstance(result[1], asyncio.Protocol)
-    return True
 
 
 def _retry_for_pub(result):
@@ -66,6 +58,7 @@ class HTTPBus:
 
 class TCPBus:
     def __init__(self, registry_client):
+        registry_client.conn_handler = self
         self._registry_client = registry_client
         self._client_protocols = {}
         self._pingers = {}
@@ -88,12 +81,13 @@ class TCPBus:
                     futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
-    def register(self, host, port, service, version, node_id, clients, service_type):
+    def register(self):
+        clients = self.tcp_host.clients if self.tcp_host else self.http_host.clients
         for client in clients:
             if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
                 client.bus = self
         self._service_clients = clients
-        self._registry_client.register(host, port, service, version, node_id, clients, service_type)
+        asyncio.get_event_loop().run_until_complete(self._registry_client.connect())
 
     def registration_complete(self):
         if not self._registered:
@@ -119,8 +113,6 @@ class TCPBus:
         self._pending_requests.append(packet)
         self._clear_request_queue()
 
-    @retry(should_retry_for_result=_retry_for_client_conn, should_retry_for_exception=_retry_for_exception, timeout=10,
-           strategy=[0, 2, 2, 4])
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
         future = asyncio.async(
             asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, service_client), host, port))
@@ -217,6 +209,15 @@ class TCPBus:
                 asyncio.async(fun(payload))
         protocol.send(MessagePacket.ack(publish_id))
 
+    def handle_connected(self):
+        if self.tcp_host:
+            self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name, self.tcp_host.version,
+                                           self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
+        if self.http_host:
+            self._registry_client.register(self.http_host.host, self.http_host.port, self.http_host.name,
+                                           self.http_host.version, self.http_host.node_id, self.http_host.clients,
+                                           'http')
+
 
 class PubSubBus:
     PUBSUB_DELAY = 5
@@ -231,7 +232,7 @@ class PubSubBus:
         self._pubsub_handler = PubSub(host, port)
         yield from self._pubsub_handler.connect()
 
-    def register_for_subscription(self, node_id, clients):
+    def register_for_subscription(self, host, port, node_id, clients):
         self._clients = clients
         subscription_list = []
         xsubscription_list = []
@@ -243,7 +244,7 @@ class PubSubBus:
                         subscription_list.append(self._get_pubsub_key(client.name, client.version, fn.__name__))
                     elif callable(fn) and getattr(fn, 'is_xsubscribe', False):
                         xsubscription_list.append((client.name, client.version, fn.__name__, getattr(fn, 'strategy')))
-        self._registry_client.x_subscribe(node_id, xsubscription_list)
+        self._registry_client.x_subscribe(host, port, node_id, xsubscription_list)
         yield from self._pubsub_handler.subscribe(subscription_list, handler=self.subscription_handler)
 
     def publish(self, service, version, endpoint, payload):
@@ -293,6 +294,7 @@ class PubSubBus:
             else:
                 random_metadata = random.choice(value)
                 host, port = random_metadata[0], random_metadata[1]
-            transport, protocol = yield from asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, self), host, port)
+            transport, protocol = yield from asyncio.get_event_loop().create_connection(
+                partial(get_vyked_protocol, self), host, port)
             packet = MessagePacket.publish(publish_id, service, version, endpoint, payload)
             protocol.send(packet)

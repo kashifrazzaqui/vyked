@@ -2,10 +2,10 @@ import asyncio
 import logging
 import random
 from collections import defaultdict
-
-from again.utils import unique_hex
 from functools import partial
+
 from retrial.retrial import retry
+
 from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
 from .pinger import TCPPinger
@@ -29,20 +29,25 @@ class RegistryClient:
         self._port = port
         self._host = host
         self.bus = None
-        self._service_host = None
-        self._service_port = None
         self._transport = None
         self._protocol = None
         self._service = None
         self._version = None
         self._pinger = None
+        self._conn_handler = None
         self._pending_requests = {}
         self._available_services = defaultdict(list)
         self._assigned_services = defaultdict(lambda: defaultdict(list))
 
+    @property
+    def conn_handler(self):
+        return self._conn_handler
+
+    @conn_handler.setter
+    def conn_handler(self, handler):
+        self._conn_handler = handler
+
     def register(self, ip, port, service, version, node_id, vendors, service_type):
-        self._service_host = ip
-        self._service_port = port
         self._service = service
         self._version = version
         packet = ControlPacket.registration(ip, port, node_id, service, version, vendors, service_type)
@@ -63,8 +68,8 @@ class RegistryClient:
         self._pending_requests[packet['request_id']] = future
         return future
 
-    def x_subscribe(self, node_id, endpoints):
-        packet = ControlPacket.xsubscribe(self._service, self._version, self._service_host, self._service_port, node_id,
+    def x_subscribe(self, host, port, node_id, endpoints):
+        packet = ControlPacket.xsubscribe(self._service, self._version, host, port, node_id,
                                           endpoints)
         self._protocol.send(packet)
 
@@ -73,6 +78,7 @@ class RegistryClient:
     def connect(self):
         self._transport, self._protocol = yield from self._loop.create_connection(partial(get_vyked_protocol, self),
                                                                                   self._host, self._port)
+        self.conn_handler.handle_connected()
         self._pinger = TCPPinger('registry', self._protocol, self)
         self._pinger.ping()
         return self._transport, self._protocol

@@ -51,6 +51,7 @@ class TCPServiceClient(_Service):
     def __init__(self, service_name, service_version):
         super(TCPServiceClient, self).__init__(service_name, service_version)
         self._pending_requests = {}
+        self.tcp_bus = None
 
     def _send_request(self, app_name, endpoint, entity, params):
         packet = MessagePacket.request(self.name, self.version, app_name, _Service._REQ_PKT_STR, endpoint, params,
@@ -153,11 +154,19 @@ class _ServiceHost(_Service):
         self._clients = clients
 
     def register(self):
-        raise NotImplementedError
+        self._tcp_bus.register()
 
     @property
     def socket_address(self):
         return self._ip, self._port
+
+    @property
+    def host(self):
+        return self._ip
+
+    @property
+    def port(self):
+        return self._port
 
 
 class TCPService(_ServiceHost):
@@ -183,9 +192,6 @@ class TCPService(_ServiceHost):
                   'type': _Service._RES_PKT_STR,
                   'payload': payload}
         return packet
-
-    def register(self):
-        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self.node_id, self._clients, 'tcp')
 
 
 def default_preflight_response(request):
@@ -218,9 +224,6 @@ class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
     @staticmethod
     def pong(_):
         return Response()
-
-    def register(self):
-        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self.node_id, self._clients, 'http')
 
 
 class HTTPServiceClient(_Service):

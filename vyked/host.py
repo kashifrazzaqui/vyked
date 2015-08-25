@@ -102,9 +102,9 @@ class Host:
     def _start_server(cls):
         tcp_server = cls._create_tcp_server()
         http_server = cls._create_http_server()
+        cls._register_services()
         cls._create_pubsub_handler()
         cls._subscribe()
-        cls._register_services()
         if tcp_server:
             _logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
         if http_server:
@@ -140,18 +140,21 @@ class Host:
     def _subscribe(cls):
         if not cls.ronin:
             if cls._tcp_service:
-                asyncio.async(cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.node_id,
-                                                                                    cls._tcp_service.clients))
+                asyncio.async(
+                    cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.host, cls._tcp_service.port,
+                                                                          cls._tcp_service.node_id,
+                                                                          cls._tcp_service.clients))
             if cls._http_service:
-                asyncio.async(cls._http_service.pubsub_bus.register_for_subscription(cls._tcp_service.node_id,
-                                                                                     cls._http_service.clients))
+                asyncio.async(
+                    cls._http_service.pubsub_bus.register_for_subscription(cls._tcp_service.host, cls._tcp_service.port,
+                                                                           cls._tcp_service.node_id,
+                                                                           cls._http_service.clients))
 
     @classmethod
     def _set_bus(cls, service):
         registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port)
-        if not cls.ronin:
-            asyncio.get_event_loop().run_until_complete(registry_client.connect())
         tcp_bus = TCPBus(registry_client)
+        registry_client.conn_handler = tcp_bus
         pubsub_bus = PubSubBus(registry_client)
         registry_client.bus = tcp_bus
         if isinstance(service, TCPService):
