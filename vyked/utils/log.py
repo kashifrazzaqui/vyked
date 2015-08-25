@@ -6,6 +6,7 @@ import os
 from threading import Thread
 import logging
 import asyncio
+import datetime
 from functools import partial, wraps
 
 FILE_SIZE = 5 * 1024 * 1024
@@ -21,6 +22,16 @@ END = '\033[0m'
 
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = False
+
+
+class CustomTimeLoggingFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        if datefmt:
+            s = datetime.datetime.now().strftime(datefmt)
+        else:
+            t = datetime.datetime.now().strftime(self.default_time_format)
+            s = self.default_msec_format % (t, record.msecs)
+        return s
 
 
 def is_ping_logging_enabled():
@@ -60,7 +71,8 @@ def patch_add_handler(logger):
 
     def async_add_handler(handler):
         async_handler = patch_async_emit(handler)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = CustomTimeLoggingFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                                               '%Y-%m-%d %H:%M:%S,%f')
         async_handler.setFormatter(formatter)
         base_add_handler(async_handler)
 
