@@ -140,9 +140,11 @@ class Host:
     def _subscribe(cls):
         if not cls.ronin:
             if cls._tcp_service:
-                asyncio.async(cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.clients))
+                asyncio.async(cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.node_id,
+                                                                                    cls._tcp_service.clients))
             if cls._http_service:
-                asyncio.async(cls._http_service.pubsub_bus.register_for_subscription(cls._http_service.clients))
+                asyncio.async(cls._http_service.pubsub_bus.register_for_subscription(cls._tcp_service.node_id,
+                                                                                     cls._http_service.clients))
 
     @classmethod
     def _set_bus(cls, service):

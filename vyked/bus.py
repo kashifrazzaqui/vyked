@@ -88,12 +88,12 @@ class TCPBus:
                     futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
-    def register(self, host, port, service, version, clients, service_type):
+    def register(self, host, port, service, version, node_id, clients, service_type):
         for client in clients:
             if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
                 client.bus = self
         self._service_clients = clients
-        self._registry_client.register(host, port, service, version, clients, service_type)
+        self._registry_client.register(host, port, service, version, node_id, clients, service_type)
 
     def registration_complete(self):
         if not self._registered:
@@ -231,7 +231,7 @@ class PubSubBus:
         self._pubsub_handler = PubSub(host, port)
         yield from self._pubsub_handler.connect()
 
-    def register_for_subscription(self, clients):
+    def register_for_subscription(self, node_id, clients):
         self._clients = clients
         subscription_list = []
         xsubscription_list = []
@@ -243,7 +243,7 @@ class PubSubBus:
                         subscription_list.append(self._get_pubsub_key(client.name, client.version, fn.__name__))
                     elif callable(fn) and getattr(fn, 'is_xsubscribe', False):
                         xsubscription_list.append((client.name, client.version, fn.__name__, getattr(fn, 'strategy')))
-        self._registry_client.x_subscribe(xsubscription_list)
+        self._registry_client.x_subscribe(node_id, xsubscription_list)
         yield from self._pubsub_handler.subscribe(subscription_list, handler=self.subscription_handler)
 
     def publish(self, service, version, endpoint, payload):

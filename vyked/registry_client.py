@@ -35,19 +35,17 @@ class RegistryClient:
         self._protocol = None
         self._service = None
         self._version = None
-        self._node_id = None
         self._pinger = None
         self._pending_requests = {}
         self._available_services = defaultdict(list)
         self._assigned_services = defaultdict(lambda: defaultdict(list))
 
-    def register(self, ip, port, service, version, vendors, service_type):
+    def register(self, ip, port, service, version, node_id, vendors, service_type):
         self._service_host = ip
         self._service_port = port
         self._service = service
         self._version = version
-        self._node_id = '{}_{}_{}'.format(service, version, unique_hex())
-        packet = ControlPacket.registration(ip, port, self._node_id, service, version, vendors, service_type)
+        packet = ControlPacket.registration(ip, port, node_id, service, version, vendors, service_type)
         self._protocol.send(packet)
 
     def get_instances(self, service, version):
@@ -65,9 +63,8 @@ class RegistryClient:
         self._pending_requests[packet['request_id']] = future
         return future
 
-    def x_subscribe(self, endpoints):
-        packet = ControlPacket.xsubscribe(self._service, self._version, self._service_host, self._service_port,
-                                          self._node_id,
+    def x_subscribe(self, node_id, endpoints):
+        packet = ControlPacket.xsubscribe(self._service, self._version, self._service_host, self._service_port, node_id,
                                           endpoints)
         self._protocol.send(packet)
 

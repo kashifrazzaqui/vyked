@@ -102,12 +102,17 @@ class TCPServiceClient(_Service):
 class _ServiceHost(_Service):
     def __init__(self, service_name, service_version, host_ip, host_port):
         super(_ServiceHost, self).__init__(service_name, service_version)
+        self._node_id = unique_hex()
         self._ip = host_ip
         self._port = host_port
         self._clients = []
 
     def is_for_me(self, service, version):
         return service == self.name and version == self.version
+
+    @property
+    def node_id(self):
+        return self._node_id
 
     @property
     def tcp_bus(self):
@@ -180,7 +185,7 @@ class TCPService(_ServiceHost):
         return packet
 
     def register(self):
-        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self._clients, 'tcp')
+        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self.node_id, self._clients, 'tcp')
 
 
 def default_preflight_response(request):
@@ -215,7 +220,7 @@ class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
         return Response()
 
     def register(self):
-        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self._clients, 'http')
+        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self.node_id, self._clients, 'http')
 
 
 class HTTPServiceClient(_Service):
