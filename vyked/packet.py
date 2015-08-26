@@ -133,6 +133,14 @@ class ControlPacket(_Packet):
                   'params': dict(uptimes)}
         return packet
 
+    @classmethod
+    def new_instance(cls, service_name, version, host, port, node_id, type):
+        params = {'service': service_name, 'version': version, 'host': host, 'port': port, 'node': node_id,
+                  'type': type}
+        return {'pid': cls._next_pid(),
+                'type': 'new_instance',
+                'params': params}
+
 
 class MessagePacket(_Packet):
     @classmethod

@@ -106,6 +106,12 @@ class TCPBus:
 
             f.add_done_callback(fun)
 
+    def new_instance(self, service, version, host, port, node_id, type):
+        sc = next(sc for sc in self._service_clients if sc.name == service and sc.version == version)
+        if type == 'tcp':
+            self._node_clients[node_id] = sc
+            asyncio.async(self._connect_to_client(host, node_id, port, type, sc))
+
     def send(self, packet: dict):
         packet['from'] = self._host_id
         func = getattr(self, '_' + packet['type'] + '_sender')

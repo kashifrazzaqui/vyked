@@ -36,6 +36,9 @@ class Repository:
             if self._service_dependencies.get(service_name) is None:
                 self._service_dependencies[service_name] = service.dependencies
 
+    def is_pending(self, service, version):
+        return self._get_full_service_name(service, version) in self._pending_services
+
     def add_pending_service(self, service, version, node_id):
         self._pending_services[self._get_full_service_name(service, version)].append(node_id)
 
@@ -190,6 +193,16 @@ class Registry:
         self._client_protocols[params['node_id']] = registry_protocol
         self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
         self._handle_pending_registrations()
+        self._inform_consumers(service)
+
+    def _inform_consumers(self, service: Service):
+        consumers = self._repository.get_consumers(service.name, service.version)
+        for service_name, service_version in consumers:
+            if not self._repository.is_pending(service_name, service_version):
+                instances = self._repository.get_instances(service_name, service_version)
+                for host, port, node, type in instances:
+                    protocol = self._client_protocols[node]
+                    protocol.send(ControlPacket.new_instance(service.name, service.version, service.host, service.port, service.node_id, service.type))
 
     def _send_activated_packet(self, service, version, node):
         protocol = self._client_protocols.get(node, None)
