@@ -1,6 +1,8 @@
 from asyncio import iscoroutine, coroutine
 from functools import wraps, partial
+import time
 import logging
+
 
 
 _logger = logging.getLogger()
@@ -99,6 +101,7 @@ def api(func):  # incoming
     @coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
+        start_time = int(time.time()*1000)
         self = args[0]
         rid = kwargs.pop('request_id')
         entity = kwargs.pop('entity')
@@ -113,7 +116,8 @@ def api(func):  # incoming
         except BaseException as e:
             _logger.exception('api request exception')
             error = str(e)
-
+        end_time = int(time.time()*1000)
+        _logger.debug('Time taken for %s is %d microseconds', func.__name__, end_time - start_time)
         return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result, error=error)
 
     wrapper.is_api = True
