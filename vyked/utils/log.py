@@ -30,6 +30,22 @@ pings_logs_enabled = True
 stream_ping_logs_enabled = False
 stream_log_level = logging.INFO
 
+# Sample log.conf file:
+# [ROTATING_FILE_HANDLER]
+# LOGS_DIR = ./mylogdir
+# LOG_FILE_NAME = mylogfor{}.log
+# LOG_LEVEL = DEBUG
+# #LOG_LEVEL can be {DEBUG, INFO, WARNING, ERROR, CRITICAL}
+# FILE_SIZE = 5242880
+# #5 MegaBytes
+# PING_LOGS_ENABLED = True
+# [STREAM_HANDLER]
+# PING_LOGS_ENABLED = False
+# LOG_LEVEL = CRITICAL
+# #Pings will show only if log_level is appropriate
+
+
+
 #Read Config File
 LOG_CONF_FILE = ''
 
