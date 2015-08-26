@@ -155,7 +155,7 @@ class Registry:
     def receive(self, packet: dict, protocol, transport):
         request_type = packet['type']
         if request_type == 'register':
-            self.register_service(packet, protocol, *transport.get_extra_info('peername'))
+            self.register_service(packet, protocol)
         elif request_type == 'get_instances':
             self.get_service_instances(packet, protocol)
         elif request_type == 'xsubscribe':
