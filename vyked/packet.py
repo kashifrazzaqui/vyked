@@ -30,15 +30,15 @@ class _Packet:
 
 class ControlPacket(_Packet):
     @classmethod
-    def registration(cls, ip: str, port: int, node_id, service: str, version: str, vendors, service_type: str):
-        v = [{'service': vendor.name, 'version': vendor.version} for vendor in vendors]
+    def registration(cls, ip: str, port: int, node_id, service: str, version: str, dependencies, service_type: str):
+        v = [{'service': vendor.name, 'version': vendor.version} for vendor in dependencies]
 
         params = {'service': service,
                   'version': version,
                   'host': ip,
                   'port': port,
                   'node_id': node_id,
-                  'vendors': v,
+                  'dependencies': v,
                   'type': service_type}
 
         packet = {'pid': cls._next_pid(), 'type': 'register', 'params': params}
