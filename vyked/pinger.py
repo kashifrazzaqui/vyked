@@ -1,7 +1,9 @@
 import asyncio
+
 from aiohttp import request
+
 from vyked.packet import ControlPacket
-import traceback
+import logging
 
 PING_TIMEOUT = 5
 PING_INTERVAL = 5
@@ -70,6 +72,8 @@ class TCPPinger:
 
 
 class HTTPPinger:
+    logger = logging.getLogger(__name__)
+
     def __init__(self, node_id, host, port, handler):
         self._pinger = Pinger(self, PING_INTERVAL, PING_TIMEOUT)
         self._node_id = node_id
@@ -83,7 +87,9 @@ class HTTPPinger:
         asyncio.async(self.ping_coroutine())
 
     def ping_coroutine(self):
+        self.logger.error("Sending ping to %s", self._node_id)
         res = yield from request('get', self._url)
+        self.logger.error("Ping response is %s %s %s", res.status, self._node_id, self._url)
         if res.status == 200:
             self.pong_received()
             res.close()
