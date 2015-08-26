@@ -182,7 +182,7 @@ class Registry:
                     for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
                         self._repository.add_pending_service(consumer_name, consumer_version, node_id)
 
-    def register_service(self, packet: dict, registry_protocol, host, port):
+    def register_service(self, packet: dict, registry_protocol):
         params = packet['params']
         service = Service(params['service'], params['version'], params['vendors'], params['host'], params['port'],
                           params['node_id'], params['type'])
