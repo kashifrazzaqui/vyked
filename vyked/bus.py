@@ -81,7 +81,7 @@ class TCPBus:
     def _create_service_clients(self):
         futures = []
         for sc in self._service_clients:
-            for host, port, node_id, service_type in self._registry_client.get_all_addresses(sc.properties):
+            for host, port, node_id, service_type in self._registry_client.get_all_addresses(*sc.properties):
                 if service_type == 'tcp':
                     self._node_clients[node_id] = sc
                     future = self._connect_to_client(host, node_id, port, service_type, sc)

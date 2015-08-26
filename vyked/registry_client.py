@@ -96,9 +96,9 @@ class RegistryClient:
         elif packet['type'] == 'instances':
             self._handle_get_instances(packet)
 
-    def get_all_addresses(self, full_service_name):
+    def get_all_addresses(self, name, version):
         return self._available_services.get(
-            self._get_full_service_name(full_service_name[0], full_service_name[1]))
+            self._get_full_service_name(name, version))
 
     def get_for_node(self, node_id):
         for services in self._available_services.values():
