@@ -1,6 +1,6 @@
 from unittest import mock
 # from vyked.registry import Registry, Repository
-from vyked.packet import ControlPacket
+# from vyked.packet import ControlPacket
 import uuid
 
 
@@ -30,6 +30,16 @@ def instance_returned_successfully(response, service):
         if instance == t:
             return True
 
+    return False
+
+
+def subscriber_returned_successfully(response, service):
+    service_t = (service['host'], service['port'], service['node_id'], service['service'], service['version'])
+    for s in response['params']['subscribers']:
+        subscriber_t = (s['host'], s['port'], s['node_id'], s['service'], s['version'])
+
+        if service_t == subscriber_t:
+            return True
     return False
 
 
@@ -73,9 +83,26 @@ def test_get_instances(service_a1, registry):
 
     protocol = mock.Mock()
     registry.get_service_instances(
-        packet={'params': service_a1, 'request_id': uuid.uuid4()}, registry_protocol=protocol)
+        packet={'params': service_a1, 'request_id': str(uuid.uuid4())}, registry_protocol=protocol)
 
     assert instance_returned_successfully(
         protocol.send.call_args_list[0][0][0], service_a1)
 
 
+def test_xsubscribe(service_a1, service_d1, registry):
+    # assert service_d1 == {}
+    registry.register_service(
+        packet={'params': service_a1}, registry_protocol=mock.Mock())
+    registry.register_service(
+        packet={'params': service_d1}, registry_protocol=mock.Mock())
+    registry._xsubscribe(packet={'params': service_d1})
+
+    protocol = mock.Mock()
+    params = {
+        'service': service_a1['service'],
+        'version': service_a1['version'],
+        'endpoint': service_d1['events'][0]['endpoint']
+    }
+    registry.get_subscribers(packet={'params': params, 'request_id': str(uuid.uuid4())}, protocol=protocol)
+    # assert protocol.send.call_args_list[0][0][0] == {}
+    assert subscriber_returned_successfully(protocol.send.call_args_list[0][0][0], service_d1)
