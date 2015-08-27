@@ -11,3 +11,4 @@ pep8==1.5.7
 pyflakes==0.8.1
 wheel==0.24.0
 pytest==2.7.2
+factory-boy==2.5.2
