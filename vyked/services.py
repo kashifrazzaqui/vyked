@@ -62,7 +62,9 @@ class TCPServiceClient(_Service):
             self.tcp_bus.send(packet)
         except ClientException as e:
             if not future.done() and not future.cancelled():
-                future.set_exception(RequestException(e))
+                exception = RequestException()
+                exception.error = str(e)
+                future.set_exception(exception)
         _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
 
