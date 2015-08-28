@@ -9,11 +9,14 @@ import asyncio
 import datetime
 from functools import partial, wraps
 
+import configparser
+
 FILE_SIZE = 5 * 1024 * 1024
 
 LOGS_DIR = './logs'
 LOG_FILE_NAME = 'vyked-{}.log'
-LOG_FILE_NAME = 'vyked-{}.log'
+LOG_LEVEL = logging.WARNING
+FILE_PING_LOGS_ENABLED = False
 
 RED = '\033[91m'
 BLUE = '\033[94m'
@@ -21,7 +24,90 @@ BOLD = '\033[1m'
 END = '\033[0m'
 
 stream_handler = logging.StreamHandler()
-ping_logs_enabled = False
+
+pings_logs_enabled = True
+
+STREAM_PING_LOGS_ENABLED = False
+STREAM_LOG_LEVEL = logging.INFO
+
+SOCKET_LOGS_ENABLED = False
+SOCKET_LOG_HOST = 'localhost'
+SOCKET_LOG_PORT = 9020
+SOCKET_LOG_LEVEL = logging.DEBUG
+SOCKET_PING_LOGS_ENABLED = True
+SOCKET_LOG_BUFFER_SIZE = 10240
+SOCKET_LOG_FLUSH_LEVEL = logging.ERROR
+
+
+# Sample log.conf file:
+
+# [ROTATING_FILE_HANDLER]
+# LOGS_DIR = ./mylogdir
+# LOG_FILE_NAME = mylogfor{}.log
+# LOG_LEVEL = DEBUG
+# #LOG_LEVEL can be {DEBUG, INFO, WARNING, ERROR, CRITICAL}
+# FILE_SIZE = 5242880
+# #5 MegaBytes
+# PING_LOGS_ENABLED = True
+# [STREAM_HANDLER]
+# PING_LOGS_ENABLED = False
+# LOG_LEVEL = CRITICAL
+# #Pings will show only if log_level is appropriate
+# [SOCKET_HANDLER]
+# LOG_HOST = localhost
+# LOG_PORT = 9020
+# LOG_LEVEL = DEBUG
+# PING_LOGS_ENABLED = False
+# BUFFER_SIZE = 7
+# #Flush after every 7 logs
+# FLUSH_LEVEL = ERROR
+# #Flush if ERROR log received
+
+#Read Config File
+LOG_CONF_FILE = ''
+
+#Find log.conf file
+for root, dirs, files in os.walk("."):
+    for file in files:
+        if file == 'log.conf':
+             LOG_CONF_FILE = (os.path.join(root, file))
+             break
+
+#If file found update configurable parameters
+if LOG_CONF_FILE!="":
+    conf = configparser.ConfigParser()
+    conf.read(LOG_CONF_FILE)
+    #TODO: Add loop to update all logger handlers + datastructure to hold logger handler parameters
+    #TODO: Possibly use default configuration file format
+    if conf.has_section('ROTATING_FILE_HANDLER'):
+        fileconfig = conf['ROTATING_FILE_HANDLER']
+        LOGS_DIR = fileconfig.get('LOGS_DIR', LOGS_DIR)
+        LOG_FILE_NAME = fileconfig.get('LOG_FILE_NAME', LOG_FILE_NAME)
+        LOG_LEVEL = getattr(logging, fileconfig.get('LOG_LEVEL', 'INFO'))
+        FILE_PING_LOGS_ENABLED = fileconfig.getboolean('PING_LOGS_ENABLED', FILE_PING_LOGS_ENABLED)
+        FILE_SIZE = int(fileconfig.get('FILE_SIZE', '5242880'))
+
+    if conf.has_section('ROTATING_FILE_HANDLER'):
+        streamconfig = conf['STREAM_HANDLER']
+        STREAM_PING_LOGS_ENABLED = streamconfig.getboolean('PING_LOGS_ENABLED', STREAM_PING_LOGS_ENABLED)
+        STREAM_LOG_LEVEL = getattr(logging, streamconfig.get('LOG_LEVEL', 'INFO'))
+
+    if conf.has_section('SOCKET_HANDLER'):
+        socketconfig = conf['SOCKET_HANDLER']
+        SOCKET_LOGS_ENABLED = True
+        SOCKET_LOG_HOST = socketconfig.get('LOG_HOST','localhost')
+        SOCKET_LOG_PORT = int(socketconfig.get('LOG_PORT','9020'))
+        SOCKET_LOG_LEVEL = getattr(logging, socketconfig.get('LOG_LEVEL', 'DEBUG'))
+        SOCKET_PING_LOGS_ENABLED = socketconfig.getboolean('PING_LOGS_ENABLED', SOCKET_PING_LOGS_ENABLED)
+        SOCKET_LOG_BUFFER_SIZE = int(socketconfig.get('BUFFER_SIZE', '10240'))
+        SOCKET_LOG_FLUSH_LEVEL = getattr(logging, socketconfig.get('FLUSH_LEVEL', 'DEBUG'))
+
+
+#Helper function to filter ping/pong logs
+def ping_filter(record):
+    if '"type": "pong"' in record.getMessage() or '"type": "ping"' in record.getMessage():
+        return 0
+    return 1
 
 
 class CustomTimeLoggingFormatter(logging.Formatter):
@@ -35,12 +121,12 @@ class CustomTimeLoggingFormatter(logging.Formatter):
 
 
 def is_ping_logging_enabled():
-    return ping_logs_enabled
+    return pings_logs_enabled
 
 
 def config_logs(enable_ping_logs=False, log_level=logging.INFO):
-    global ping_logs_enabled
-    ping_logs_enabled = enable_ping_logs
+    global pings_logs_enabled
+    pings_logs_enabled = enable_ping_logs
     stream_handler.setLevel(log_level)
 
 
@@ -91,11 +177,28 @@ def setup_logging(identifier):
     logger = logging.getLogger()
     logger.handlers = []
     logger.addHandler = patch_add_handler(logger)
-    stream_handler.setLevel(logging.INFO)
+
+    stream_handler.setLevel(STREAM_LOG_LEVEL)
+    if not STREAM_PING_LOGS_ENABLED:
+        stream_handler.addFilter(ping_filter)
     logger.addHandler(stream_handler)
-    logger.addHandler(
-        RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
-                            backupCount=10))
+
+    file_handler = RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
+                            backupCount=10)
+    file_handler.setLevel(LOG_LEVEL)
+    if not FILE_PING_LOGS_ENABLED:
+        file_handler.addFilter(ping_filter)
+    logger.addHandler(file_handler)
+
+    if SOCKET_LOGS_ENABLED:
+        web_handler = logging.handlers.SocketHandler(SOCKET_LOG_HOST, SOCKET_LOG_PORT)
+        web_handler.setLevel(SOCKET_LOG_LEVEL)
+        mem_handler = logging.handlers.MemoryHandler(SOCKET_LOG_BUFFER_SIZE, SOCKET_LOG_FLUSH_LEVEL, web_handler)
+        mem_handler.setLevel(SOCKET_LOG_LEVEL)
+        if not SOCKET_PING_LOGS_ENABLED:
+            mem_handler.addFilter(ping_filter)
+        mem_handler.setTarget(web_handler)
+        logger.addHandler(mem_handler)
 
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):
