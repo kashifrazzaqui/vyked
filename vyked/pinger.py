@@ -87,9 +87,7 @@ class HTTPPinger:
         asyncio.async(self.ping_coroutine())
 
     def ping_coroutine(self):
-        self.logger.error("Sending ping to %s", self._node_id)
         res = yield from request('get', self._url)
-        self.logger.error("Ping response is %s %s %s", res.status, self._node_id, self._url)
         if res.status == 200:
             self.pong_received()
             res.close()
