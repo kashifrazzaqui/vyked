@@ -16,6 +16,7 @@ from .pubsub import PubSub
 from .packet import ControlPacket, MessagePacket
 from .protocol_factory import get_vyked_protocol
 from .utils.jsonencoder import VykedEncoder
+from .exceptions import ClientNotFoundError, ClientDisconnected
 
 HTTP = 'http'
 TCP = 'tcp'
@@ -71,7 +72,6 @@ class TCPBus:
         self._pingers = {}
         self._node_clients = {}
         self._service_clients = []
-        self._pending_requests = []
         self.tcp_host = None
         self.http_host = None
         self._host_id = unique_hex()
@@ -100,12 +100,6 @@ class TCPBus:
             f = self._create_service_clients()
             self._registered = True
 
-            def fun(_):
-                if self.tcp_host:
-                    self._clear_request_queue()
-
-            f.add_done_callback(fun)
-
     def new_instance(self, service, version, host, port, node_id, type):
         sc = next(sc for sc in self._service_clients if sc.name == service and sc.version == version)
         if type == 'tcp':
@@ -122,8 +116,19 @@ class TCPBus:
         Sends a request to a server from a ServiceClient
         auto dispatch method called from self.send()
         """
-        self._pending_requests.append(packet)
-        self._clear_request_queue()
+        node_id = self._get_node_id_for_packet(packet)
+        if node_id is not None:
+            client_protocol = self._client_protocols[node_id]
+            if client_protocol.is_connected():
+                packet['to'] = node_id
+                client_protocol.send(packet)
+            else:
+                _logger.error('Client protocol is not connected')
+                raise ClientDisconnected()
+        else:
+            # No node found to send request
+            _logger.error('Client Not found')
+            raise ClientNotFoundError()
 
     @retry(should_retry_for_result=_retry_for_client_conn, should_retry_for_exception=_retry_for_exception, timeout=10,
            strategy=[0, 2, 2, 4])
@@ -155,21 +160,6 @@ class TCPBus:
     def _handle_pong(self, node_id, count):
         pinger = self._pingers[node_id]
         asyncio.async(pinger.pong_received(count))
-
-    def _clear_request_queue(self):
-        self._pending_requests[:] = [each for each in self._pending_requests if not self._send_packet(each)]
-
-    def _send_packet(self, packet):
-        node_id = self._get_node_id_for_packet(packet)
-        if node_id is not None:
-            client_protocol = self._client_protocols[node_id]
-            if client_protocol.is_connected():
-                packet['to'] = node_id
-                client_protocol.send(packet)
-                return True
-            else:
-                return False
-        return False
 
     def _get_node_id_for_packet(self, packet):
         app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
