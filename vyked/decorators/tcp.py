@@ -7,7 +7,6 @@ _logger = logging.getLogger()
 
 from again.utils import unique_hex
 
-
 def publish(func):
     """
     publish the return value of this function as a message from this endpoint
