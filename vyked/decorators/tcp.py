@@ -2,10 +2,13 @@ from asyncio import iscoroutine, coroutine
 from functools import wraps, partial
 import time
 import logging
+import datetime
+import json
 
 _logger = logging.getLogger()
 
 from again.utils import unique_hex
+
 
 def publish(func):
     """
@@ -113,6 +116,17 @@ def api(func):  # incoming
             _logger.exception('api request exception')
             error = str(e)
         end_time = int(time.time() * 1000)
+        logd = {
+            'request_id': rid,
+            'entity': entity,
+            'from_id': from_id,
+            'endpoint': func.__name__,
+            'timestamp': datetime.datetime.now().isoformat(),
+            'time_taken': end_time - start_time,
+            'error': error,
+
+        }
+        _logger.info(json.dumps(logd))
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
         return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result, error=error)
 
