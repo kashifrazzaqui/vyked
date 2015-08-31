@@ -20,6 +20,8 @@ from .exceptions import ClientNotFoundError, ClientDisconnected
 
 HTTP = 'http'
 TCP = 'tcp'
+total_requests = 0
+total_responses = 0
 
 _logger = logging.getLogger(__name__)
 
@@ -190,6 +192,9 @@ class TCPBus:
                 _logger.warn('wrongly routed packet: ', packet)
 
     def _request_receiver(self, packet, protocol):
+        global total_requests, total_responses
+        total_requests += 1
+        _logger.debug('Total Requests received %d, Total Responses returned %d', total_requests, total_responses)
         api_fn = getattr(self.tcp_host, packet['endpoint'])
         if api_fn.is_api:
             from_node_id = packet['from']
@@ -197,8 +202,12 @@ class TCPBus:
             future = asyncio.async(api_fn(from_id=from_node_id, entity=entity, **packet['payload']))
 
             def send_result(f):
+                global total_requests, total_responses
                 result_packet = f.result()
                 protocol.send(result_packet)
+                total_responses += 1
+                _logger.debug('Total Requests received %d, Total Responses returned %d', total_requests,
+                              total_responses)
 
             future.add_done_callback(send_result)
         else:
