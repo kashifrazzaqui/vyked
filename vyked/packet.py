@@ -30,15 +30,15 @@ class _Packet:
 
 class ControlPacket(_Packet):
     @classmethod
-    def registration(cls, ip: str, port: int, node_id, service: str, version: str, vendors, service_type: str):
-        v = [{'service': vendor.name, 'version': vendor.version} for vendor in vendors]
+    def registration(cls, ip: str, port: int, node_id, service: str, version: str, dependencies, service_type: str):
+        v = [{'service': vendor.name, 'version': vendor.version} for vendor in dependencies]
 
         params = {'service': service,
                   'version': version,
                   'host': ip,
                   'port': port,
                   'node_id': node_id,
-                  'vendors': v,
+                  'dependencies': v,
                   'type': service_type}
 
         packet = {'pid': cls._next_pid(), 'type': 'register', 'params': params}
@@ -132,6 +132,14 @@ class ControlPacket(_Packet):
                   'type': 'uptime_report',
                   'params': dict(uptimes)}
         return packet
+
+    @classmethod
+    def new_instance(cls, service_name, version, host, port, node_id, type):
+        params = {'service': service_name, 'version': version, 'host': host, 'port': port, 'node': node_id,
+                  'type': type}
+        return {'pid': cls._next_pid(),
+                'type': 'new_instance',
+                'params': params}
 
 
 class MessagePacket(_Packet):

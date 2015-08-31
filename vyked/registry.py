@@ -13,12 +13,15 @@ from .pinger import TCPPinger, HTTPPinger
 from .utils.log import setup_logging
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
-tree = lambda: defaultdict(tree)
-
 logger = logging.getLogger(__name__)
 
 
+def tree():
+    return defaultdict(tree)
+
+
 class Repository:
+
     def __init__(self):
         self._registered_services = defaultdict(lambda: defaultdict(list))
         self._pending_services = defaultdict(list)
@@ -35,6 +38,9 @@ class Repository:
         if len(service.dependencies):
             if self._service_dependencies.get(service_name) is None:
                 self._service_dependencies[service_name] = service.dependencies
+
+    def is_pending(self, service, version):
+        return self._get_full_service_name(service, version) in self._pending_services
 
     def add_pending_service(self, service, version, node_id):
         self._pending_services[self._get_full_service_name(service, version)].append(node_id)
@@ -124,6 +130,7 @@ class Repository:
 
 
 class Registry:
+
     def __init__(self, ip, port, repository: Repository):
         self._ip = ip
         self._port = port
@@ -155,7 +162,7 @@ class Registry:
     def receive(self, packet: dict, protocol, transport):
         request_type = packet['type']
         if request_type == 'register':
-            self.register_service(packet, protocol, *transport.get_extra_info('peername'))
+            self.register_service(packet, protocol)
         elif request_type == 'get_instances':
             self.get_service_instances(packet, protocol)
         elif request_type == 'xsubscribe':
@@ -182,14 +189,25 @@ class Registry:
                     for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
                         self._repository.add_pending_service(consumer_name, consumer_version, node_id)
 
-    def register_service(self, packet: dict, registry_protocol, host, port):
+    def register_service(self, packet: dict, registry_protocol):
         params = packet['params']
-        service = Service(params['service'], params['version'], params['vendors'], params['host'], params['port'],
+        service = Service(params['service'], params['version'], params['dependencies'], params['host'], params['port'],
                           params['node_id'], params['type'])
         self._repository.register_service(service)
         self._client_protocols[params['node_id']] = registry_protocol
         self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
         self._handle_pending_registrations()
+        self._inform_consumers(service)
+
+    def _inform_consumers(self, service: Service):
+        consumers = self._repository.get_consumers(service.name, service.version)
+        for service_name, service_version in consumers:
+            if not self._repository.is_pending(service_name, service_version):
+                instances = self._repository.get_instances(service_name, service_version)
+                for host, port, node, type in instances:
+                    protocol = self._client_protocols[node]
+                    protocol.send(ControlPacket.new_instance(
+                        service.name, service.version, service.host, service.port, service.node_id, service.type))
 
     def _send_activated_packet(self, service, version, node):
         protocol = self._client_protocols.get(node, None)
@@ -218,9 +236,8 @@ class Registry:
     def _make_activated_packet(self, service, version):
         vendors = self._repository.get_vendors(service, version)
         instances = {
-            (vendor['service'], vendor['version']): self._repository.get_versioned_instances(vendor['service'], vendor['version'])
-            for
-            vendor in vendors}
+            (v['service'], v['version']): self._repository.get_versioned_instances(v['service'], v['version'])
+            for v in vendors}
         return ControlPacket.activated(instances)
 
     def _connect_to_service(self, host, port, node_id, service_type):
@@ -257,7 +274,7 @@ class Registry:
     def get_subscribers(self, packet, protocol):
         params = packet['params']
         request_id = packet['request_id']
-        service, version, endpoint = params['service'], params['version'], params['endpoint']
+        service, version, endpoint = params['service'].lower(), params['version'], params['endpoint']
         subscribers = self._repository.get_subscribers(service, version, endpoint)
         packet = ControlPacket.subscribers(service, version, endpoint, request_id, subscribers)
         protocol.send(packet)
@@ -274,8 +291,8 @@ class Registry:
 
     def _xsubscribe(self, packet):
         params = packet['params']
-        service, version, host, port, node_id = params['service'], params['version'], params['host'], params['port'], \
-                                                params['node_id']
+        service, version, host, port, node_id = (params['service'], params['version'], params['host'], params['port'],
+                                                 params['node_id'])
         endpoints = params['events']
         self._repository.xsubscribe(service, version, host, port, node_id, endpoints)
 

@@ -34,7 +34,7 @@ install_requires = [str(ir.req) for ir in install_reqs]
 
 setup(
     name='vyked',
-    version='2.1.18',
+    version='2.1.28',
     author='Kashif Razzaqui, Ankit Chandawala',
     author_email='kashif.razzaqui@gmail.com, ankitchandawala@gmail.com',
     url='https://github.com/kashifrazzaqui/vyked',

@@ -95,7 +95,7 @@ def setup_logging(identifier):
     logger.addHandler(stream_handler)
     logger.addHandler(
         RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
-                            backupCount=100))
+                            backupCount=10))
 
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):

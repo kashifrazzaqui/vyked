@@ -14,9 +14,12 @@ from .pubsub import PubSub
 from .packet import ControlPacket, MessagePacket
 from .protocol_factory import get_vyked_protocol
 from .utils.jsonencoder import VykedEncoder
+from .exceptions import ClientNotFoundError, ClientDisconnected
 
 HTTP = 'http'
 TCP = 'tcp'
+total_requests = 0
+total_responses = 0
 
 _logger = logging.getLogger(__name__)
 
@@ -64,7 +67,6 @@ class TCPBus:
         self._pingers = {}
         self._node_clients = {}
         self._service_clients = []
-        self._pending_requests = []
         self.tcp_host = None
         self.http_host = None
         self._host_id = unique_hex()
@@ -74,7 +76,7 @@ class TCPBus:
     def _create_service_clients(self):
         futures = []
         for sc in self._service_clients:
-            for host, port, node_id, service_type in self._registry_client.get_all_addresses(sc.properties):
+            for host, port, node_id, service_type in self._registry_client.get_all_addresses(*sc.properties):
                 if service_type == 'tcp':
                     self._node_clients[node_id] = sc
                     future = self._connect_to_client(host, node_id, port, service_type, sc)
@@ -94,11 +96,11 @@ class TCPBus:
             f = self._create_service_clients()
             self._registered = True
 
-            def fun(_):
-                if self.tcp_host:
-                    self._clear_request_queue()
-
-            f.add_done_callback(fun)
+    def new_instance(self, service, version, host, port, node_id, type):
+        sc = next(sc for sc in self._service_clients if sc.name == service and sc.version == version)
+        if type == 'tcp':
+            self._node_clients[node_id] = sc
+            asyncio.async(self._connect_to_client(host, node_id, port, type, sc))
 
     def send(self, packet: dict):
         packet['from'] = self._host_id
@@ -110,8 +112,19 @@ class TCPBus:
         Sends a request to a server from a ServiceClient
         auto dispatch method called from self.send()
         """
-        self._pending_requests.append(packet)
-        self._clear_request_queue()
+        node_id = self._get_node_id_for_packet(packet)
+        if node_id is not None:
+            client_protocol = self._client_protocols[node_id]
+            if client_protocol.is_connected():
+                packet['to'] = node_id
+                client_protocol.send(packet)
+            else:
+                _logger.error('Client protocol is not connected')
+                raise ClientDisconnected()
+        else:
+            # No node found to send request
+            _logger.error('Client Not found')
+            raise ClientNotFoundError()
 
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
         future = asyncio.async(
@@ -142,21 +155,6 @@ class TCPBus:
         pinger = self._pingers[node_id]
         asyncio.async(pinger.pong_received(count))
 
-    def _clear_request_queue(self):
-        self._pending_requests[:] = [each for each in self._pending_requests if not self._send_packet(each)]
-
-    def _send_packet(self, packet):
-        node_id = self._get_node_id_for_packet(packet)
-        if node_id is not None:
-            client_protocol = self._client_protocols[node_id]
-            if client_protocol.is_connected():
-                packet['to'] = node_id
-                client_protocol.send(packet)
-                return True
-            else:
-                return False
-        return False
-
     def _get_node_id_for_packet(self, packet):
         app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
         node = self._registry_client.resolve(service, version, entity, TCP)
@@ -186,6 +184,9 @@ class TCPBus:
                 _logger.warn('wrongly routed packet: ', packet)
 
     def _request_receiver(self, packet, protocol):
+        global total_requests, total_responses
+        total_requests += 1
+        _logger.debug('Total Requests received %d, Total Responses returned %d', total_requests, total_responses)
         api_fn = getattr(self.tcp_host, packet['endpoint'])
         if api_fn.is_api:
             from_node_id = packet['from']
@@ -193,8 +194,12 @@ class TCPBus:
             future = asyncio.async(api_fn(from_id=from_node_id, entity=entity, **packet['payload']))
 
             def send_result(f):
+                global total_requests, total_responses
                 result_packet = f.result()
                 protocol.send(result_packet)
+                total_responses += 1
+                _logger.debug('Total Requests received %d, Total Responses returned %d', total_requests,
+                              total_responses)
 
             future.add_done_callback(send_result)
         else:

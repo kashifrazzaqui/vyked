@@ -70,7 +70,6 @@ class Host:
             task = asyncio.get_event_loop().create_server(partial(get_vyked_protocol, cls._tcp_service.tcp_bus),
                                                           host_ip, host_port)
             result = asyncio.get_event_loop().run_until_complete(task)
-            print(result)
             return result
 
     @classmethod

@@ -90,6 +90,10 @@ class RegistryClient:
         if packet['type'] == 'registered':
             self.cache_vendors(packet['params']['vendors'])
             self.bus.registration_complete()
+        elif packet['type'] == 'new_instance':
+            #TODO : once method for both vendors and new instance
+            self.cache_instance(**packet['params'])
+            self._handle_new_instance(**packet['params'])
         elif packet['type'] == 'deregister':
             self._handle_deregistration(packet)
         elif packet['type'] == 'subscribers':
@@ -99,9 +103,9 @@ class RegistryClient:
         elif packet['type'] == 'instances':
             self._handle_get_instances(packet)
 
-    def get_all_addresses(self, full_service_name):
+    def get_all_addresses(self, name, version):
         return self._available_services.get(
-            self._get_full_service_name(full_service_name[0], full_service_name[1]))
+            self._get_full_service_name(name, version))
 
     def get_for_node(self, node_id):
         for services in self._available_services.values():
@@ -146,6 +150,10 @@ class RegistryClient:
                 self._available_services[vendor_name].append(
                     (address['host'], address['port'], address['node_id'], address['type']))
 
+    def cache_instance(self, service, version, host, port, node, type):
+        vendor = self._get_full_service_name(service, version)
+        self._available_services[vendor].append((host, port, node, type))
+
     def _handle_deregistration(self, packet):
         params = packet['params']
         vendor = self._get_full_service_name(params['service'], params['version'])
@@ -170,3 +178,6 @@ class RegistryClient:
     def _handle_get_instances(self, packet):
         future = self._pending_requests[packet['request_id']]
         future.set_result(packet['params']['instances'])
+
+    def _handle_new_instance(self, service, version, host, port, node, type):
+        self.bus.new_instance(service, version, host, port, node, type)

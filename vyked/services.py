@@ -6,7 +6,7 @@ from again.utils import unique_hex
 from aiohttp.web import Response
 
 from .packet import MessagePacket
-from .exceptions import RequestException
+from .exceptions import RequestException, ClientException
 from .utils.ordered_class_member import OrderedClassMembers
 
 _logger = logging.getLogger(__name__)
@@ -59,7 +59,13 @@ class TCPServiceClient(_Service):
         future = Future()
         request_id = params['request_id']
         self._pending_requests[request_id] = future
-        self.tcp_bus.send(packet)
+        try:
+            self.tcp_bus.send(packet)
+        except ClientException as e:
+            if not future.done() and not future.cancelled():
+                exception = RequestException()
+                exception.error = str(e)
+                future.set_exception(exception)
         _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
 
