@@ -119,11 +119,11 @@ class TCPBus:
                 packet['to'] = node_id
                 client_protocol.send(packet)
             else:
-                _logger.error('Client protocol is not connected')
+                _logger.error('Client protocol is not connected for packet %s', packet)
                 raise ClientDisconnected()
         else:
             # No node found to send request
-            _logger.error('Client Not found')
+            _logger.error('Client Not found for packet %s', packet)
             raise ClientNotFoundError()
 
     def _connect_to_client(self, host, node_id, port, service_type, service_client):

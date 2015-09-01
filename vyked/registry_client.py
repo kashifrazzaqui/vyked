@@ -149,10 +149,12 @@ class RegistryClient:
             for address in vendor['addresses']:
                 self._available_services[vendor_name].append(
                     (address['host'], address['port'], address['node_id'], address['type']))
+        self.logger.debug('Connection cache after registration is %s', self._available_services)
 
     def cache_instance(self, service, version, host, port, node, type):
         vendor = self._get_full_service_name(service, version)
         self._available_services[vendor].append((host, port, node, type))
+        self.logger.debug('Connection cache on getting new instance is %s', self._available_services)
 
     def _handle_deregistration(self, packet):
         params = packet['params']
@@ -169,6 +171,7 @@ class RegistryClient:
                     stale_entities.append(entity)
             for entity in stale_entities:
                 entity_map.pop(entity)
+        self.logger.debug('Connection cache after deregister is %s', self._available_services)
 
     def _handle_subscriber_packet(self, packet):
         request_id = packet['request_id']
