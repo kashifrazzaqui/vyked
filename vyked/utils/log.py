@@ -1,5 +1,5 @@
 from logging import Handler
-from logging.handlers import RotatingFileHandler
+from logging.handlers import RotatingFileHandler, SysLogHandler
 from queue import Queue
 import sys
 import os
@@ -96,6 +96,9 @@ def setup_logging(identifier):
     logger.addHandler(
         RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
                             backupCount=10))
+
+    api_log_handler = SysLogHandler('/dev/log')
+    logger.addHandler(api_log_handler)
 
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):
