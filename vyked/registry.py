@@ -12,6 +12,8 @@ from .protocol_factory import get_vyked_protocol
 from .pinger import TCPPinger, HTTPPinger
 from .utils.log import setup_logging
 
+import json
+
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
 tree = lambda: defaultdict(tree)
 
@@ -122,6 +124,9 @@ class Repository:
     def _split_key(key: str):
         return tuple(key.split('/'))
 
+    def json_dump(self):
+        print("JSON Dump")
+        print(json.dumps(self._registered_services, indent=4))
 
 class Registry:
     def __init__(self, ip, port, repository: Repository):
@@ -149,6 +154,7 @@ class Registry:
             self._loop.close()
 
     def _stop(self, signame: str):
+        self._repository.json_dump()
         print('\ngot signal {} - exiting'.format(signame))
         self._loop.stop()
 
