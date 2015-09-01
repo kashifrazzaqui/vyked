@@ -16,11 +16,9 @@ import json
 import ssl
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
+tree = lambda: defaultdict(tree)
+
 logger = logging.getLogger(__name__)
-
-
-def tree():
-    return defaultdict(tree)
 
 def json_file_to_dict(_file: str) -> dict:
     config = None
@@ -137,6 +135,9 @@ class Repository:
     def _split_key(key: str):
         return tuple(key.split('/'))
 
+    def json_dump(self):
+        print("JSON Dump")
+        print(json.dumps(self._registered_services, indent=4))
 
 class Registry:
 
@@ -171,6 +172,7 @@ class Registry:
             self._loop.close()
 
     def _stop(self, signame: str):
+        self._repository.json_dump()
         print('\ngot signal {} - exiting'.format(signame))
         self._loop.stop()
 

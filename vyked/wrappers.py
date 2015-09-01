@@ -1,5 +1,4 @@
-from aiohttp.web import Request as Req, Response as Res
-
+from aiohttp.web import Request as Req, Response as Res, WebSocketResponse as Wres
 
 class Request(Req):
     """
@@ -9,6 +8,13 @@ class Request(Req):
 
 
 class Response(Res):
+    """
+    Wraps the aiohttp response object to hide it from user
+    """
+    pass
+
+
+class WebSocketResponse(Wres):
     """
     Wraps the aiohttp response object to hide it from user
     """

@@ -8,7 +8,7 @@ from aiohttp.web import Application
 
 from .bus import TCPBus, PubSubBus
 from vyked.registry_client import RegistryClient
-from vyked.services import HTTPService, TCPService
+from vyked.services import HTTPService, TCPService, WSService
 from .protocol_factory import get_vyked_protocol
 from .utils.log import setup_logging
 
@@ -25,6 +25,7 @@ class Host:
     _host_id = None
     _tcp_service = None
     _http_service = None
+    _ws_service = None
     registry_client_ssl = None
 
     @classmethod
@@ -44,6 +45,8 @@ class Host:
             cls._http_service = service
         elif isinstance(service, TCPService):
             cls._tcp_service = service
+        elif isinstance(service, WSService):
+            cls._ws_service = service
         else:
             _logger.error('Invalid argument attached as service')
         cls._set_bus(service)
@@ -51,7 +54,7 @@ class Host:
 
     @classmethod
     def run(cls):
-        if cls._tcp_service or cls._http_service:
+        if cls._tcp_service or cls._http_service or cls._ws_service:
             cls._set_host_id()
             cls._set_process_name()
             cls._set_signal_handlers()
@@ -94,6 +97,24 @@ class Host:
             task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             return asyncio.get_event_loop().run_until_complete(task)
 
+    #TODO: Support for Websockets
+    @classmethod
+    def _create_ws_server(cls):
+        if cls._ws_service:
+            host_ip, host_port = cls._ws_service.socket_address
+            app = Application(loop=asyncio.get_event_loop())
+            app['sockets']=[]
+            for each in cls._ws_service.__ordered__:
+                fn = getattr(cls._ws_service, each)
+                if callable(fn) and getattr(fn, 'is_ws_method', False):
+                    for path in fn.paths:
+                        app.router.add_route(fn.method, path, fn)
+            handler = app.make_handler(access_log=_logger)
+            task = asyncio.get_event_loop().create_server(handler, host_ip, host_port)
+            result = asyncio.get_event_loop().run_until_complete(task)
+            return result
+
+
     @classmethod
     def _set_host_id(cls):
         from uuid import uuid4
@@ -104,6 +125,7 @@ class Host:
     def _start_server(cls):
         tcp_server = cls._create_tcp_server()
         http_server = cls._create_http_server()
+        ws_server = cls._create_ws_server()
         cls._register_services()
         cls._create_pubsub_handler()
         cls._subscribe()
@@ -111,6 +133,8 @@ class Host:
             _logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
         if http_server:
             _logger.info('Serving HTTP on {}'.format(http_server.sockets[0].getsockname()))
+        if ws_server:
+            _logger.info('Serving WS on {}'.format(ws_server.sockets[0].getsockname()))
         _logger.info("Event loop running forever, press CTRL+c to interrupt.")
         _logger.info("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
         try:
@@ -125,7 +149,7 @@ class Host:
             if http_server:
                 http_server.close()
                 asyncio.get_event_loop().run_until_complete(http_server.wait_closed())
-
+            #TODO: Close WS gracefully
             asyncio.get_event_loop().close()
 
     @classmethod
@@ -176,8 +200,11 @@ class Host:
                 cls._tcp_service.register()
             if cls._http_service:
                 cls._http_service.register()
+            if cls._ws_service:
+                cls._ws_service.register()
 
     @classmethod
     def _setup_logging(cls):
         host = cls._tcp_service if cls._tcp_service else cls._http_service
+        host = host if host else cls._ws_service
         setup_logging('{}_{}'.format(host.name, host.socket_address[1]))

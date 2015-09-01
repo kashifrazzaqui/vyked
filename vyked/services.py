@@ -9,6 +9,8 @@ from .packet import MessagePacket
 from .exceptions import RequestException, ClientException
 from .utils.ordered_class_member import OrderedClassMembers
 
+from asyncio import coroutine
+
 _logger = logging.getLogger(__name__)
 
 
@@ -253,3 +255,12 @@ class HTTPServiceClient(_Service):
         response = yield from self._http_bus.send_http_request(app_name, self.name, self.version, method, entity,
                                                                params)
         return response
+
+class WSService(_ServiceHost, metaclass=OrderedClassMembers):
+    def __init__(self, service_name, service_version, host_ip=None, host_port=None):
+        super(WSService, self).__init__(service_name, service_version, host_ip, host_port)
+
+    def register(self):
+        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self._clients, 'ws')
+
+#TODO: Need WSServiceClient??
