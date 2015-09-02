@@ -97,7 +97,12 @@ def setup_logging(identifier):
         RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
                             backupCount=10))
 
-    api_log_handler = SysLogHandler('/dev/log')
+    if sys.platform.startswith('linux'):
+        sys_log_location = '/dev/log'
+    elif sys.platform == 'darwin':
+        sys_log_location = '/var/run/syslog'
+
+    api_log_handler = SysLogHandler(sys_log_location)
     logger.addHandler(api_log_handler)
 
 
