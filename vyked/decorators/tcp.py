@@ -126,7 +126,7 @@ def api(func):  # incoming
             'error': error,
 
         }
-        _logger.info(json.dumps(logd))
+        _logger.info(msg="blah", extra=logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
         return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result, error=error)
 

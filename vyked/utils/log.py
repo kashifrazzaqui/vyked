@@ -8,6 +8,10 @@ import logging
 import asyncio
 import datetime
 from functools import partial, wraps
+from pythonjsonlogger import jsonlogger
+import setproctitle
+import socket
+
 
 FILE_SIZE = 5 * 1024 * 1024
 
@@ -23,15 +27,30 @@ END = '\033[0m'
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = False
 
+format = 'Python: { "loggerName":"%(name)s", "asciTime":"%(asctime)s",'\
+    ' "pathName":"%(pathname)s", "logRecordCreationTime":"%(created)f",'\
+    ' "functionName":"%(funcName)s", "levelNo":"%(levelno)s", "lineNo":"%(lineno)d",'\
+    ' "time":"%(msecs)d", "levelName":"%(levelname)s", "message":"%(message)s",'\
+    ' "processName":"%(processName)s"}'
+
 
 class CustomTimeLoggingFormatter(logging.Formatter):
-    def formatTime(self, record, datefmt=None):
+
+    def formatTime(self, record, datefmt=None):  # noqa
         if datefmt:
             s = datetime.datetime.now().strftime(datefmt)
         else:
             t = datetime.datetime.now().strftime(self.default_time_format)
             s = self.default_msec_format % (t, record.msecs)
         return s
+
+
+class CustomJsonFormatter(jsonlogger.JsonFormatter):
+
+    def add_fields(self, log_record, record, message_dict):
+        d = {'procname': setproctitle.getproctitle(), 'hostname': socket.gethostname()}
+        message_dict.update(d)
+        super().add_fields(log_record, record, message_dict)
 
 
 def is_ping_logging_enabled():
@@ -74,6 +93,7 @@ def patch_add_handler(logger):
         formatter = CustomTimeLoggingFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                                                '%Y-%m-%d %H:%M:%S,%f')
         async_handler.setFormatter(formatter)
+        # async_handler.setFormatter(CustomJsonFormatter(format))
         base_add_handler(async_handler)
 
     return async_add_handler
@@ -103,6 +123,8 @@ def setup_logging(identifier):
         sys_log_location = '/var/run/syslog'
 
     api_log_handler = SysLogHandler(sys_log_location)
+    api_log_handler.setLevel(logging.INFO)
+    api_log_handler.setFormatter(CustomJsonFormatter(format))
     logger.addHandler(api_log_handler)
 
 
