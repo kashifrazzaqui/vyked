@@ -17,7 +17,6 @@ FILE_SIZE = 5 * 1024 * 1024
 
 LOGS_DIR = './logs'
 LOG_FILE_NAME = 'vyked-{}.log'
-LOG_FILE_NAME = 'vyked-{}.log'
 
 RED = '\033[91m'
 BLUE = '\033[94m'
@@ -37,6 +36,11 @@ format = 'Python: { "loggerName":"%(name)s", "asciTime":"%(asctime)s",'\
 class CustomTimeLoggingFormatter(logging.Formatter):
 
     def formatTime(self, record, datefmt=None):  # noqa
+        """
+        Overrides formatTime method to use datetime module instead of time module
+        to display time in microseconds. Time module by default does not resolve
+        time to microseconds.
+        """
         if datefmt:
             s = datetime.datetime.now().strftime(datefmt)
         else:
