@@ -8,6 +8,10 @@ import logging
 import asyncio
 import datetime
 from functools import partial, wraps
+from pythonjsonlogger import jsonlogger
+import setproctitle
+import socket
+
 
 FILE_SIZE = 5 * 1024 * 1024
 
@@ -22,20 +26,43 @@ END = '\033[0m'
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = False
 
+format = 'Python: { "loggerName":"%(name)s", "asciTime":"%(asctime)s",'\
+    ' "pathName":"%(pathname)s", "logRecordCreationTime":"%(created)f",'\
+    ' "functionName":"%(funcName)s", "levelNo":"%(levelno)s", "lineNo":"%(lineno)d",'\
+    ' "time":"%(msecs)d", "levelName":"%(levelname)s", "message":"%(message)s",'\
+    ' "processName":"%(processName)s"}'
+
 
 class CustomTimeLoggingFormatter(logging.Formatter):
-    """
-    Overrides formatTime method to use datetime module instead of time module
-    to display time in microseconds. Time module by default does not resolve
-    time to microseconds.
-    """
-    def formatTime(self, record, datefmt=None):
+
+    def formatTime(self, record, datefmt=None):  # noqa
+        """
+        Overrides formatTime method to use datetime module instead of time module
+        to display time in microseconds. Time module by default does not resolve
+        time to microseconds.
+        """
         if datefmt:
             s = datetime.datetime.now().strftime(datefmt)
         else:
             t = datetime.datetime.now().strftime(self.default_time_format)
             s = self.default_msec_format % (t, record.msecs)
         return s
+
+
+class CustomJsonFormatter(jsonlogger.JsonFormatter):
+
+    def __init__(self, *args, **kwargs):
+        self.service_name = kwargs.pop('service_name', None)
+        self.node_id = kwargs.pop('node_id', None)
+        self.hostname = kwargs.pop('hostname', None)
+        self.process_name = kwargs.pop('process_name', None)
+        super().__init__(*args, **kwargs)
+
+    def add_fields(self, log_record, record, message_dict):
+        d = {'service_name': self.service_name, 'hostname': self.hostname,
+             'node_id': self.node_id}
+        message_dict.update(d)
+        super().add_fields(log_record, record, message_dict)
 
 
 def is_ping_logging_enabled():
@@ -77,6 +104,16 @@ def patch_add_handler(logger):
         async_handler = patch_async_emit(handler)
         formatter = CustomTimeLoggingFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                                                '%Y-%m-%d %H:%M:%S,%f')
+
+        # process_name = setproctitle.getproctitle()
+        # service_name = 'service'
+        # args_d = {'process_name': process_name, 'hostname': socket.gethostname()}
+        # if '_'in process_name:
+        #     service_name, node_id = process_name.split('_')
+        #     args_d.update({'service_name': service_name, 'node_id': node_id})
+
+        # formatter = CustomJsonFormatter(format, prefix=" %s - " % service_name, **args_d)
+
         async_handler.setFormatter(formatter)
         base_add_handler(async_handler)
 
@@ -101,12 +138,24 @@ def setup_logging(identifier):
         RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
                             backupCount=10))
 
+    # syslog config
+    logger = logging.getLogger('syslog')
     if sys.platform.startswith('linux'):
         sys_log_location = '/dev/log'
     elif sys.platform == 'darwin':
         sys_log_location = '/var/run/syslog'
 
+    process_name = setproctitle.getproctitle()
+    service_name = 'service'
+    args_d = {'process_name': process_name, 'hostname': socket.gethostname()}
+    if '_'in process_name:
+        service_name, node_id = process_name.split('_')
+        args_d.update({'service_name': service_name, 'node_id': node_id})
+
+    api_log_formatter = CustomJsonFormatter(format, prefix=" %s - " % service_name, **args_d)
     api_log_handler = SysLogHandler(sys_log_location)
+    api_log_handler.setLevel(logging.INFO)
+    api_log_handler.setFormatter(api_log_formatter)
     logger.addHandler(api_log_handler)
 
 
