@@ -47,8 +47,16 @@ class CustomTimeLoggingFormatter(logging.Formatter):
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
+    def __init__(self, *args, **kwargs):
+        self.service_name = kwargs.pop('service_name', None)
+        self.node_id = kwargs.pop('node_id', None)
+        self.hostname = kwargs.pop('hostname', None)
+        self.process_name = kwargs.pop('process_name', None)
+        super().__init__(*args, **kwargs)
+
     def add_fields(self, log_record, record, message_dict):
-        d = {'procname': setproctitle.getproctitle(), 'hostname': socket.gethostname()}
+        d = {'service_name': self.service_name, 'hostname': self.hostname,
+             'node_id': self.node_id}
         message_dict.update(d)
         super().add_fields(log_record, record, message_dict)
 
@@ -92,8 +100,17 @@ def patch_add_handler(logger):
         async_handler = patch_async_emit(handler)
         formatter = CustomTimeLoggingFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                                                '%Y-%m-%d %H:%M:%S,%f')
+
+        # process_name = setproctitle.getproctitle()
+        # service_name = 'service'
+        # args_d = {'process_name': process_name, 'hostname': socket.gethostname()}
+        # if '_'in process_name:
+        #     service_name, node_id = process_name.split('_')
+        #     args_d.update({'service_name': service_name, 'node_id': node_id})
+
+        # formatter = CustomJsonFormatter(format, prefix=" %s - " % service_name, **args_d)
+
         async_handler.setFormatter(formatter)
-        # async_handler.setFormatter(CustomJsonFormatter(format))
         base_add_handler(async_handler)
 
     return async_add_handler
@@ -117,14 +134,24 @@ def setup_logging(identifier):
         RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
                             backupCount=10))
 
+    # syslog config
+    logger = logging.getLogger('syslog')
     if sys.platform.startswith('linux'):
         sys_log_location = '/dev/log'
     elif sys.platform == 'darwin':
         sys_log_location = '/var/run/syslog'
 
+    process_name = setproctitle.getproctitle()
+    service_name = 'service'
+    args_d = {'process_name': process_name, 'hostname': socket.gethostname()}
+    if '_'in process_name:
+        service_name, node_id = process_name.split('_')
+        args_d.update({'service_name': service_name, 'node_id': node_id})
+
+    api_log_formatter = CustomJsonFormatter(format, prefix=" %s - " % service_name, **args_d)
     api_log_handler = SysLogHandler(sys_log_location)
     api_log_handler.setLevel(logging.INFO)
-    api_log_handler.setFormatter(CustomJsonFormatter(format))
+    api_log_handler.setFormatter(api_log_formatter)
     logger.addHandler(api_log_handler)
 
 
