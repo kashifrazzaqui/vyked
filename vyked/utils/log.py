@@ -145,13 +145,12 @@ def setup_logging(identifier):
     #     sys_log_location = '/var/run/syslog'
 
     proctitle = setproctitle.getproctitle()
-    service_name = 'service'
     args_d = {'proctitle': proctitle, 'hostname': socket.gethostname()}
     if '_'in proctitle:
-        service_name, node_id = proctitle.split('_')
-        args_d.update({'service_name': service_name, 'node_id': node_id})
+        elements = proctitle.split('_')
+        args_d.update({'service_name': '_'.join(elements[:-1]), 'node_id': elements[-1]})
 
-    api_log_formatter = CustomJsonFormatter(format, prefix=" %s - " % service_name, **args_d)
+    api_log_formatter = CustomJsonFormatter(format, **args_d)
     # api_log_handler = SysLogHandler(sys_log_location)
     api_log_handler = RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier + '_api')),
                                           maxBytes=1024 * 1024, backupCount=5)
