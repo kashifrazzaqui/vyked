@@ -124,7 +124,7 @@ def api(func):  # incoming
             'time_taken': end_time - start_time,
             'error': error,
         }
-        logging.getLogger('syslog').info(logd)
+        logging.getLogger('apilog').info(logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
         return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result, error=error)
 
