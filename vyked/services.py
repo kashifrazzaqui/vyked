@@ -48,10 +48,15 @@ class _Service:
 class TCPServiceClient(_Service):
     REQUEST_TIMEOUT_SECS = 600
 
-    def __init__(self, service_name, service_version):
+    def __init__(self, service_name, service_version, ssl_context=None):
         super(TCPServiceClient, self).__init__(service_name, service_version)
         self._pending_requests = {}
         self.tcp_bus = None
+        self._ssl_context = ssl_context
+
+    @property
+    def ssl_context(self):
+        return self._ssl_context
 
     def _send_request(self, app_name, endpoint, entity, params):
         packet = MessagePacket.request(self.name, self.version, app_name, _Service._REQ_PKT_STR, endpoint, params,
@@ -176,8 +181,12 @@ class _ServiceHost(_Service):
 
 
 class TCPService(_ServiceHost):
-    def __init__(self, service_name, service_version, host_ip=None, host_port=None):
+    def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None):
         super(TCPService, self).__init__(service_name, service_version, host_ip, host_port)
+        self._ssl_context = ssl_context
+    @property
+    def ssl_context(self):
+        return self._ssl_context
 
     def _publish(self, endpoint, payload):
         self._pubsub_bus.publish(self.name, self.version, endpoint, payload)
