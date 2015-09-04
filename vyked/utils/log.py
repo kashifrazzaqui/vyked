@@ -149,8 +149,8 @@ def setup_logging(identifier):
     service_name = 'service'
     args_d = {'process_name': process_name, 'hostname': socket.gethostname()}
     if '_'in process_name:
-        service_name, node_id = process_name.split('_')
-        args_d.update({'service_name': service_name, 'node_id': node_id})
+        elements = process_name.split('_')
+        args_d.update({'service_name': '_'.join(elements[:-1]), 'node_id': elements[-1]})
 
     api_log_formatter = CustomJsonFormatter(format, prefix=" %s - " % service_name, **args_d)
     api_log_handler = SysLogHandler(sys_log_location)
