@@ -1,8 +1,10 @@
 from asyncio import iscoroutine, coroutine
 from functools import wraps
-import json
 from vyked import HTTPServiceClient, HTTPService
 from aiohttp.web import Response
+import logging
+import json
+import time
 
 
 def make_request(func, self, args, kwargs, method):
@@ -32,10 +34,20 @@ def get_decorated_fun(method, path, required_params):
                         return Response(status=400, content_type='application/json',
                                         body=json.dumps({'error': 'Required params {} not found'.format(
                                             ','.join(missing_params))}).encode())
+                t1 = time.time()
                 wrapped_func = func
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
-                return (yield from wrapped_func(self, *args, **kwargs))
+                result = yield from wrapped_func(self, *args, **kwargs)
+                t2 = time.time()
+                logd = {
+                    'status': result.status,
+                    'time_taken': int((t2 - t1)*1000),
+                    'type': 'http',
+                }
+                logging.getLogger('apilog').info(logd)
+
+                return (result)
 
         f.is_http_method = True
         f.method = method
@@ -77,5 +89,3 @@ def trace(path=None, required_params=None):
 
 def delete(path=None, required_params=None):
     return get_decorated_fun('delete', path, required_params)
-
-
