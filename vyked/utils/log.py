@@ -146,7 +146,7 @@ def setup_logging(identifier):
 
     proctitle = setproctitle.getproctitle()
     args_d = {'proctitle': proctitle, 'hostname': socket.gethostname()}
-    if '_'in proctitle:
+    if '_' in proctitle:
         elements = proctitle.split('_')
         args_d.update({'service_name': '_'.join(elements[:-1]), 'node_id': elements[-1]})
 
