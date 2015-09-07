@@ -42,10 +42,10 @@ def get_decorated_fun(method, path, required_params):
                 t2 = time.time()
                 logd = {
                     'status': result.status,
-                    'time_taken': int((t2 - t1)*1000),
+                    'time_taken': int((t2 - t1) * 1000),
                     'type': 'http',
                 }
-                logging.getLogger('apilog').info(logd)
+                logging.getLogger('stats').info(logd)
 
                 return (result)
 
