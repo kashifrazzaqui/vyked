@@ -141,7 +141,6 @@ class Repository:
 class Registry:
 
     def __init__(self, ip, port, repository: Repository):
-        config = json_file_to_dict('./config.json')
         self._ip = ip
         self._port = port
         self._loop = asyncio.get_event_loop()
@@ -150,6 +149,7 @@ class Registry:
         self._repository = repository
         self._pingers = {}
         try:
+            config = json_file_to_dict('./config.json')
             self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
             self._ssl_context.load_cert_chain(config['SSL_CERTIFICATE'], config['SSL_KEY'])
         except:
