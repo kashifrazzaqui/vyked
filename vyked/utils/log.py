@@ -12,7 +12,6 @@ from pythonjsonlogger import jsonlogger
 import setproctitle
 import socket
 
-
 FILE_SIZE = 5 * 1024 * 1024
 
 LOGS_DIR = './logs'
@@ -26,14 +25,13 @@ END = '\033[0m'
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = False
 
-format = 'Python: { "loggerName":"%(name)s", "asciTime":"%(asctime)s",'\
-    ' "pathName":"%(pathname)s", "logRecordCreationTime":"%(created)f",'\
-    ' "functionName":"%(funcName)s", "levelNo":"%(levelno)s", "lineNo":"%(lineno)d",'\
-    ' "time":"%(msecs)d", "levelName":"%(levelname)s", "message":"%(message)s"}'
+format = 'Python: { "loggerName":"%(name)s", "asciTime":"%(asctime)s",' \
+         ' "pathName":"%(pathname)s", "logRecordCreationTime":"%(created)f",' \
+         ' "functionName":"%(funcName)s", "levelNo":"%(levelno)s", "lineNo":"%(lineno)d",' \
+         ' "time":"%(msecs)d", "levelName":"%(levelname)s", "message":"%(message)s"}'
 
 
 class CustomTimeLoggingFormatter(logging.Formatter):
-
     def formatTime(self, record, datefmt=None):  # noqa
         """
         Overrides formatTime method to use datetime module instead of time module
@@ -49,7 +47,6 @@ class CustomTimeLoggingFormatter(logging.Formatter):
 
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
-
     def __init__(self, *args, **kwargs):
         self.service_name = kwargs.pop('service_name', None)
         self.node_id = kwargs.pop('node_id', None)
@@ -101,9 +98,6 @@ def patch_add_handler(logger):
 
     def async_add_handler(handler):
         async_handler = patch_async_emit(handler)
-        formatter = CustomTimeLoggingFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                                               '%Y-%m-%d %H:%M:%S,%f')
-
         # proctitle = setproctitle.getproctitle()
         # service_name = 'registry'
         # args_d = {'proctitle': proctitle, 'hostname': socket.gethostname()}
@@ -131,11 +125,15 @@ def setup_logging(identifier):
     logger = logging.getLogger()
     logger.handlers = []
     logger.addHandler = patch_add_handler(logger)
+    formatter = CustomTimeLoggingFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                                           '%Y-%m-%d %H:%M:%S,%f')
     stream_handler.setLevel(logging.INFO)
+    stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
-    logger.addHandler(
-        RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
-                            backupCount=10))
+    rotating_handler = RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
+                                           backupCount=10)
+    rotating_handler.setFormatter(formatter)
+    logger.addHandler(rotating_handler)
 
     # syslog config
     logger = logging.getLogger('apilog')
