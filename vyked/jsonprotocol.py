@@ -9,6 +9,7 @@ from .sendqueue import SendQueue
 from .utils.log import is_ping_logging_enabled
 from .utils.jsonencoder import VykedEncoder
 
+import re
 
 class JSONProtocol(asyncio.Protocol):
     logger = logging.getLogger(__name__)
@@ -65,6 +66,13 @@ class JSONProtocol(asyncio.Protocol):
 
     def data_received(self, byte_data):
         string_data = byte_data.decode()
+        if '"is_deprecated": "true' in string_data:
+            result = re.search('"true(.*?)replacementapi', string_data)
+            result2 = re.search('replacementapi(.*?)"', string_data)
+            warning = 'Deprecated API: '+ result.group(1)
+            if len(result2.group(1)):
+                warning+=', New API: '+ result2.group(1)
+            self.logger.warn(warning)
         if 'ping' in string_data or 'pong' in string_data:
             if is_ping_logging_enabled():
                 self.logger.debug('Data received: %s', string_data)

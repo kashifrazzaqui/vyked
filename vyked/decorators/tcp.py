@@ -86,6 +86,44 @@ def request(func):
     wrapper.is_request = True
     return wrapper
 
+def deprecated_api(func=None, new_api=""):
+    def sup_wraper(func):
+        @coroutine
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start_time = int(time.time() * 1000)
+            self = args[0]
+            rid = kwargs.pop('request_id')
+            entity = kwargs.pop('entity')
+            from_id = kwargs.pop('from_id')
+            wrapped_func = func
+            result = None
+            error = None
+            if not iscoroutine(func):
+                wrapped_func = coroutine(func)
+            try:
+                result = yield from wrapped_func(self, **kwargs)
+            except BaseException as e:
+                _logger.exception('api request exception')
+                error = str(e)
+            end_time = int(time.time() * 1000)
+            logd = {
+                'request_id': rid,
+                'entity': entity,
+                'from_id': from_id,
+                'endpoint': func.__name__,
+                'time_taken': end_time - start_time,
+                'error': error,
+            }
+            logging.getLogger('apilog').info(logd)
+            _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
+            return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result, error=error,
+                                              is_deprecated="true"+func.__name__+"replacementapi"+new_api)
+
+        wrapper.is_api = True
+        return wrapper
+    return sup_wraper
+
 
 def api(func):  # incoming
     """

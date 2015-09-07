@@ -195,11 +195,18 @@ class TCPService(_ServiceHost):
         self._pubsub_bus.xpublish(self.name, self.version, endpoint, payload, strategy)
 
     @staticmethod
-    def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object):
-        if error:
-            payload = {'request_id': request_id, 'error': error}
+    def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object, is_deprecated="False"):
+        if is_deprecated!="False":
+            if error:
+                payload = {'request_id': request_id, 'error': error, 'is_deprecated': is_deprecated}
+            else:
+                payload = {'request_id': request_id, 'result': result, 'is_deprecated': is_deprecated}
         else:
-            payload = {'request_id': request_id, 'result': result}
+            if error:
+                payload = {'request_id': request_id, 'error': error}
+            else:
+                payload = {'request_id': request_id, 'result': result}
+
 
         packet = {'pid': unique_hex(),
                   'to': from_id,
