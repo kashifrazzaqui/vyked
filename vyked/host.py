@@ -26,6 +26,7 @@ class Host:
     _host_id = None
     _tcp_service = None
     _http_service = None
+    registry_client_ssl = None
 
     @classmethod
     def _set_process_name(cls):
@@ -40,13 +41,14 @@ class Host:
 
     @classmethod
     def attach_service(cls, service):
-        cls._set_bus(service)
         if isinstance(service, HTTPService):
             cls._http_service = service
         elif isinstance(service, TCPService):
             cls._tcp_service = service
         else:
             _logger.error('Invalid argument attached as service')
+        cls._set_bus(service)
+
 
     @classmethod
     def run(cls):
@@ -67,9 +69,10 @@ class Host:
     @classmethod
     def _create_tcp_server(cls):
         if cls._tcp_service:
+            ssl_context = cls._tcp_service.ssl_context
             host_ip, host_port = cls._tcp_service.socket_address
             task = asyncio.get_event_loop().create_server(partial(get_vyked_protocol, cls._tcp_service.tcp_bus),
-                                                          host_ip, host_port)
+                                                          host_ip, host_port, ssl= ssl_context)
             result = asyncio.get_event_loop().run_until_complete(task)
             return result
 
@@ -153,10 +156,12 @@ class Host:
 
     @classmethod
     def _set_bus(cls, service):
-        registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port)
+        registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port, cls.registry_client_ssl)
         tcp_bus = TCPBus(registry_client)
         registry_client.conn_handler = tcp_bus
-        pubsub_bus = PubSubBus(registry_client)
+        pubsub_bus = PubSubBus(registry_client, ssl_context=cls._tcp_service._ssl_context)
+        #pubsub_bus = PubSubBus(registry_client)#, cls._tcp_service._ssl_context)
+
         registry_client.bus = tcp_bus
         if isinstance(service, TCPService):
             tcp_bus.tcp_host = service

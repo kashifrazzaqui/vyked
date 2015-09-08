@@ -128,8 +128,10 @@ class TCPBus:
             raise ClientNotFoundError()
 
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
+
         future = asyncio.async(
-            asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, service_client), host, port))
+            asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, service_client), host, port,
+                                                       ssl=service_client._ssl_context))
         future.add_done_callback(
             partial(self._service_client_connection_callback, self._node_clients[node_id], node_id, service_type))
         return future
@@ -228,11 +230,12 @@ class TCPBus:
 class PubSubBus:
     PUBSUB_DELAY = 5
 
-    def __init__(self, registry_client):
+    def __init__(self, registry_client, ssl_context= None):
         self._pubsub_handler = None
         self._registry_client = registry_client
         self._clients = None
         self._pending_publishes = {}
+        self._ssl_context = ssl_context
 
     def create_pubsub_handler(self, host, port):
         self._pubsub_handler = PubSub(host, port)

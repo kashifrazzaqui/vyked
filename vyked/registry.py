@@ -12,6 +12,9 @@ from .protocol_factory import get_vyked_protocol
 from .pinger import TCPPinger, HTTPPinger
 from .utils.log import setup_logging
 
+import json
+import ssl
+
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
 logger = logging.getLogger(__name__)
 
@@ -19,6 +22,12 @@ logger = logging.getLogger(__name__)
 def tree():
     return defaultdict(tree)
 
+def json_file_to_dict(_file: str) -> dict:
+    config = None
+    with open(_file) as config_file:
+        config = json.load(config_file)
+
+    return config
 
 class Repository:
 
@@ -139,12 +148,18 @@ class Registry:
         self._service_protocols = {}
         self._repository = repository
         self._pingers = {}
+        try:
+            config = json_file_to_dict('./config.json')
+            self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+            self._ssl_context.load_cert_chain(config['SSL_CERTIFICATE'], config['SSL_KEY'])
+        except:
+            self._ssl_context = None
 
     def start(self):
         setup_logging("registry")
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
-        registry_coroutine = self._loop.create_server(partial(get_vyked_protocol, self), self._ip, self._port)
+        registry_coroutine = self._loop.create_server(partial(get_vyked_protocol, self), self._ip, self._port, ssl=self._ssl_context)
         server = self._loop.run_until_complete(registry_coroutine)
         try:
             self._loop.run_forever()

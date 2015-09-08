@@ -92,8 +92,20 @@ def api(func):  # incoming
         - entity (partition/routing key)
         followed by kwargs
     """
+    wrapper = _get_api_decorator(func)
+    return wrapper
 
-    @asyncio.coroutine
+
+def deprecated(func=None, replacement_api=None):
+    if func is None:
+        return partial(deprecated, replacement_api=replacement_api)
+    else:
+        wrapper = _get_api_decorator(func=func, old_api=func.__name__, replacement_api=replacement_api)
+        return wrapper
+
+
+@asyncio.coroutine
+def _get_api_decorator(func=None, old_api=None, replacement_api=None):
     @wraps(func)
     def wrapper(*args, **kwargs):
         start_time = int(time.time() * 1000)
@@ -121,7 +133,11 @@ def api(func):  # incoming
         }
         logging.getLogger('stats').info(logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
-        return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result, error=error)
-
+        if not (old_api):
+            return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
+                                              error=error)
+        else:
+            return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
+                                              error=error, old_api=old_api, replacement_api=replacement_api)
     wrapper.is_api = True
     return wrapper
