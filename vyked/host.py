@@ -51,7 +51,6 @@ class Host:
             _logger.error('Invalid argument attached as service')
         cls._set_bus(service)
 
-
     @classmethod
     def run(cls):
         if cls._tcp_service or cls._http_service or cls._ws_service:
@@ -74,7 +73,7 @@ class Host:
             ssl_context = cls._tcp_service.ssl_context
             host_ip, host_port = cls._tcp_service.socket_address
             task = asyncio.get_event_loop().create_server(partial(get_vyked_protocol, cls._tcp_service.tcp_bus),
-                                                          host_ip, host_port, ssl= ssl_context)
+                                                          host_ip, host_port, ssl=ssl_context)
             result = asyncio.get_event_loop().run_until_complete(task)
             return result
 
@@ -97,13 +96,12 @@ class Host:
             task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             return asyncio.get_event_loop().run_until_complete(task)
 
-    #TODO: Support for Websockets
     @classmethod
     def _create_ws_server(cls):
         if cls._ws_service:
             host_ip, host_port = cls._ws_service.socket_address
             app = Application(loop=asyncio.get_event_loop())
-            app['sockets']=[]
+            app['sockets'] = []
             for each in cls._ws_service.__ordered__:
                 fn = getattr(cls._ws_service, each)
                 if callable(fn) and getattr(fn, 'is_ws_method', False):
@@ -113,7 +111,6 @@ class Host:
             task = asyncio.get_event_loop().create_server(handler, host_ip, host_port)
             result = asyncio.get_event_loop().run_until_complete(task)
             return result
-
 
     @classmethod
     def _set_host_id(cls):
@@ -145,11 +142,12 @@ class Host:
             if tcp_server:
                 tcp_server.close()
                 asyncio.get_event_loop().run_until_complete(tcp_server.wait_closed())
-
             if http_server:
                 http_server.close()
                 asyncio.get_event_loop().run_until_complete(http_server.wait_closed())
-            #TODO: Close WS gracefully
+            if ws_server:
+                ws_server.close()
+                asyncio.get_event_loop().run_until_complete(ws_server.wait_closed())
             asyncio.get_event_loop().close()
 
     @classmethod
@@ -179,11 +177,11 @@ class Host:
 
     @classmethod
     def _set_bus(cls, service):
-        registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port, cls.registry_client_ssl)
+        registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port,
+                                         cls.registry_client_ssl)
         tcp_bus = TCPBus(registry_client)
         registry_client.conn_handler = tcp_bus
-        pubsub_bus = PubSubBus(registry_client, ssl_context=cls._tcp_service._ssl_context)
-        #pubsub_bus = PubSubBus(registry_client)#, cls._tcp_service._ssl_context)
+        pubsub_bus = PubSubBus(registry_client)
 
         registry_client.bus = tcp_bus
         if isinstance(service, TCPService):
