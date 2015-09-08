@@ -105,4 +105,9 @@ class VykedProtocol(JSONProtocol):
         super(VykedProtocol, self).connection_lost(exc)
 
     def on_element(self, element):
-        self._handler.receive(packet=element, protocol=self, transport=self._transport)
+        try:
+            self._handler.receive(packet=element, protocol=self, transport=self._transport)
+        except:
+            # ignore any unhandled errors raised by handler
+            self.logger.exception('api request exception')
+            pass
