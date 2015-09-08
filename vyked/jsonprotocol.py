@@ -66,12 +66,11 @@ class JSONProtocol(asyncio.Protocol):
 
     def data_received(self, byte_data):
         string_data = byte_data.decode()
-        if '"is_deprecated": "true' in string_data:
-            result = re.search('"true(.*?)replacementapi', string_data)
-            result2 = re.search('replacementapi(.*?)"', string_data)
-            warning = 'Deprecated API: '+ result.group(1)
-            if len(result2.group(1)):
-                warning+=', New API: '+ result2.group(1)
+        if '"old_api":' in string_data:
+            payload = json.loads(string_data[:-1])['payload']
+            warning = 'Deprecated API: '+payload['old_api']
+            if 'replacement_api' in payload.keys():
+                warning += ', New API: '+payload['replacement_api']
             self.logger.warn(warning)
         if 'ping' in string_data or 'pong' in string_data:
             if is_ping_logging_enabled():
