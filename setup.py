@@ -4,8 +4,7 @@ from os import getcwd, path
 from pip.req import parse_requirements
 from pip.download import PipSession
 
-import codecs
-import os
+import ast
 import re
 
 if not path.dirname(__file__):  # setup.py without /path/to/
@@ -36,13 +35,8 @@ def lines(name):
 install_reqs = parse_requirements("./requirements/base.txt", session=PipSession())
 install_requires = [str(ir.req) for ir in install_reqs]
 
-with codecs.open(os.path.join(os.path.abspath(os.path.dirname(
-        __file__)), 'vyked', '__init__.py'), 'r', 'latin1') as fp:
-    try:
-        version = re.findall(r"^__version__ = '([^']+)'\r?$",
-                             fp.read(), re.M)[0]
-    except IndexError:
-        raise RuntimeError('Unable to determine version.')
+with open('vyked/__init__.py', 'rb') as i:
+    version = str(ast.literal_eval(re.compile(r'__version__\s+=\s+(.*)').search(i.read().decode('utf-8')).group(1)))
 
 setup(
     name='vyked',
