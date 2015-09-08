@@ -425,20 +425,6 @@ class PersistentRepository(PostgresStore):
     def _split_key(key: str):
         return tuple(key.split('/'))
 
-    def json_dump(self):
-        #TODO?
-        pass
-        # print("Registered Services")
-        # print(json.dumps(self._registered_services, indent=4))
-        # print("Pending Services")
-        # print(json.dumps(self._pending_services, indent=4))
-        # print("Service Dependencies")
-        # print(json.dumps(self._service_dependencies, indent=4))
-        # print("Subscribe List")
-        # print(json.dumps(self._subscribe_list, indent=4))
-        # print("Uptimes")
-        # print(json.dumps(self._uptimes, indent=4))
-
     def get_registered_services(self):
         rows = self.qselect('services', 'port', columns=['ip', 'port', 'id', 'protocol'])
         return rows
@@ -454,8 +440,10 @@ class Registry:
         self._service_protocols = {}
         self._pingers = {}
         for (host, port, node, type) in self._repository.get_registered_services():
-            #print(host, port, node, type)
-            self._connect_to_service(host, port, node, type)
+            try:
+                self._connect_to_service(host, port, node, type)
+            except Exception as e:
+                logger.error(e)
 
     def start(self):
         setup_logging("registry")
@@ -523,7 +511,8 @@ class Registry:
                           params['node_id'], params['type'])
         self._repository.register_service(service)
         self._client_protocols[params['node_id']] = registry_protocol
-        self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
+        if params['node_id'] not in self._service_protocols.keys():
+            self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
         self._handle_pending_registrations()
         self._inform_consumers(service)
 
@@ -611,10 +600,7 @@ class Registry:
         self.deregister_service(node_id)
 
     def _ping(self, packet):
-        # print("Pingers")
-        # print(self._pingers)
         pinger = self._pingers[packet['node_id']]
-        # print(pinger)
         pinger.pong_received()
 
     def _pong(self, packet, protocol):
