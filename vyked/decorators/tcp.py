@@ -104,8 +104,8 @@ def deprecated(func=None, replacement_api=None):
         return wrapper
 
 
-@asyncio.coroutine
 def _get_api_decorator(func=None, old_api=None, replacement_api=None):
+    @asyncio.coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
         start_time = int(time.time() * 1000)
