@@ -1,7 +1,7 @@
 __all__ = ['Host', 'TCPServiceClient', 'TCPService', 'HTTPService', 'HTTPServiceClient', 'api', 'request', 'subscribe',
            'publish', 'xsubscribe', 'get', 'post', 'head', 'put', 'patch', 'delete', 'options', 'trace', 'Entity',
            'Value', 'Aggregate', 'Factory', 'Repository', 'Registry', 'RequestException', 'Response', 'Request',
-           'deprecated']
+           'deprecated', '__version__']
 
 from .host import Host
 from .services import (TCPService, HTTPService, HTTPServiceClient, TCPServiceClient)
@@ -12,3 +12,5 @@ from .utils import log
 from .exceptions import RequestException
 from .utils.log import setup_logging, config_logs
 from .wrappers import Response, Request
+
+__version__ = '2.1.38'

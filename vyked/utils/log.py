@@ -1,5 +1,5 @@
 from logging import Handler
-from logging.handlers import RotatingFileHandler, SysLogHandler
+from logging.handlers import RotatingFileHandler
 from queue import Queue
 import sys
 import os
@@ -11,7 +11,6 @@ from functools import partial, wraps
 from pythonjsonlogger import jsonlogger
 import setproctitle
 import socket
-
 
 FILE_SIZE = 5 * 1024 * 1024
 
@@ -26,9 +25,9 @@ END = '\033[0m'
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = False
 
-format = 'Python: { "loggerName":"%(name)s", "asciTime":"%(asctime)s",'\
-    ' "pathName":"%(pathname)s", "logRecordCreationTime":"%(created)f",'\
-    ' "functionName":"%(funcName)s", "levelNo":"%(levelno)s", "lineNo":"%(lineno)d",'\
+stats_logformat = 'Python: { "loggerName":"%(name)s", "asciTime":"%(asctime)s",' \
+    ' "pathName":"%(pathname)s", "logRecordCreationTime":"%(created)f",' \
+    ' "functionName":"%(funcName)s", "levelNo":"%(levelno)s", "lineNo":"%(lineno)d",' \
     ' "time":"%(msecs)d", "levelName":"%(levelname)s", "message":"%(message)s"}'
 
 
@@ -51,15 +50,16 @@ class CustomTimeLoggingFormatter(logging.Formatter):
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
     def __init__(self, *args, **kwargs):
-        self.service_name = kwargs.pop('service_name', None)
-        self.node_id = kwargs.pop('node_id', None)
-        self.hostname = kwargs.pop('hostname', None)
-        self.proctitle = kwargs.pop('proctitle', None)
+        self.hostname = socket.gethostname()
+        self.proctitle = setproctitle.getproctitle()
+        elements = self.proctitle.split('_')
+        self.service_name = '_'.join(elements[:-1])
+        self.node_id = elements[-1]
         super().__init__(*args, **kwargs)
 
     def add_fields(self, log_record, record, message_dict):
         d = {'service_name': self.service_name, 'hostname': self.hostname,
-             'node_id': self.node_id}
+             'node_id': self.node_id, 'proctitle': self.proctitle}
         message_dict.update(d)
         super().add_fields(log_record, record, message_dict)
 
@@ -101,19 +101,6 @@ def patch_add_handler(logger):
 
     def async_add_handler(handler):
         async_handler = patch_async_emit(handler)
-        formatter = CustomTimeLoggingFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                                               '%Y-%m-%d %H:%M:%S,%f')
-
-        # proctitle = setproctitle.getproctitle()
-        # service_name = 'registry'
-        # args_d = {'proctitle': proctitle, 'hostname': socket.gethostname()}
-        # if '_'in proctitle:
-        #     service_name, node_id = proctitle.split('_')
-        #     args_d.update({'service_name': service_name, 'node_id': node_id})
-
-        # formatter = CustomJsonFormatter(format, **args_d)
-
-        async_handler.setFormatter(formatter)
         base_add_handler(async_handler)
 
     return async_add_handler
@@ -131,32 +118,24 @@ def setup_logging(identifier):
     logger = logging.getLogger()
     logger.handlers = []
     logger.addHandler = patch_add_handler(logger)
+    formatter = CustomTimeLoggingFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                                           '%Y-%m-%d %H:%M:%S,%f')
     stream_handler.setLevel(logging.INFO)
+    stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
-    logger.addHandler(
-        RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
-                            backupCount=10))
+    logfile = os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier))
+    rotating_handler = RotatingFileHandler(logfile, maxBytes=FILE_SIZE, backupCount=10)
+    rotating_handler.setFormatter(formatter)
+    logger.addHandler(rotating_handler)
 
-    # syslog config
-    logger = logging.getLogger('apilog')
-    # if sys.platform.startswith('linux'):
-    #     sys_log_location = '/dev/log'
-    # elif sys.platform == 'darwin':
-    #     sys_log_location = '/var/run/syslog'
-
-    proctitle = setproctitle.getproctitle()
-    args_d = {'proctitle': proctitle, 'hostname': socket.gethostname()}
-    if '_'in proctitle:
-        elements = proctitle.split('_')
-        args_d.update({'service_name': '_'.join(elements[:-1]), 'node_id': elements[-1]})
-
-    api_log_formatter = CustomJsonFormatter(format, **args_d)
-    # api_log_handler = SysLogHandler(sys_log_location)
-    api_log_handler = RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier + '_api')),
-                                          maxBytes=1024 * 1024, backupCount=5)
-    api_log_handler.setLevel(logging.INFO)
-    api_log_handler.setFormatter(api_log_formatter)
-    logger.addHandler(api_log_handler)
+    stats_logger = logging.getLogger('stats')
+    stats_formatter = CustomJsonFormatter(stats_logformat)
+    stats_logfile = os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier + '_stats'))
+    stats_handler = RotatingFileHandler(stats_logfile, maxBytes=1024 * 1024, backupCount=5)
+    stats_handler.setLevel(logging.INFO)
+    stats_handler.setFormatter(stats_formatter)
+    stats_logger.addHandler(stats_handler)
+    stats_logger.addHandler(rotating_handler)
 
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):

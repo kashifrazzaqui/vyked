@@ -4,6 +4,9 @@ from os import getcwd, path
 from pip.req import parse_requirements
 from pip.download import PipSession
 
+import ast
+import re
+
 if not path.dirname(__file__):  # setup.py without /path/to/
     _dirname = getcwd()  # /path/to/
 else:
@@ -32,9 +35,12 @@ def lines(name):
 install_reqs = parse_requirements("./requirements/base.txt", session=PipSession())
 install_requires = [str(ir.req) for ir in install_reqs]
 
+with open('vyked/__init__.py', 'rb') as i:
+    version = str(ast.literal_eval(re.compile(r'__version__\s+=\s+(.*)').search(i.read().decode('utf-8')).group(1)))
+
 setup(
     name='vyked',
-    version='2.1.35',
+    version=version,
     author='Kashif Razzaqui, Ankit Chandawala',
     author_email='kashif.razzaqui@gmail.com, ankitchandawala@gmail.com',
     url='https://github.com/kashifrazzaqui/vyked',

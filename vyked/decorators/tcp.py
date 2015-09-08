@@ -2,8 +2,6 @@ from asyncio import iscoroutine, coroutine
 from functools import wraps, partial
 import time
 import logging
-import datetime
-import json
 
 _logger = logging.getLogger()
 
@@ -133,7 +131,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             'time_taken': end_time - start_time,
             'error': error,
         }
-        logging.getLogger('apilog').info(logd)
+        logging.getLogger('stats').info(logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
         if not (old_api):
             return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
