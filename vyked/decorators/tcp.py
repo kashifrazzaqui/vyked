@@ -1,11 +1,9 @@
-from asyncio import iscoroutine, coroutine
 from functools import wraps, partial
-import time
-import logging
-
-_logger = logging.getLogger()
-
 from again.utils import unique_hex
+import asyncio
+import logging
+import time
+_logger = logging.getLogger()
 
 
 def publish(func):
@@ -58,8 +56,8 @@ def _get_subscribe_decorator(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         coroutine_func = func
-        if not iscoroutine(func):
-            coroutine_func = coroutine(func)
+        if not asyncio.iscoroutine(func):
+            coroutine_func = asyncio.coroutine(func)
         return (yield from coroutine_func(*args, **kwargs))
 
     return wrapper
@@ -95,7 +93,7 @@ def api(func):  # incoming
         followed by kwargs
     """
 
-    @coroutine
+    @asyncio.coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
         start_time = int(time.time() * 1000)
@@ -106,8 +104,8 @@ def api(func):  # incoming
         wrapped_func = func
         result = None
         error = None
-        if not iscoroutine(func):
-            wrapped_func = coroutine(func)
+        if not asyncio.iscoroutine(func):
+            wrapped_func = asyncio.coroutine(func)
         try:
             result = yield from wrapped_func(self, **kwargs)
         except BaseException as e:
@@ -116,7 +114,6 @@ def api(func):  # incoming
         end_time = int(time.time() * 1000)
         logd = {
             'request_id': rid,
-            'entity': entity,
             'from_id': from_id,
             'endpoint': func.__name__,
             'time_taken': end_time - start_time,

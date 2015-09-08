@@ -11,6 +11,7 @@ from vyked.registry_client import RegistryClient
 from vyked.services import HTTPService, TCPService
 from .protocol_factory import get_vyked_protocol
 from .utils.log import setup_logging
+from vyked.utils.stats import Stats
 
 _logger = logging.getLogger(__name__)
 
@@ -176,3 +177,4 @@ class Host:
     def _setup_logging(cls):
         host = cls._tcp_service if cls._tcp_service else cls._http_service
         setup_logging('{}_{}'.format(host.name, host.socket_address[1]))
+        Stats.periodic_stats_logger()

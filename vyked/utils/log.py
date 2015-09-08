@@ -11,6 +11,8 @@ from functools import partial, wraps
 from pythonjsonlogger import jsonlogger
 import setproctitle
 import socket
+# from ..utils.stats import Stats
+
 
 FILE_SIZE = 5 * 1024 * 1024
 
@@ -25,9 +27,7 @@ END = '\033[0m'
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = False
 
-stats_logformat = 'Python: { "loggerName":"%(name)s", "asciTime":"%(asctime)s",' \
-    ' "pathName":"%(pathname)s", "logRecordCreationTime":"%(created)f",' \
-    ' "functionName":"%(funcName)s", "levelNo":"%(levelno)s", "lineNo":"%(lineno)d",' \
+stats_logformat = '{ "asciTime":"%(asctime)s", "logRecordCreationTime":"%(created)f",' \
     ' "time":"%(msecs)d", "levelName":"%(levelname)s", "message":"%(message)s"}'
 
 
@@ -59,7 +59,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
     def add_fields(self, log_record, record, message_dict):
         d = {'service_name': self.service_name, 'hostname': self.hostname,
-             'node_id': self.node_id, 'proctitle': self.proctitle}
+             'node_id': self.node_id}
         message_dict.update(d)
         super().add_fields(log_record, record, message_dict)
 
@@ -136,6 +136,7 @@ def setup_logging(identifier):
     stats_handler.setFormatter(stats_formatter)
     stats_logger.addHandler(stats_handler)
     stats_logger.addHandler(rotating_handler)
+    # Stats.periodic_stats_logger()
 
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):
