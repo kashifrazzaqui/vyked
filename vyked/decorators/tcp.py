@@ -120,7 +120,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             wrapped_func = asyncio.coroutine(func)
         try:
             result = yield from wrapped_func(self, **kwargs)
-        except BaseException as e:
+        except Exception as e:
             _logger.exception('api request exception')
             error = str(e)
         end_time = int(time.time() * 1000)
