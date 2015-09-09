@@ -11,8 +11,6 @@ import time
 
 _logger = logging.getLogger()
 
-hostname = socket.gethostname()
-service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
 
 
 def make_request(func, self, args, kwargs, method):
@@ -55,6 +53,8 @@ def get_decorated_fun(method, path, required_params):
                     logging.error("HTTP request had a %s" % str(e))
                 else:
                     t2 = time.time()
+                    hostname = socket.gethostname()
+                    service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
 
                     logd = {
                         'status': result.status,
