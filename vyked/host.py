@@ -49,7 +49,6 @@ class Host:
             _logger.error('Invalid argument attached as service')
         cls._set_bus(service)
 
-
     @classmethod
     def run(cls):
         if cls._tcp_service or cls._http_service:
@@ -72,7 +71,7 @@ class Host:
             ssl_context = cls._tcp_service.ssl_context
             host_ip, host_port = cls._tcp_service.socket_address
             task = asyncio.get_event_loop().create_server(partial(get_vyked_protocol, cls._tcp_service.tcp_bus),
-                                                          host_ip, host_port, ssl= ssl_context)
+                                                          host_ip, host_port, ssl=ssl_context)
             result = asyncio.get_event_loop().run_until_complete(task)
             return result
 
@@ -134,7 +133,8 @@ class Host:
         if not cls.ronin:
             if cls._tcp_service:
                 asyncio.get_event_loop().run_until_complete(
-                    cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
+                    cls._tcp_service.pubsub_bus
+                    .create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
             if cls._http_service:
                 asyncio.get_event_loop().run_until_complete(
                     cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
@@ -156,11 +156,12 @@ class Host:
 
     @classmethod
     def _set_bus(cls, service):
-        registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port, cls.registry_client_ssl)
+        registry_client = RegistryClient(
+            asyncio.get_event_loop(), cls.registry_host, cls.registry_port, cls.registry_client_ssl)
         tcp_bus = TCPBus(registry_client)
         registry_client.conn_handler = tcp_bus
-        pubsub_bus = PubSubBus(registry_client, ssl_context=cls._tcp_service._ssl_context)
-        #pubsub_bus = PubSubBus(registry_client)#, cls._tcp_service._ssl_context)
+        # pubsub_bus = PubSubBus(registry_client, ssl_context=cls._tcp_service._ssl_context)
+        pubsub_bus = PubSubBus(registry_client)  # , cls._tcp_service._ssl_context)
 
         registry_client.bus = tcp_bus
         if isinstance(service, TCPService):
