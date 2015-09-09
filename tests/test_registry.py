@@ -2,15 +2,25 @@ from unittest import mock
 # from vyked.registry import Registry, Repository
 # from vyked.packet import ControlPacket
 import uuid
+import cauldron
+import psycopg2
+import json
 
+def json_file_to_dict(_file: str) -> dict:
+    with open(_file) as config_file:
+        config = json.load(config_file)
+    return config
 
 def service_registered_successfully(registry, *services):
     for service in services:
         service_entry = (
             service['host'], service['port'], service['node_id'], service['type'])
         try:
-            entry = registry._repository._registered_services[
-                service['service']][service['version']]
+            entry1 = registry._repository.get_registered_services()
+            entry = [(host, port, id, type) for (host, port, id, type, n, v) in entry1 if n == service['service']
+                     and v == service['version']]
+            # entry = registry._repository._registered_services[
+            #     service['service']][service['version']]
             assert service_entry in entry
         except KeyError:
             raise
@@ -42,6 +52,61 @@ def subscriber_returned_successfully(response, service):
             return True
     return False
 
+def test_setUp():
+        # Delete and re-create database
+    config = json_file_to_dict('./config.json')
+
+    conn = psycopg2.connect(database=config['POSTGRES_DB'], user=config['POSTGRES_USER'],
+                                     password=config['POSTGRES_PASS'], host=config['POSTGRES_HOST'],
+                                     port=config['POSTGRES_PORT'])
+    cur = conn.cursor()
+    query = """
+drop table services;
+drop table subscriptions;
+drop table dependencies;
+drop table uptimes;
+
+
+CREATE TABLE services(
+   service_name VARCHAR(100) NOT NULL,
+   version VARCHAR(100) NOT NULL,
+   ip INET NULL, --can be made TEXT if INET does not work
+   port INTEGER NULL,
+   protocol VARCHAR(5) NULL,    --can be made ENUM for (TCP, HTTP, WS, ...)
+   node_id VARCHAR(100) NULL,
+   is_pending BOOLEAN DEFAULT TRUE,
+   PRIMARY KEY (node_id)
+);
+
+CREATE TABLE subscriptions(
+   subscriber_name VARCHAR(100) NOT NULL,
+   subscriber_version VARCHAR(100) NOT NULL,
+   subscribee_name VARCHAR(100) NOT NULL,
+   subscribee_version VARCHAR(100) NOT NULL,
+   event_name VARCHAR(100) NOT NULL,
+   strategy VARCHAR(100) NOT NULL, -- can be made enum for (DESIGNATION, LEADER, RANDOM)
+   PRIMARY KEY (subscriber_name, subscriber_version, subscribee_name, subscribee_version)
+);
+
+CREATE TABLE dependencies(
+   child_name VARCHAR(100) NOT NULL,
+   child_version VARCHAR(100) NOT NULL,
+   parent_name VARCHAR(100) NOT NULL,
+   parent_version VARCHAR(100) NOT NULL,
+   PRIMARY KEY (child_name, child_version, parent_name, parent_version)
+);
+
+CREATE TABLE uptimes(
+   node_id VARCHAR(100) NOT NULL,
+   event_type VARCHAR(50) NOT NULL, -- can be made enum for (UPTIME, DOWNTIME)
+   event_time INTEGER NOT NULL, -- change to timestamp if required
+   PRIMARY KEY (node_id, event_type)
+);
+"""
+    cur.execute(query)
+    conn.commit()
+    conn.close()
+    return True
 
 def test_register_independent_service(registry, service_a1):
 

@@ -12,3 +12,6 @@ pyflakes==0.8.1
 wheel==0.24.0
 pytest==2.7.2
 factory-boy==2.5.2
+python-json-logger==0.1.2
+cauldron==1.0.10
+psycopg2==2.6.1

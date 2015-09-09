@@ -16,19 +16,21 @@ import json
 import psycopg2
 from cauldron import PostgresStore
 import sys
+import ssl
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
 logger = logging.getLogger(__name__)
 
+
 def tree():
     return defaultdict(tree)
 
+
 def json_file_to_dict(_file: str) -> dict:
-    config = None
     with open(_file) as config_file:
         config = json.load(config_file)
-
     return config
+
 
 class Repository:
 
@@ -138,6 +140,7 @@ class Repository:
     def _split_key(key: str):
         return tuple(key.split('/'))
 
+
 class PersistentRepository(PostgresStore):
     def __init__(self):
 
@@ -146,17 +149,14 @@ class PersistentRepository(PostgresStore):
                                      password=config['POSTGRES_PASS'], host=config['POSTGRES_HOST'],
                                      port=config['POSTGRES_PORT'])
         self.cur = self.conn.cursor()
-        # self._registered_services = defaultdict(lambda: defaultdict(list))
-        # self._pending_services = defaultdict(list)
-        # self._service_dependencies = {}
-        # self._subscribe_list = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-        # self._uptimes = tree()
+        self.connect(database=config['POSTGRES_DB'], user=config['POSTGRES_USER'],
+                                     password=config['POSTGRES_PASS'], host=config['POSTGRES_HOST'],
+                                     port=config['POSTGRES_PORT'])
 
     def qinsert(self, table: str, values: dict):
         keys = self._COMMA.join(values.keys())
         value_place_holder = self._PLACEHOLDER * len(values)
         query = self._insert_string.format(table, keys, value_place_holder[:-1])
-        print(query % tuple(values.values()))
         try:
             self.cur.execute(query, tuple(values.values()))
         except:
@@ -170,7 +170,7 @@ class PersistentRepository(PostgresStore):
             if where_keys:
                 where_clause, values = self._get_where_clause_with_values(where_keys)
                 query = self._select_selective_column_with_condition.format(columns_string, table, where_clause,
-                                                                           order_by, limit, offset)
+                                                                            order_by, limit, offset)
                 q, t = query, values
             else:
                 query = self._select_selective_column.format(columns_string, table, order_by, limit, offset)
@@ -183,7 +183,6 @@ class PersistentRepository(PostgresStore):
             else:
                 query = self._select_all_string.format(table, order_by, limit, offset)
                 q, t = query, ()
-        print(q % t)
         try:
             self.cur.execute(q, t)
         except:
@@ -194,7 +193,6 @@ class PersistentRepository(PostgresStore):
     def qdelete(self, table: str, where_keys: list):
         where_clause, values = self._get_where_clause_with_values(where_keys)
         query = self._delete_query.format(table, where_clause)
-        print(query % values)
         try:
             self.cur.execute(query, values)
         except:
@@ -206,7 +204,6 @@ class PersistentRepository(PostgresStore):
         value_place_holder = self._PLACEHOLDER * len(values)
         where_clause, where_values = self._get_where_clause_with_values(where_keys)
         query = self._update_string.format(table, keys, value_place_holder[:-1], where_clause)
-        print(query % (tuple(values.values()) + where_values))
         try:
             self.cur.execute(query, (tuple(values.values()) + where_values))
         except:
@@ -214,28 +211,17 @@ class PersistentRepository(PostgresStore):
         self.conn.commit()
 
     def register_service(self, service: Service):
-        service_name = self._get_full_service_name(service.name, service.version)
-        service_entry = (service.host, service.port, service.node_id, service.type)
-        #TODO: Insert new Service, ispending=true, add into uptimes also
-
         service_dict = {'service_name': service.name, 'version': service.version, 'ip': service.host,
-                       'port': service.port, 'protocol': service.type, 'id': service.node_id, 'is_pending': True}
+                       'port': service.port, 'protocol': service.type, 'node_id': service.node_id, 'is_pending': True}
 
         self.qinsert('services', service_dict)
-        uptimes_dict = {'id': service.node_id, 'event_type': 'UPTIME', 'event_time': int(time.time())}
+        uptimes_dict = {'node_id': service.node_id, 'event_type': 'UPTIME', 'event_time': int(time.time())}
         self.qinsert('uptimes', uptimes_dict)
-
-        # self._registered_services[service.name][service.version].append(service_entry)
-        # self._pending_services[service_name].append(service.node_id)
-        # self._uptimes[service_name][service.node_id]['uptime'] = int(time.time())
         if len(service.dependencies):
-            #TODO: Insert into dependencies
             for parent in service.dependencies:
                 dependencies_dict = {'child_name': service.name, 'child_version': service.version,
                                      'parent_name': parent['service'], 'parent_version': parent['version']}
                 self.qinsert('dependencies', dependencies_dict)
-            # if self._service_dependencies.get(service_name) is None:
-            #     self._service_dependencies[service_name] = service.dependencies
 
     def is_pending(self, service, version):
         rows = self.qselect('services', 'service_name', columns=['service_name', 'version'],
@@ -245,164 +231,83 @@ class PersistentRepository(PostgresStore):
             return True
         else:
             return False
-        # return self._get_full_service_name(service, version) in self._pending_services
-
 
     def add_pending_service(self, service, version, node_id):
-        #TODO: update the is_pending flag in the record
-        self.qupdate('services', values={'is_pending': True}, where_keys=[{'id': ('=', node_id)}])
-        # self._pending_services[self._get_full_service_name(service, version)].append(node_id)
+        self.qupdate('services', values={'is_pending': True}, where_keys=[{'node_id': ('=', node_id)}])
 
     def get_pending_services(self):
-        #TODO: select * from services where is_pending flag is true
-        rows = self.qselect('services', 'service_name', columns=['service_name', 'version'], where_keys=[{'is_pending': ('=', True)}])
-        print("get_pending_services")
-        print(rows)
+        rows = self.qselect('services', 'service_name', columns=['service_name', 'version'],
+                            where_keys=[{'is_pending': ('=', True)}])
         return rows
-        # print([self._split_key(k) for k in self._pending_services.keys()])
-        # return [self._split_key(k) for k in self._pending_services.keys()]
 
     def get_pending_instances(self, service, version):
-        #TODO: select * from services where is_pending flag is true
-        rows = self.qselect('services', 'id',columns=['id'], where_keys=[{'is_pending': ('=', True),
-                                                                               'service_name': ('=', service),
-                                                                               'version': ('=', version)}])
-        print("get_pending_instances")
+        rows = self.qselect('services', 'node_id', columns=['node_id'], where_keys=[{'is_pending': ('=', True),
+                                                                                     'service_name': ('=', service),
+                                                                                     'version': ('=', version)}])
         crows = [x for (x,) in rows]
-        print(crows)
         return crows
-        # print(self._pending_services.get(self._get_full_service_name(service, version), []))
-        # return self._pending_services.get(self._get_full_service_name(service, version), [])
 
     def remove_pending_instance(self, service, version, node_id):
-        #TODO: update is_pending flag, (assume service gets activated)
-        self.qupdate('services', values={'is_pending': False}, where_keys=[{'id': ('=', node_id)}])
-
-        # self.get_pending_instances(service, version).remove(node_id)
-        # if not len(self.get_pending_instances(service, version)):
-        #     self._pending_services.pop(self._get_full_service_name(service, version))
+        self.qupdate('services', values={'is_pending': False}, where_keys=[{'node_id': ('=', node_id)}])
 
     def get_instances(self, service, version):
-        #TODO: select * from services where service, version
-        rows = self.qselect('services', 'port',columns=['ip', 'port', 'id', 'protocol'],
+        rows = self.qselect('services', 'port', columns=['ip', 'port', 'node_id', 'protocol'],
                             where_keys=[{'service_name': ('=', service), 'version': ('=', version)}])
-        print("get_instances")
-        print(rows)
         return rows
-        # print(self._registered_services[service][version])
-        # return self._registered_services[service][version]
 
     def get_versioned_instances(self, service, version):
-        #TODO: select * from services where service, version
         rows = self.qselect('services', 'version', columns=['version'], where_keys=[{'service_name': ('=', service)}])
         crows = [x for (x,) in rows]
         version = self._get_non_breaking_version(version, crows)
-        rows2 = self.qselect('services', 'port',columns=['ip', 'port', 'id', 'protocol'],
+        rows2 = self.qselect('services', 'port', columns=['ip', 'port', 'node_id', 'protocol'],
                                        where_keys=[{'service_name': ('=', service), 'version': ('=', version)}])
-        print("get_versioned_instances")
-        print(rows2)
         return rows2
-        # print(self._registered_services[service][version])
-        # return self._registered_services[service][version]
 
     def get_consumers(self, service_name, service_version):
-        #TODO: select child.* from dependencies where parent.service, version
         rows = self.qselect('dependencies', 'child_name',columns=['child_name', 'child_version'],
-                                      where_keys=[{'parent_name': ('=', service_name),
-                                                   'parent_version': ('=', service_version)}])
-        print("get_consumers")
+                            where_keys=[{'parent_name': ('=', service_name), 'parent_version': ('=', service_version)}])
         crows = set(rows)
-        print(crows)
         return crows
-        # consumers = set()
-        # for service, vendors in self._service_dependencies.items():
-        #     for each in vendors:
-        #         if each['service'] == service_name and each['version'] == service_version:
-        #             consumers.add(self._split_key(service))
-        #
-        # print(consumers)
-        # return consumers
 
     def get_vendors(self, service, version):
-        #TODO: select child.* from dependencies where service, version
         rows = self.qselect('dependencies', 'parent_name',columns=['parent_name', 'parent_version'],
-                                      where_keys=[{'child_name': ('=', service),
-                                                   'child_version': ('=', version)}])
-        print("get_vendors")
+                            where_keys=[{'child_name': ('=', service), 'child_version': ('=', version)}])
         crows = [{'service': s, 'version': v} for (s,v) in rows]
         return crows
-        # print(crows)
-        # print(self._service_dependencies.get(self._get_full_service_name(service, version), []))
-        # return self._service_dependencies.get(self._get_full_service_name(service, version), [])
 
     def get_node(self, node_id):
-        #TODO: select * from services where node_id
         rows = self.qselect('services', 'service_name',
-                            columns=['service_name','version', 'ip', 'port', 'id', 'protocol'],
-                            where_keys=[{'id': ('=', node_id)}])
-        print(rows)
+                            columns=['service_name','version', 'ip', 'port', 'node_id', 'protocol'],
+                            where_keys=[{'node_id': ('=', node_id)}])
         for name, version, host, port, node, protocol in rows:
             return Service(name, version, [], host, port, node, protocol)
-        # for name, versions in self._registered_services.items():
-        #     for version, instances in versions.items():
-        #         for host, port, node, service_type in instances:
-        #             if node_id == node:
-        #                 return Service(name, version, [], host, port, node, service_type)
         return None
 
     def remove_node(self, node_id):
-        #TODO: delete from services where node_id
-        self.qdelete('services', where_keys=[{'id': ('=', node_id)}])
-        # for name, versions in self._registered_services.items():
-        #     for version, instances in versions.items():
-        #         for instance in instances:
-        #             host, port, node, service_type = instance
-        #             if node_id == node:
-        #                 instances.remove(instance)
-        #TODO: insert into uptimes (node_id, downtime, time.time())
-        uptimes_dict = {'id': node_id, 'event_type': 'DOWNTIME', 'event_time': int(time.time())}
+        self.qdelete('services', where_keys=[{'node_id': ('=', node_id)}])
+        uptimes_dict = {'node_id': node_id, 'event_type': 'DOWNTIME', 'event_time': int(time.time())}
         self.qinsert('uptimes', uptimes_dict)
-        # for name, nodes in self._uptimes.items():
-        #     for node, uptimes in nodes.items():
-        #         if node == node_id:
-        #             uptimes['downtime'] = int(time.time())
         return None
 
     def get_uptimes(self):
-        #TODO: select * from uptimes
-        rows = self.qselect('uptimes', 'id', columns=['id', 'event_type', 'event_time'])
-        print("get_uptimes")
-        print(rows)
+        rows = self.qselect('uptimes', 'node_id', columns=['node_id', 'event_type', 'event_time'])
         return rows
-        # print(self._uptimes)
-        # return self._uptimes
 
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
-        #TODO: insert into subscriptions
         for endpoint in endpoints:
             subscription_dict = {'subscriber_name': service, 'subscriber_version': version,
                                  'subscribee_name': endpoint['service'], 'subscribee_version': endpoint['version'],
                                  'event_name': endpoint['endpoint'], 'strategy': endpoint['strategy']}
             self.qinsert('subscriptions', subscription_dict)
 
-        # entry = (service, version, host, port, node_id)
-        # for endpoint in endpoints:
-        #     self._subscribe_list[endpoint['service']][endpoint['version']][endpoint['endpoint']].append(
-        #         entry + (endpoint['strategy'],))
-
     def get_subscribers(self, service, version, endpoint):
-        #TODO: select * from subscriptions, services where service, version, endpoint
-        query = "select subscriber_name, subscriber_version, ip, port, id, strategy " \
+        query = "select subscriber_name, subscriber_version, ip, port, node_id, strategy " \
                 "from services as sv, subscriptions as sb where sb.subscribee_name = %s and " \
                 "sb.subscribee_version = %s and sb.event_name = %s and sb.subscriber_name = sv.service_name and " \
                 "sb.subscriber_version = sv.version"
         self.cur.execute(query, (service, version, endpoint))
         rows = self.cur.fetchall()
-        print("get_subscribers")
-        print(rows)
         return rows
-        # print(self._subscribe_list[service][version][endpoint])
-        # return self._subscribe_list[service][version][endpoint]
 
     def _get_non_breaking_version(self, version, versions):
         if version in versions:
@@ -426,7 +331,8 @@ class PersistentRepository(PostgresStore):
         return tuple(key.split('/'))
 
     def get_registered_services(self):
-        rows = self.qselect('services', 'port', columns=['ip', 'port', 'id', 'protocol'])
+        rows = self.qselect('services', 'port', columns=['ip', 'port', 'node_id', 'protocol', 'service_name',
+                                                         'version'])
         return rows
 
 class Registry:
@@ -439,22 +345,29 @@ class Registry:
         self._client_protocols = {}
         self._service_protocols = {}
         self._pingers = {}
-        for (host, port, node, type) in self._repository.get_registered_services():
+        self.logger = logging.getLogger()
+        for (host, port, node, type, _, _) in self._repository.get_registered_services():
             try:
                 self._connect_to_service(host, port, node, type)
             except Exception as e:
                 logger.error(e)
+        try:
+            config = json_file_to_dict('./config.json')
+            self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+            self._ssl_context.load_cert_chain(config['SSL_CERTIFICATE'], config['SSL_KEY'])
+        except:
+            self._ssl_context = None
 
     def start(self):
         setup_logging("registry")
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
-        registry_coroutine = self._loop.create_server(partial(get_vyked_protocol, self), self._ip, self._port)
+        registry_coroutine = self._loop.create_server(partial(get_vyked_protocol, self), self._ip, self._port, ssl=self._ssl_context)
         server = self._loop.run_until_complete(registry_coroutine)
         try:
             self._loop.run_forever()
         except Exception as e:
-            print(e)
+            self.logger.error(e)
         finally:
             server.close()
             self._loop.run_until_complete(server.wait_closed())
@@ -466,17 +379,14 @@ class Registry:
 
     def receive(self, packet: dict, protocol, transport):
         request_type = packet['type']
-        print(request_type)
         try:
             params = packet['params']
             self._client_protocols[params['node_id']] = protocol
         except:
             try:
                 self._client_protocols[packet['node_id']] = protocol
-                print(packet['node_id'])
-            except:
-                # print(request_type)
-                print("NO NODE ID")
+            except Exception as e:
+                pass
         if request_type == 'register':
             self.register_service(packet, protocol)
         elif request_type == 'get_instances':
@@ -506,10 +416,12 @@ class Registry:
                         self._repository.add_pending_service(consumer_name, consumer_version, node_id)
 
     def register_service(self, packet: dict, registry_protocol):
+        print("REGISTER SERVICE")
         params = packet['params']
         service = Service(params['service'], params['version'], params['dependencies'], params['host'], params['port'],
                           params['node_id'], params['type'])
         self._repository.register_service(service)
+        print("Through Repo")
         self._client_protocols[params['node_id']] = registry_protocol
         if params['node_id'] not in self._service_protocols.keys():
             self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])

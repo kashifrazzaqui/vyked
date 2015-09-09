@@ -24,7 +24,7 @@ def _retry_for_exception(_):
 class RegistryClient:
     logger = logging.getLogger(__name__)
 
-    def __init__(self, loop, host, port):
+    def __init__(self, loop, host, port, ssl_context=None):
         self._loop = loop
         self._port = port
         self._host = host
@@ -38,6 +38,7 @@ class RegistryClient:
         self._pending_requests = {}
         self._available_services = defaultdict(list)
         self._assigned_services = defaultdict(lambda: defaultdict(list))
+        self._ssl_context = ssl_context
 
     @property
     def conn_handler(self):
@@ -77,7 +78,7 @@ class RegistryClient:
            strategy=[0, 2, 4, 8, 16, 32])
     def connect(self):
         self._transport, self._protocol = yield from self._loop.create_connection(partial(get_vyked_protocol, self),
-                                                                                  self._host, self._port)
+                                                                                  self._host, self._port, ssl=self._ssl_context)
         self.conn_handler.handle_connected()
         self._pinger = TCPPinger('registry', self._protocol, self)
         self._pinger.ping()

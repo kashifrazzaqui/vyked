@@ -1,11 +1,11 @@
-from vyked.registry import Registry, Repository
+from vyked.registry import Registry, Repository, PersistentRepository
 import pytest
 from .factories import ServiceFactory, EndpointFactory
 
 
 @pytest.fixture
 def registry():
-    r = Registry(ip='192.168.1.1', port=4001, repository=Repository())
+    r = Registry(ip='192.168.1.1', port=4001, repository=PersistentRepository())
     return r
 
 

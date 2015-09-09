@@ -2,8 +2,6 @@ from asyncio import iscoroutine, coroutine
 from functools import wraps, partial
 import time
 import logging
-import datetime
-import json
 
 _logger = logging.getLogger()
 
@@ -86,7 +84,6 @@ def request(func):
     wrapper.is_request = True
     return wrapper
 
-
 def api(func):  # incoming
     """
     provide a request/response api
@@ -96,7 +93,17 @@ def api(func):  # incoming
         - entity (partition/routing key)
         followed by kwargs
     """
+    wrapper = _get_api_decorator(func)
+    return wrapper
 
+def deprecated(func=None, replacement_api=None):
+    if func is None:
+        return partial(deprecated, replacement_api=replacement_api)
+    else:
+        wrapper = _get_api_decorator(func=func, old_api=func.__name__, replacement_api=replacement_api)
+        return wrapper
+
+def _get_api_decorator(func=None, old_api=None, replacement_api=None):
     @coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -121,14 +128,17 @@ def api(func):  # incoming
             'entity': entity,
             'from_id': from_id,
             'endpoint': func.__name__,
-            'timestamp': datetime.datetime.now().isoformat(),
             'time_taken': end_time - start_time,
             'error': error,
-
         }
-        _logger.info(json.dumps(logd))
+        logging.getLogger('stats').info(logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
-        return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result, error=error)
-
+        if not (old_api):
+            return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
+                                              error=error)
+        else:
+            return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
+                                              error=error, old_api=old_api, replacement_api=replacement_api)
     wrapper.is_api = True
     return wrapper
+

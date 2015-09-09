@@ -1,5 +1,5 @@
 from logging import Handler
-from logging.handlers import RotatingFileHandler, SysLogHandler
+from logging.handlers import RotatingFileHandler
 from queue import Queue
 import sys
 import os
@@ -8,11 +8,13 @@ import logging
 import asyncio
 import datetime
 from functools import partial, wraps
+from pythonjsonlogger import jsonlogger
+import setproctitle
+import socket
 
 FILE_SIZE = 5 * 1024 * 1024
 
 LOGS_DIR = './logs'
-LOG_FILE_NAME = 'vyked-{}.log'
 LOG_FILE_NAME = 'vyked-{}.log'
 
 RED = '\033[91m'
@@ -23,15 +25,43 @@ END = '\033[0m'
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = False
 
+stats_logformat = 'Python: { "loggerName":"%(name)s", "asciTime":"%(asctime)s",' \
+    ' "pathName":"%(pathname)s", "logRecordCreationTime":"%(created)f",' \
+    ' "functionName":"%(funcName)s", "levelNo":"%(levelno)s", "lineNo":"%(lineno)d",' \
+    ' "time":"%(msecs)d", "levelName":"%(levelname)s", "message":"%(message)s"}'
+
 
 class CustomTimeLoggingFormatter(logging.Formatter):
-    def formatTime(self, record, datefmt=None):
+
+    def formatTime(self, record, datefmt=None):  # noqa
+        """
+        Overrides formatTime method to use datetime module instead of time module
+        to display time in microseconds. Time module by default does not resolve
+        time to microseconds.
+        """
         if datefmt:
             s = datetime.datetime.now().strftime(datefmt)
         else:
             t = datetime.datetime.now().strftime(self.default_time_format)
             s = self.default_msec_format % (t, record.msecs)
         return s
+
+
+class CustomJsonFormatter(jsonlogger.JsonFormatter):
+
+    def __init__(self, *args, **kwargs):
+        self.hostname = socket.gethostname()
+        self.proctitle = setproctitle.getproctitle()
+        elements = self.proctitle.split('_')
+        self.service_name = '_'.join(elements[:-1])
+        self.node_id = elements[-1]
+        super().__init__(*args, **kwargs)
+
+    def add_fields(self, log_record, record, message_dict):
+        d = {'service_name': self.service_name, 'hostname': self.hostname,
+             'node_id': self.node_id, 'proctitle': self.proctitle}
+        message_dict.update(d)
+        super().add_fields(log_record, record, message_dict)
 
 
 def is_ping_logging_enabled():
@@ -71,9 +101,6 @@ def patch_add_handler(logger):
 
     def async_add_handler(handler):
         async_handler = patch_async_emit(handler)
-        formatter = CustomTimeLoggingFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                                               '%Y-%m-%d %H:%M:%S,%f')
-        async_handler.setFormatter(formatter)
         base_add_handler(async_handler)
 
     return async_add_handler
@@ -91,19 +118,24 @@ def setup_logging(identifier):
     logger = logging.getLogger()
     logger.handlers = []
     logger.addHandler = patch_add_handler(logger)
+    formatter = CustomTimeLoggingFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                                           '%Y-%m-%d %H:%M:%S,%f')
     stream_handler.setLevel(logging.INFO)
+    stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
-    logger.addHandler(
-        RotatingFileHandler(os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier)), maxBytes=FILE_SIZE,
-                            backupCount=10))
+    logfile = os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier))
+    rotating_handler = RotatingFileHandler(logfile, maxBytes=FILE_SIZE, backupCount=10)
+    rotating_handler.setFormatter(formatter)
+    logger.addHandler(rotating_handler)
 
-    if sys.platform.startswith('linux'):
-        sys_log_location = '/dev/log'
-    elif sys.platform == 'darwin':
-        sys_log_location = '/var/run/syslog'
-
-    api_log_handler = SysLogHandler(sys_log_location)
-    logger.addHandler(api_log_handler)
+    stats_logger = logging.getLogger('stats')
+    stats_formatter = CustomJsonFormatter(stats_logformat)
+    stats_logfile = os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier + '_stats'))
+    stats_handler = RotatingFileHandler(stats_logfile, maxBytes=1024 * 1024, backupCount=5)
+    stats_handler.setLevel(logging.INFO)
+    stats_handler.setFormatter(stats_formatter)
+    stats_logger.addHandler(stats_handler)
+    stats_logger.addHandler(rotating_handler)
 
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):
