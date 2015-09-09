@@ -2,6 +2,8 @@ from functools import wraps, partial
 from again.utils import unique_hex
 import asyncio
 import logging
+import socket
+import setproctitle
 import time
 _logger = logging.getLogger()
 
@@ -124,12 +126,14 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             _logger.exception('api request exception')
             error = str(e)
         end_time = int(time.time() * 1000)
+
+        hostname = socket.gethostname()
+        service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+
         logd = {
-            'request_id': rid,
-            'from_id': from_id,
             'endpoint': func.__name__,
             'time_taken': end_time - start_time,
-            'error': error,
+            'hostname': hostname, 'service_name': service_name
         }
         logging.getLogger('stats').info(logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)

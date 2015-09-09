@@ -4,10 +4,15 @@ from vyked import HTTPServiceClient, HTTPService
 from aiohttp.web import Response
 from ..utils.stats import Stats
 import logging
+import setproctitle
+import socket
 import json
 import time
 
 _logger = logging.getLogger()
+
+hostname = socket.gethostname()
+service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
 
 
 def make_request(func, self, args, kwargs, method):
@@ -50,10 +55,12 @@ def get_decorated_fun(method, path, required_params):
                     logging.error("HTTP request had a %s" % str(e))
                 else:
                     t2 = time.time()
+
                     logd = {
                         'status': result.status,
                         'time_taken': int((t2 - t1) * 1000),
                         'type': 'http',
+                        'hostname': hostname, 'service_name': service_name
                     }
                     logging.getLogger('stats').info(logd)
                     Stats.http_stats['total_responses'] += 1

@@ -9,10 +9,6 @@ import asyncio
 import datetime
 from functools import partial, wraps
 from pythonjsonlogger import jsonlogger
-import setproctitle
-import socket
-# from ..utils.stats import Stats
-
 
 FILE_SIZE = 5 * 1024 * 1024
 
@@ -27,8 +23,7 @@ END = '\033[0m'
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = False
 
-stats_logformat = '{ "asciTime":"%(asctime)s", "logRecordCreationTime":"%(created)f",' \
-    ' "time":"%(msecs)d", "levelName":"%(levelname)s", "message":"%(message)s"}'
+stats_logformat = '{ "created":"%(created)s", "message":"%(message)s"}'
 
 
 class CustomTimeLoggingFormatter(logging.Formatter):
@@ -50,17 +45,11 @@ class CustomTimeLoggingFormatter(logging.Formatter):
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
     def __init__(self, *args, **kwargs):
-        self.hostname = socket.gethostname()
-        self.proctitle = setproctitle.getproctitle()
-        elements = self.proctitle.split('_')
-        self.service_name = '_'.join(elements[:-1])
-        self.node_id = elements[-1]
+        self.extrad = kwargs.pop('extrad', {})
         super().__init__(*args, **kwargs)
 
     def add_fields(self, log_record, record, message_dict):
-        d = {'service_name': self.service_name, 'hostname': self.hostname,
-             'node_id': self.node_id}
-        message_dict.update(d)
+        message_dict.update(self.extrad)
         super().add_fields(log_record, record, message_dict)
 
 
@@ -137,6 +126,9 @@ def setup_logging(identifier):
     stats_logger.addHandler(stats_handler)
     stats_logger.addHandler(rotating_handler)
     # Stats.periodic_stats_logger()
+
+    registry_logger = logging.getLogger('vyked')
+    registry_logger.addHandler(stats_handler)
 
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):
