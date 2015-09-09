@@ -332,7 +332,7 @@ class Registry:
 
     def periodic_uptime_logger(self):
         self._repository.log_uptimes()
-        asyncio.get_event_loop().call_later(5, self.periodic_uptime_logger)
+        asyncio.get_event_loop().call_later(300, self.periodic_uptime_logger)
 
 
 if __name__ == '__main__':

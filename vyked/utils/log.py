@@ -127,7 +127,7 @@ def setup_logging(identifier):
     stats_logger.addHandler(rotating_handler)
     # Stats.periodic_stats_logger()
 
-    registry_logger = logging.getLogger('vyked')
+    registry_logger = logging.getLogger('vyked.registry')
     registry_logger.addHandler(stats_handler)
 
 
