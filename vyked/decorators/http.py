@@ -48,16 +48,16 @@ def get_decorated_fun(method, path, required_params):
                 except TimeoutError as e:
                     Stats.http_stats['timedout'] += 1
                     logging.error("HTTP request had a %s" % str(e))
-
-                t2 = time.time()
-                logd = {
-                    'status': result.status,
-                    'time_taken': int((t2 - t1) * 1000),
-                    'type': 'http',
-                }
-                logging.getLogger('stats').info(logd)
-                Stats.http_stats['total_responses'] += 1
-                return (result)
+                else:
+                    t2 = time.time()
+                    logd = {
+                        'status': result.status,
+                        'time_taken': int((t2 - t1) * 1000),
+                        'type': 'http',
+                    }
+                    logging.getLogger('stats').info(logd)
+                    Stats.http_stats['total_responses'] += 1
+                    return (result)
 
         f.is_http_method = True
         f.method = method
