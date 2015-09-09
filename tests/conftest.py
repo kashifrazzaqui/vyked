@@ -1,7 +1,8 @@
 from vyked.registry import Registry, Repository, PersistentRepository
 import pytest
 from .factories import ServiceFactory, EndpointFactory
-
+import asyncio
+from unittest import mock
 
 @pytest.fixture
 def registry():
@@ -96,7 +97,41 @@ def service_c3(service_a2, service_b2, service_c2):
     return ServiceFactory(service=service_c2['service'], version='1.0.1',
                           dependencies=dependencies_from_services(service_a2, service_b2))
 
-
 @pytest.fixture
 def service_d1(service_a1):
     return ServiceFactory(events=endpoints_for_service(service_a1, 1))
+
+@pytest.yield_fixture
+def loop():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    loop.close()
+
+def pytest_pycollect_makeitem(collector, name, obj):
+    """Collect asyncio coroutines as normal functions, not as generators."""
+    if asyncio.iscoroutinefunction(obj):
+        return list(collector._genfunctions(name, obj))
+
+
+def pytest_pyfunc_call(pyfuncitem):
+    """If ``pyfuncitem.obj`` is an asyncio coroutinefunction, execute it via
+    the event loop instead of calling it directly."""
+    testfunction = pyfuncitem.obj
+
+    if not asyncio.iscoroutinefunction(testfunction):
+        return
+
+    # Copied from _pytest/python.py:pytest_pyfunc_call()
+    funcargs = pyfuncitem.funcargs
+    testargs = {}
+    for arg in pyfuncitem._fixtureinfo.argnames:
+        testargs[arg] = funcargs[arg]
+    coro = testfunction(**testargs)  # Will no execute the test yet!
+
+    # Run the coro in the event loop
+    loop = testargs.get('loop', asyncio.get_event_loop())
+    loop.run_until_complete(coro)
+
+    return True  # TODO: What to return here?
+

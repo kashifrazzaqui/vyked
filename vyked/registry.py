@@ -244,6 +244,17 @@ class PersistentRepository(PostgresStore):
         rows = yield from self.raw_sql(query, (service, version, endpoint))
         return rows
 
+    def deactivate_dependencies(self, service, version):
+        query = "update services set is_pending = True from dependencies where service_name = child_name and " \
+                "version = child_version and parent_name = %s and parent_version = %s"
+        yield from self.raw_sql(query, (service,version))
+
+    def inform_consumers(self, service, version):
+        query = "select host, port, node_id, protocol from services, dependencies where is_pending='False' and "\
+                "service_name = child_name and verion = child_version and parent_name = %s and parent_version = %s"
+        rows = yield from self.raw_sql(query, (service, version))
+        return rows
+
     def _get_non_breaking_version(self, version, versions):
         if version in versions:
             return version
@@ -281,12 +292,13 @@ class Registry:
         self._service_protocols = {}
         self._pingers = {}
         self.logger = logging.getLogger()
-        try:
-            config = json_file_to_dict('./config.json')
-            self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-            self._ssl_context.load_cert_chain(config['SSL_CERTIFICATE'], config['SSL_KEY'])
-        except:
-            self._ssl_context = None
+        # try:
+        #     config = json_file_to_dict('./config.json')
+        #     self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+        #     self._ssl_context.load_cert_chain(config['SSL_CERTIFICATE'], config['SSL_KEY'])
+        # except:
+        #     self._ssl_context = None
+        self._ssl_context = None
 
     def start(self):
         setup_logging("registry")
@@ -350,8 +362,8 @@ class Registry:
             self._service_protocols.pop(node_id, None)
             self._client_protocols.pop(node_id, None)
             asyncio.async(self._notify_consumers(service.name, service.version, node_id))
-            #TODO: Increase efficiency
             if not len((yield from self._repository.get_instances(service.name, service.version))):
+                #TODO: Call self._repository.deactivate_dependencies(service.name, service.version) instead of multiple queries
                 consumers = yield from self._repository.get_consumers(service.name, service.version)
                 for consumer_name, consumer_version in consumers:
                     for _, _, node_id, _ in (yield from self._repository.get_instances(consumer_name, consumer_version)):
@@ -371,7 +383,7 @@ class Registry:
 
     @asyncio.coroutine
     def _inform_consumers(self, service: Service):
-        #TODO: Increase efficiency
+        #TODO: Call self._repository.inform_consumers(service.name, service.version) instead of multiple queries
         consumers = yield from self._repository.get_consumers(service.name, service.version)
         for service_name, service_version in consumers:
             if not (yield from self._repository.is_pending(service_name, service_version)):
@@ -390,7 +402,6 @@ class Registry:
 
     @asyncio.coroutine
     def _handle_pending_registrations(self):
-        #TODO: Increase efficiency
         for service, version in (yield from self._repository.get_pending_services()):
             vendors = yield from self._repository.get_vendors(service, version)
             should_activate = True
@@ -410,7 +421,6 @@ class Registry:
 
     @asyncio.coroutine
     def _make_activated_packet(self, service, version):
-        #TODO: Increase efficiency
         vendors = yield from self._repository.get_vendors(service, version)
         instances = {}
         for v in vendors:
@@ -438,7 +448,6 @@ class Registry:
     @asyncio.coroutine
     def _notify_consumers(self, service, version, node_id):
         packet = ControlPacket.deregister(service, version, node_id)
-        #TODO: Increase efficiency
         for consumer_name, consumer_version in (yield from self._repository.get_consumers(service, version)):
             for host, port, node, service_type in (yield from self._repository.get_instances(consumer_name, consumer_version)):
                 protocol = self._client_protocols[node]

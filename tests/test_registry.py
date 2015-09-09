@@ -5,6 +5,8 @@ import uuid
 import cauldron
 import psycopg2
 import json
+import asyncio
+from vyked.registry import PersistentRepository, Registry
 
 def json_file_to_dict(_file: str) -> dict:
     with open(_file) as config_file:
@@ -16,7 +18,9 @@ def service_registered_successfully(registry, *services):
         service_entry = (
             service['host'], service['port'], service['node_id'], service['type'])
         try:
-            entry1 = registry._repository.get_registered_services()
+            yield from asyncio.sleep(1)
+            entry1 = yield from registry._repository.get_registered_services()
+            print(entry1)
             entry = [(host, port, id, type) for (host, port, id, type, n, v) in entry1 if n == service['service']
                      and v == service['version']]
             # entry = registry._repository._registered_services[
@@ -28,7 +32,8 @@ def service_registered_successfully(registry, *services):
 
 
 def no_pending_services(registry):
-    return len(registry._repository.get_pending_services()) == 0
+    yield from asyncio.sleep(1)
+    return len((yield from registry._repository.get_pending_services())) == 0
 
 
 def instance_returned_successfully(response, service):
@@ -108,59 +113,62 @@ CREATE TABLE uptimes(
     conn.close()
     return True
 
+@asyncio.coroutine
 def test_register_independent_service(registry, service_a1):
 
-    registry.register_service(
-        packet={'params': service_a1}, registry_protocol=mock.Mock())
+    asyncio.async(registry.register_service(
+        packet={'params': service_a1}, registry_protocol=mock.Mock()))
 
-    assert service_registered_successfully(registry, service_a1)
-    assert no_pending_services(registry)
+    assert (yield from service_registered_successfully(registry, service_a1))
+    assert (yield from no_pending_services(registry))
 
-
+@asyncio.coroutine
 def test_register_dependent_service(registry, service_a1, service_b1):
 
-    registry.register_service(
-        packet={'params': service_b1}, registry_protocol=mock.Mock())
-    assert not no_pending_services(registry)
+    asyncio.async(registry.register_service(
+        packet={'params': service_b1}, registry_protocol=mock.Mock()))
+    assert not (yield from no_pending_services(registry))
 
-    registry.register_service(
-        packet={'params': service_a1}, registry_protocol=mock.Mock())
-    assert no_pending_services(registry)
+    asyncio.async(registry.register_service(
+        packet={'params': service_a1}, registry_protocol=mock.Mock()))
+    assert (yield from no_pending_services(registry))
 
-    assert service_registered_successfully(registry, service_a1, service_b1)
+    assert (yield from service_registered_successfully(registry, service_a1, service_b1))
 
-
+@asyncio.coroutine
 def test_deregister_dependent_service(service_a1, service_b1, registry):
-    registry.register_service(
-        packet={'params': service_b1}, registry_protocol=mock.Mock())
-    registry.register_service(
-        packet={'params': service_a1}, registry_protocol=mock.Mock())
+    asyncio.async(registry.register_service(
+        packet={'params': service_b1}, registry_protocol=mock.Mock()))
+    asyncio.async(registry.register_service(
+        packet={'params': service_a1}, registry_protocol=mock.Mock()))
 
-    assert no_pending_services(registry)
+    assert (yield from no_pending_services(registry))
 
-    registry.deregister_service(service_a1['node_id'])
-    assert not no_pending_services(registry)
+    asyncio.async(registry.deregister_service(service_a1['node_id']))
+    assert not (yield from no_pending_services(registry))
 
-
+@asyncio.coroutine
 def test_get_instances(service_a1, registry):
-    registry.register_service(
-        packet={'params': service_a1}, registry_protocol=mock.Mock())
-
+    asyncio.async(registry.register_service(
+        packet={'params': service_a1}, registry_protocol=mock.Mock()))
+    yield from asyncio.sleep(1)
     protocol = mock.Mock()
-    registry.get_service_instances(
-        packet={'params': service_a1, 'request_id': str(uuid.uuid4())}, registry_protocol=protocol)
+    asyncio.async(registry.get_service_instances(
+        packet={'params': service_a1, 'request_id': str(uuid.uuid4())}, registry_protocol=protocol))
+    yield from asyncio.sleep(1)
 
     assert instance_returned_successfully(
         protocol.send.call_args_list[0][0][0], service_a1)
 
-
+@asyncio.coroutine
 def test_xsubscribe(service_a1, service_d1, registry):
     # assert service_d1 == {}
-    registry.register_service(
-        packet={'params': service_a1}, registry_protocol=mock.Mock())
-    registry.register_service(
-        packet={'params': service_d1}, registry_protocol=mock.Mock())
-    registry._xsubscribe(packet={'params': service_d1})
+    asyncio.async(registry.register_service(
+        packet={'params': service_a1}, registry_protocol=mock.Mock()))
+    asyncio.async(registry.register_service(
+        packet={'params': service_d1}, registry_protocol=mock.Mock()))
+    asyncio.async(registry._xsubscribe(packet={'params': service_d1}))
+    yield from asyncio.sleep(1)
 
     protocol = mock.Mock()
     params = {
@@ -168,6 +176,8 @@ def test_xsubscribe(service_a1, service_d1, registry):
         'version': service_a1['version'],
         'endpoint': service_d1['events'][0]['endpoint']
     }
-    registry.get_subscribers(packet={'params': params, 'request_id': str(uuid.uuid4())}, protocol=protocol)
+    asyncio.async(registry.get_subscribers(packet={'params': params, 'request_id': str(uuid.uuid4())}, protocol=protocol))
+    yield from asyncio.sleep(1)
+
     # assert protocol.send.call_args_list[0][0][0] == {}
     assert subscriber_returned_successfully(protocol.send.call_args_list[0][0][0], service_d1)
