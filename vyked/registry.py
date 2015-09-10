@@ -29,6 +29,19 @@ def json_file_to_dict(_file: str) -> dict:
         config = json.load(config_file)
     return config
 
+sno = 0
+
+# def p(func):
+#     def wrapper(*a, **b):
+#         global sno
+#         num = sno
+#         sno = sno+1
+#         a = yield from func(*a, **b)
+#         print("Sno:"+str(num))
+#         print("Function:"+str(func.__name__))
+#         print("Value:"+str(a))
+#         return a
+#     return wrapper
 
 class Repository:
 
@@ -141,10 +154,13 @@ class Repository:
 
 class PersistentRepository(PostgresStore):
     def __init__(self):
-        config = json_file_to_dict('./config.json')
-        self.connect(database=config['POSTGRES_DB'], user=config['POSTGRES_USER'],
-                                     password=config['POSTGRES_PASS'], host=config['POSTGRES_HOST'],
-                                     port=config['POSTGRES_PORT'])
+        try:
+            config = json_file_to_dict('./config.json')
+            self.connect(database=config['POSTGRES_DB'], user=config['POSTGRES_USER'],
+                                         password=config['POSTGRES_PASS'], host=config['POSTGRES_HOST'],
+                                         port=config['POSTGRES_PORT'])
+        except Exception as e:
+            logger.error(str(e))
 
     def register_service(self, service: Service):
         service_dict = {'service_name': service.name, 'version': service.version, 'ip': service.host,
@@ -276,6 +292,7 @@ class PersistentRepository(PostgresStore):
     def _split_key(key: str):
         return tuple(key.split('/'))
 
+
     def get_registered_services(self):
         rows = yield from self.select('services', 'port', columns=['ip', 'port', 'node_id', 'protocol', 'service_name',
                                                                    'version'])
@@ -292,13 +309,13 @@ class Registry:
         self._service_protocols = {}
         self._pingers = {}
         self.logger = logging.getLogger()
-        # try:
-        #     config = json_file_to_dict('./config.json')
-        #     self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-        #     self._ssl_context.load_cert_chain(config['SSL_CERTIFICATE'], config['SSL_KEY'])
-        # except:
-        #     self._ssl_context = None
-        self._ssl_context = None
+        try:
+            config = json_file_to_dict('./config.json')
+            self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+            self._ssl_context.load_cert_chain(config['SSL_CERTIFICATE'], config['SSL_KEY'])
+        except:
+            self._ssl_context = None
+        # self._ssl_context = None
 
     def start(self):
         setup_logging("registry")

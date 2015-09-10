@@ -3,9 +3,20 @@ import pytest
 from .factories import ServiceFactory, EndpointFactory
 import asyncio
 from unittest import mock
+from collections import namedtuple
+
+
+Record = namedtuple("Record", "ip port node_id protocol service_name version")
+
+Record2 = namedtuple("Record2", "service_name version")
+
+@asyncio.coroutine
+def asynchronizer(x):
+    return x
 
 @pytest.fixture
 def registry():
+
     r = Registry(ip='192.168.1.1', port=4001, repository=PersistentRepository())
     return r
 
@@ -111,6 +122,8 @@ def loop():
 def pytest_pycollect_makeitem(collector, name, obj):
     """Collect asyncio coroutines as normal functions, not as generators."""
     if asyncio.iscoroutinefunction(obj):
+        if obj.__name__=='asynchronizer':
+            return
         return list(collector._genfunctions(name, obj))
 
 
