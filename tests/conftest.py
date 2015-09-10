@@ -2,7 +2,6 @@ from vyked.registry import Registry, Repository, PersistentRepository
 import pytest
 from .factories import ServiceFactory, EndpointFactory
 import asyncio
-from unittest import mock
 from collections import namedtuple
 
 

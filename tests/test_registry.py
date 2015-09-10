@@ -2,8 +2,6 @@ from unittest import mock
 # from vyked.registry import Registry, Repository
 # from vyked.packet import ControlPacket
 import uuid
-import cauldron
-import psycopg2
 import json
 import asyncio
 
