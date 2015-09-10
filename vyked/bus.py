@@ -15,11 +15,10 @@ from .packet import ControlPacket, MessagePacket
 from .protocol_factory import get_vyked_protocol
 from .utils.jsonencoder import VykedEncoder
 from .exceptions import ClientNotFoundError, ClientDisconnected
+from .utils.stats import Stats
 
 HTTP = 'http'
 TCP = 'tcp'
-total_requests = 0
-total_responses = 0
 
 _logger = logging.getLogger(__name__)
 
@@ -33,6 +32,7 @@ def _retry_for_exception(_):
 
 
 class HTTPBus:
+
     def __init__(self, registry_client):
         self._registry_client = registry_client
 
@@ -60,6 +60,7 @@ class HTTPBus:
 
 
 class TCPBus:
+
     def __init__(self, registry_client):
         registry_client.conn_handler = self
         self._registry_client = registry_client
@@ -186,30 +187,30 @@ class TCPBus:
                 _logger.warn('wrongly routed packet: ', packet)
 
     def _request_receiver(self, packet, protocol):
-        global total_requests, total_responses
-        total_requests += 1
-        _logger.debug('Total Requests received %d, Total Responses returned %d', total_requests, total_responses)
+        Stats.tcp_stats['total_requests'] += 1
         api_fn = getattr(self.tcp_host, packet['endpoint'])
         if api_fn.is_api:
             from_node_id = packet['from']
             entity = packet['entity']
             future = asyncio.async(api_fn(from_id=from_node_id, entity=entity, **packet['payload']))
 
+            try:
+                asyncio.wait_for(future, 120)
+            except asyncio.TimeoutError:
+                Stats.tcp_stats['timedout'] += 1
+
             def send_result(f):
-                global total_requests, total_responses
                 result_packet = f.result()
                 protocol.send(result_packet)
-                total_responses += 1
-                _logger.debug('Total Requests received %d, Total Responses returned %d', total_requests,
-                              total_responses)
+                Stats.tcp_stats['total_responses'] += 1
 
             future.add_done_callback(send_result)
         else:
             print('no api found for packet: ', packet)
 
     def _handle_publish(self, packet, protocol):
-        service, version, endpoint, payload, publish_id = packet['service'], packet['version'], packet['endpoint'], \
-                                                          packet['payload'], packet['publish_id']
+        service, version, endpoint, payload, publish_id = (packet['service'], packet['version'], packet['endpoint'],
+                                                           packet['payload'], packet['publish_id'])
         for client in self._service_clients:
             if client.name == service and client.version == version:
                 fun = getattr(client, endpoint)

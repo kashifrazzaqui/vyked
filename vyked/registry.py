@@ -17,7 +17,7 @@ from cauldron import PostgresStore
 import ssl
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('vyked.Registry')
 
 
 def tree():
@@ -57,7 +57,8 @@ class Repository:
         service_entry = (service.host, service.port, service.node_id, service.type)
         self._registered_services[service.name][service.version].append(service_entry)
         self._pending_services[service_name].append(service.node_id)
-        self._uptimes[service_name][service.node_id]['uptime'] = int(time.time())
+        self._uptimes[service_name][service.host]['uptime'] = int(time.time())
+
         if len(service.dependencies):
             if self._service_dependencies.get(service_name) is None:
                 self._service_dependencies[service_name] = service.dependencies
@@ -106,20 +107,31 @@ class Repository:
         return None
 
     def remove_node(self, node_id):
+        thehost = None
         for name, versions in self._registered_services.items():
             for version, instances in versions.items():
                 for instance in instances:
-                    host, port, node, service_type = instance
+                    thehost, port, node, service_type = instance
                     if node_id == node:
                         instances.remove(instance)
         for name, nodes in self._uptimes.items():
-            for node, uptimes in nodes.items():
-                if node == node_id:
+            for host, uptimes in nodes.items():
+                if host == thehost:
                     uptimes['downtime'] = int(time.time())
         return None
 
     def get_uptimes(self):
         return self._uptimes
+
+    def log_uptimes(self):
+        for name, nodes in self._uptimes.items():
+            for host, d in nodes.items():
+                now = time.time()
+                live = d.get('downtime', 0) < d['uptime']
+                uptime = now - d['uptime'] if live else 0
+                logd = {'service': name, 'host': host, 'status': live,
+                        'uptime': int(uptime)}
+                logger.info(logd)
 
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
         entry = (service, version, host, port, node_id)
@@ -321,7 +333,8 @@ class Registry:
         setup_logging("registry")
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
-        registry_coroutine = self._loop.create_server(partial(get_vyked_protocol, self), self._ip, self._port, ssl=self._ssl_context)
+        registry_coroutine = self._loop.create_server(
+            partial(get_vyked_protocol, self), self._ip, self._port, ssl=self._ssl_context)
         server = self._loop.run_until_complete(registry_coroutine)
         self._loop.run_until_complete(self.reconnect_on_recovery())
         try:
@@ -513,6 +526,11 @@ class Registry:
             dict_uptimes[u.node_id][u.event_type] = u.event_time
         protocol.send(ControlPacket.uptime(dict_uptimes))
 
+    def periodic_uptime_logger(self):
+        self._repository.log_uptimes()
+        asyncio.get_event_loop().call_later(300, self.periodic_uptime_logger)
+
+
 if __name__ == '__main__':
     config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
     from setproctitle import setproctitle
@@ -521,5 +539,6 @@ if __name__ == '__main__':
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT, PersistentRepository())
+    registry.periodic_uptime_logger()
     registry.start()
 

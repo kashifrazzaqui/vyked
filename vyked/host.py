@@ -3,6 +3,7 @@ import logging
 from functools import partial
 import signal
 import os
+import socket
 
 from aiohttp.web import Application
 
@@ -11,6 +12,7 @@ from vyked.registry_client import RegistryClient
 from vyked.services import HTTPService, TCPService
 from .protocol_factory import get_vyked_protocol
 from .utils.log import setup_logging
+from vyked.utils.stats import Stats
 
 _logger = logging.getLogger(__name__)
 
@@ -132,7 +134,8 @@ class Host:
         if not cls.ronin:
             if cls._tcp_service:
                 asyncio.get_event_loop().run_until_complete(
-                    cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
+                    cls._tcp_service.pubsub_bus
+                    .create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
             if cls._http_service:
                 asyncio.get_event_loop().run_until_complete(
                     cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
@@ -154,11 +157,12 @@ class Host:
 
     @classmethod
     def _set_bus(cls, service):
-        registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port, cls.registry_client_ssl)
+        registry_client = RegistryClient(
+            asyncio.get_event_loop(), cls.registry_host, cls.registry_port, cls.registry_client_ssl)
         tcp_bus = TCPBus(registry_client)
         registry_client.conn_handler = tcp_bus
-        pubsub_bus = PubSubBus(registry_client, ssl_context=cls._tcp_service._ssl_context)
-        #pubsub_bus = PubSubBus(registry_client)#, cls._tcp_service._ssl_context)
+        # pubsub_bus = PubSubBus(registry_client, ssl_context=cls._tcp_service._ssl_context)
+        pubsub_bus = PubSubBus(registry_client)  # , cls._tcp_service._ssl_context)
 
         registry_client.bus = tcp_bus
         if isinstance(service, TCPService):
@@ -180,3 +184,5 @@ class Host:
     def _setup_logging(cls):
         host = cls._tcp_service if cls._tcp_service else cls._http_service
         setup_logging('{}_{}'.format(host.name, host.socket_address[1]))
+        Stats.service_name = host.name
+        Stats.periodic_stats_logger()

@@ -1,11 +1,11 @@
-from asyncio import iscoroutine, coroutine
 from functools import wraps, partial
-import time
-import logging
-
-_logger = logging.getLogger()
-
 from again.utils import unique_hex
+import asyncio
+import logging
+import socket
+import setproctitle
+import time
+_logger = logging.getLogger()
 
 
 def publish(func):
@@ -58,8 +58,8 @@ def _get_subscribe_decorator(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         coroutine_func = func
-        if not iscoroutine(func):
-            coroutine_func = coroutine(func)
+        if not asyncio.iscoroutine(func):
+            coroutine_func = asyncio.coroutine(func)
         return (yield from coroutine_func(*args, **kwargs))
 
     return wrapper
@@ -84,6 +84,7 @@ def request(func):
     wrapper.is_request = True
     return wrapper
 
+
 def api(func):  # incoming
     """
     provide a request/response api
@@ -96,6 +97,7 @@ def api(func):  # incoming
     wrapper = _get_api_decorator(func)
     return wrapper
 
+
 def deprecated(func=None, replacement_api=None):
     if func is None:
         return partial(deprecated, replacement_api=replacement_api)
@@ -103,8 +105,9 @@ def deprecated(func=None, replacement_api=None):
         wrapper = _get_api_decorator(func=func, old_api=func.__name__, replacement_api=replacement_api)
         return wrapper
 
+
 def _get_api_decorator(func=None, old_api=None, replacement_api=None):
-    @coroutine
+    @asyncio.coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
         start_time = int(time.time() * 1000)
@@ -115,21 +118,22 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         wrapped_func = func
         result = None
         error = None
-        if not iscoroutine(func):
-            wrapped_func = coroutine(func)
+        if not asyncio.iscoroutine(func):
+            wrapped_func = asyncio.coroutine(func)
         try:
             result = yield from wrapped_func(self, **kwargs)
-        except BaseException as e:
+        except Exception as e:
             _logger.exception('api request exception')
             error = str(e)
         end_time = int(time.time() * 1000)
+
+        hostname = socket.gethostname()
+        service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+
         logd = {
-            'request_id': rid,
-            'entity': entity,
-            'from_id': from_id,
             'endpoint': func.__name__,
             'time_taken': end_time - start_time,
-            'error': error,
+            'hostname': hostname, 'service_name': service_name
         }
         logging.getLogger('stats').info(logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
@@ -141,4 +145,3 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
                                               error=error, old_api=old_api, replacement_api=replacement_api)
     wrapper.is_api = True
     return wrapper
-
