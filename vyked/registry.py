@@ -257,6 +257,17 @@ class PersistentRepository(PostgresStore):
         rows = yield from self.select('uptimes', 'node_id', columns=['node_id', 'event_type', 'event_time'])
         return rows
 
+    # def log_uptimes(self):
+    #     for name, nodes in self._uptimes.items():
+    #         for host, d in nodes.items():
+    #             now = time.time()
+    #             live = d.get('downtime', 0) < d['uptime']
+    #             uptime = now - d['uptime'] if live else 0
+    #             logd = {'service': name, 'host': host, 'status': live,
+    #                     'uptime': int(uptime)}
+    #             logger.info(logd)
+
+
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
         for endpoint in endpoints:
             subscription_dict = {'subscriber_name': service, 'subscriber_version': version,
@@ -526,9 +537,9 @@ class Registry:
             dict_uptimes[u.node_id][u.event_type] = u.event_time
         protocol.send(ControlPacket.uptime(dict_uptimes))
 
-    def periodic_uptime_logger(self):
-        self._repository.log_uptimes()
-        asyncio.get_event_loop().call_later(300, self.periodic_uptime_logger)
+    # def periodic_uptime_logger(self):
+    #     self._repository.log_uptimes()
+    #     asyncio.get_event_loop().call_later(300, self.periodic_uptime_logger)
 
 
 if __name__ == '__main__':
@@ -539,6 +550,6 @@ if __name__ == '__main__':
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT, PersistentRepository())
-    registry.periodic_uptime_logger()
+    # registry.periodic_uptime_logger()
     registry.start()
 
