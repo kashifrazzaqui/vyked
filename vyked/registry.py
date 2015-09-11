@@ -363,7 +363,7 @@ class Registry:
             try:
                 self._connect_to_service(host, port, node, type)
             except Exception as e:
-                logger.error(e)
+                logger.error(str(e))
 
 
     def _stop(self, signame: str):
@@ -372,14 +372,6 @@ class Registry:
 
     def receive(self, packet: dict, protocol, transport):
         request_type = packet['type']
-        try:
-            params = packet['params']
-            self._client_protocols[params['node_id']] = protocol
-        except:
-            try:
-                self._client_protocols[packet['node_id']] = protocol
-            except Exception as e:
-                pass
         if request_type == 'register':
             asyncio.async(self.register_service(packet, protocol))
         elif request_type == 'get_instances':
@@ -391,6 +383,10 @@ class Registry:
         elif request_type == 'pong':
             self._ping(packet)
         elif request_type == 'ping':
+            try:
+                self._client_protocols[packet['node_id']] = protocol
+            except Exception as e:
+                logger.error(str(e))
             self._pong(packet, protocol)
         elif request_type == 'uptime_report':
             asyncio.async(self._get_uptime_report(packet, protocol))
