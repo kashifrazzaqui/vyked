@@ -119,7 +119,7 @@ def setup_logging(identifier):
 
     stats_logger = logging.getLogger('stats')
     stats_formatter = CustomJsonFormatter(stats_logformat)
-    stats_logfile = os.path.join(LOGS_DIR, LOG_FILE_NAME.format('vyked_stats'))
+    stats_logfile = os.path.join(LOGS_DIR, 'vyked_stats.log')
     stats_handler = RotatingFileHandler(stats_logfile, maxBytes=1024 * 1024, backupCount=5)
     stats_handler.setLevel(logging.INFO)
     stats_handler.setFormatter(stats_formatter)
