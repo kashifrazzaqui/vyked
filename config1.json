@@ -1,0 +1,9 @@
+{
+    "POSTGRES_HOST": "127.0.0.1",
+    "POSTGRES_PORT": 5432,
+    "POSTGRES_USER": "regtester",
+    "POSTGRES_PASS": "",
+    "POSTGRES_DB": "regtest",
+    "SSL_CERTIFICATE": "sample.crt",
+    "SSL_KEY": "sample.key"
+}

@@ -30,6 +30,7 @@ class Pinger:
         self._timer = None
         self._failures = 0
         self._max_failures = max_failures
+        self.logger = logging.getLogger()
 
     @asyncio.coroutine
     def send_ping(self):
@@ -44,7 +45,10 @@ class Pinger:
         """
         Called when a pong is received. So the timer is cancelled
         """
-        self._timer.cancel()
+        try:
+            self._timer.cancel()
+        except AttributeError as e:
+            self.logger.error(str(e))
         self._failures = 0
         asyncio.async(self.send_ping())
 
