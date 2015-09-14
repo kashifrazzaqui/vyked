@@ -30,6 +30,7 @@ def json_file_to_dict(_file: str) -> dict:
 
     return config
 
+
 class Repository:
 
     def __init__(self):
