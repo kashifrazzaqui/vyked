@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import setproctitle
+from collections import defaultdict
 import socket
 
 _logger = logging.getLogger('stats')
@@ -10,21 +11,23 @@ class Stats:
     hostname = socket.gethostname()
     service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
     # hostd = {'hostname': '', 'service_name': ''}
-    http_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0,
-                  'type': 'httpservice', }
-    tcp_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0,
-                 'type': 'tcpservice', }
+    http_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0}
+    tcp_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0}
 
     @classmethod
     def periodic_stats_logger(cls):
-        stats = dict(cls.http_stats)
-        stats['hostname'] = cls.hostname
-        stats['service_name'] = cls.service_name
-        _logger.info(stats)
+        logd = defaultdict(lambda: 0)
+        logd['hostname'] = cls.hostname
+        logd['service_name'] = cls.service_name
 
-        stats = dict(cls.tcp_stats)
-        stats['hostname'] = cls.hostname
-        stats['service_name'] = cls.service_name
-        _logger.info(stats)
-        
+        for key, value in cls.http_stats.items():
+            logd[key] += value
+            logd['http_' + key] = value
+
+        for key, value in cls.tcp_stats.items():
+            logd[key] += value
+            logd['tcp_' + key] = value
+
+        _logger.info(logd)
+
         asyncio.get_event_loop().call_later(120, cls.periodic_stats_logger)
