@@ -191,6 +191,13 @@ class Registry:
 
     def receive(self, packet: dict, protocol, transport):
         request_type = packet['type']
+        if request_type in ['register', 'get_instances', 'xsubscribe', 'get_subscribers']:
+            for_log = {}
+            params = packet['params']
+            for_log["caller_name"] = params['service'] + '/' + params['version']
+            for_log["caller_address"] = transport.get_extra_info("peername")[0]
+            for_log["request_type"] = request_type
+            logger.debug(for_log)
         if request_type == 'register':
             self.register_service(packet, protocol)
         elif request_type == 'get_instances':
@@ -208,6 +215,11 @@ class Registry:
 
     def deregister_service(self, node_id):
         service = self._repository.get_node(node_id)
+        for_log = {}
+        for_log["caller_name"] = service.name + '/' + service.version
+        for_log["caller_address"] = service.host
+        for_log["request_type"] = 'deregister'
+        logger.debug(for_log)
         self._repository.remove_node(node_id)
         if service is not None:
             self._service_protocols.pop(node_id, None)
