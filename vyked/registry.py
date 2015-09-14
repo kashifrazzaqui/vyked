@@ -16,7 +16,7 @@ import json
 import ssl
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
-logger = logging.getLogger('vyked.Registry')
+logger = logging.getLogger('vyked.registry')
 
 
 def tree():
