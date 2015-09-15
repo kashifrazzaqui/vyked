@@ -12,7 +12,6 @@ import time
 _logger = logging.getLogger()
 
 
-
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
     entity = params.pop('entity', None)
@@ -51,6 +50,9 @@ def get_decorated_fun(method, path, required_params):
                 except TimeoutError as e:
                     Stats.http_stats['timedout'] += 1
                     logging.error("HTTP request had a %s" % str(e))
+                except BaseException as e:
+                    Stats.http_stats['total_errors'] += 1
+                    raise e
                 else:
                     t2 = time.time()
                     hostname = socket.gethostname()

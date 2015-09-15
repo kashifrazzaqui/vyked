@@ -114,7 +114,7 @@ class Repository:
     def log_uptimes(self):
         for name, nodes in self._uptimes.items():
             for host, d in nodes.items():
-                now = time.time()
+                now = int(time.time())
                 live = d.get('downtime', 0) < d['uptime']
                 uptime = now - d['uptime'] if live else 0
                 logd = {'service': name, 'host': host, 'status': live,

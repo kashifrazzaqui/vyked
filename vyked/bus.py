@@ -198,6 +198,9 @@ class TCPBus:
                 asyncio.wait_for(future, 120)
             except asyncio.TimeoutError:
                 Stats.tcp_stats['timedout'] += 1
+            except BaseException as e:
+                Stats.tcp_stats['total_errors'] += 1
+                raise e
 
             def send_result(f):
                 result_packet = f.result()
