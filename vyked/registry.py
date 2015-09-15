@@ -99,9 +99,11 @@ class Repository:
         for name, versions in self._registered_services.items():
             for version, instances in versions.items():
                 for instance in instances:
-                    thehost, port, node, service_type = instance
+                    host, port, node, service_type = instance
                     if node_id == node:
+                        thehost = host
                         instances.remove(instance)
+                        break
         for name, nodes in self._uptimes.items():
             for host, uptimes in nodes.items():
                 if host == thehost:
