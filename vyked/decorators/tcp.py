@@ -1,5 +1,7 @@
 from functools import wraps, partial
 from again.utils import unique_hex
+from ..utils.stats import Stats
+
 import asyncio
 import logging
 import socket
@@ -110,6 +112,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
     @asyncio.coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
+
         start_time = int(time.time() * 1000)
         self = args[0]
         rid = kwargs.pop('request_id')
@@ -118,13 +121,27 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         wrapped_func = func
         result = None
         error = None
+
         if not asyncio.iscoroutine(func):
             wrapped_func = asyncio.coroutine(func)
+
+        Stats.tcp_stats['total_requests'] += 1
+
         try:
-            result = yield from wrapped_func(self, **kwargs)
+            result = yield from asyncio.wait_for(wrapped_func(self, **kwargs), 120)
+
+        except asyncio.TimeoutError as e:
+            Stats.tcp_stats['timedout'] += 1
+            error = str(e)
+
         except Exception as e:
+            Stats.tcp_stats['total_errors'] += 1
             _logger.exception('api request exception')
             error = str(e)
+
+        else:
+            Stats.tcp_stats['total_responses'] += 1
+
         end_time = int(time.time() * 1000)
 
         hostname = socket.gethostname()

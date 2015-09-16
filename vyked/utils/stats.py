@@ -28,6 +28,6 @@ class Stats:
             logd[key] += value
             logd['tcp_' + key] = value
 
-        _logger.info(logd)
+        _logger.info(dict(logd))
 
         asyncio.get_event_loop().call_later(120, cls.periodic_stats_logger)

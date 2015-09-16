@@ -15,7 +15,6 @@ from .packet import ControlPacket, MessagePacket
 from .protocol_factory import get_vyked_protocol
 from .utils.jsonencoder import VykedEncoder
 from .exceptions import ClientNotFoundError, ClientDisconnected
-from .utils.stats import Stats
 
 HTTP = 'http'
 TCP = 'tcp'
@@ -188,25 +187,15 @@ class TCPBus:
                 _logger.warn('wrongly routed packet: ', packet)
 
     def _request_receiver(self, packet, protocol):
-        Stats.tcp_stats['total_requests'] += 1
         api_fn = getattr(self.tcp_host, packet['endpoint'])
         if api_fn.is_api:
             from_node_id = packet['from']
             entity = packet['entity']
             future = asyncio.async(api_fn(from_id=from_node_id, entity=entity, **packet['payload']))
 
-            try:
-                asyncio.wait_for(future, 120)
-            except asyncio.TimeoutError:
-                Stats.tcp_stats['timedout'] += 1
-            except BaseException as e:
-                Stats.tcp_stats['total_errors'] += 1
-                raise e
-
             def send_result(f):
                 result_packet = f.result()
                 protocol.send(result_packet)
-                Stats.tcp_stats['total_responses'] += 1
 
             future.add_done_callback(send_result)
         else:
@@ -234,7 +223,7 @@ class TCPBus:
 class PubSubBus:
     PUBSUB_DELAY = 5
 
-    def __init__(self, registry_client, ssl_context= None):
+    def __init__(self, registry_client, ssl_context=None):
         self._pubsub_handler = None
         self._registry_client = registry_client
         self._clients = None
