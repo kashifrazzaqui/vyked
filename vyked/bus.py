@@ -125,7 +125,7 @@ class TCPBus:
                 raise ClientDisconnected()
         else:
             # No node found to send request
-            _logger.error('Client Not found for packet %s', packet)
+            _logger.error('Out of %s, Client Not found for packet %s', self._client_protocols.keys(), packet)
             raise ClientNotFoundError()
 
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
