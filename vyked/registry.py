@@ -45,7 +45,10 @@ class Repository:
         service_entry = (service.host, service.port, service.node_id, service.type)
         self._registered_services[service.name][service.version].append(service_entry)
         self._pending_services[service_name].append(service.node_id)
-        self._uptimes[service_name][service.host]['uptime'] = int(time.time())
+        self._uptimes[service_name][service.host] = {
+            'uptime': int(time.time()),
+            'node_id': service.node_id
+        }
 
         if len(service.dependencies):
             if self._service_dependencies.get(service_name) is None:
@@ -106,7 +109,7 @@ class Repository:
                         break
         for name, nodes in self._uptimes.items():
             for host, uptimes in nodes.items():
-                if host == thehost:
+                if host == thehost and uptimes['node_id'] == node_id:
                     uptimes['downtime'] = int(time.time())
         return None
 
