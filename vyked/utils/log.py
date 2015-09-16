@@ -23,7 +23,7 @@ END = '\033[0m'
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = False
 
-stats_logformat = '{ "created":"%(created)s", "message":"%(message)s"}'
+stats_logformat = '{ "timestamp":"%(asctime)s", "message":"%(message)s"}'
 
 
 class CustomTimeLoggingFormatter(logging.Formatter):
