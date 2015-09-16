@@ -13,4 +13,4 @@ from .exceptions import RequestException
 from .utils.log import setup_logging, config_logs
 from .wrappers import Response, Request
 
-__version__ = '2.1.52'
+__version__ = '2.1.53'

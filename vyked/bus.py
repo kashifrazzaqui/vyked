@@ -114,8 +114,9 @@ class TCPBus:
         auto dispatch method called from self.send()
         """
         node_id = self._get_node_id_for_packet(packet)
-        if node_id is not None:
-            client_protocol = self._client_protocols[node_id]
+        client_protocol = self._client_protocols.get(node_id)
+
+        if node_id and client_protocol:
             if client_protocol.is_connected():
                 packet['to'] = node_id
                 client_protocol.send(packet)
