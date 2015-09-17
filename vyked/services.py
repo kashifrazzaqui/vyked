@@ -179,7 +179,7 @@ class _ServiceHost(_Service):
         return self._port
 
     def initiate(self):
-        yield from self._tcp_bus.register()
+        self.tcp_bus.register()
         yield from self.pubsub_bus.create_pubsub_handler()
         asyncio.async(self.pubsub_bus.register_for_subscription(self.host, self.port, self.node_id, self.clients))
 

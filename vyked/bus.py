@@ -81,13 +81,22 @@ class TCPBus:
                     futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
-    def register(self):
+    def connect(self):
         clients = self.tcp_host.clients if self.tcp_host else self.http_host.clients
         for client in clients:
             if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
                 client.bus = self
         self._service_clients = clients
         yield from self._registry_client.connect()
+
+    def register(self):
+        if self.tcp_host:
+            self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name,
+                                           self.tcp_host.version, self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
+        if self.http_host:
+            self._registry_client.register(self.http_host.host, self.http_host.port, self.http_host.name,
+                                           self.http_host.version, self.http_host.node_id, self.http_host.clients,
+                                           'http')
 
     def registration_complete(self):
         if not self._registered:

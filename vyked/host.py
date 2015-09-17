@@ -107,10 +107,9 @@ class Host:
         http_server = cls._create_http_server()
         if not cls.ronin:
             if cls._tcp_service:
-                asyncio.get_event_loop().run_until_complete(cls._tcp_service.initiate())
+                asyncio.get_event_loop().run_until_complete(cls._tcp_service.tcp_bus.connect())
             if cls._http_service:
-                asyncio.get_event_loop().run_until_complete(
-                    cls._http_service.initiate())
+                asyncio.get_event_loop().run_until_complete(cls._http_service.tcp_bus.connect())
         if tcp_server:
             _logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
         if http_server:
