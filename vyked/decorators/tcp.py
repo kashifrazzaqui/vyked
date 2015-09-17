@@ -1,6 +1,7 @@
 from functools import wraps, partial
 from again.utils import unique_hex
 from ..utils.stats import Stats
+from ..exceptions import VykedServiceException
 
 import asyncio
 import logging
@@ -132,6 +133,11 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
 
         except asyncio.TimeoutError as e:
             Stats.tcp_stats['timedout'] += 1
+            error = str(e)
+
+        except VykedServiceException as e:
+            Stats.tcp_stats['total_responses'] += 1
+            _logger.error(str(e))
             error = str(e)
 
         except Exception as e:
