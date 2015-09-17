@@ -176,11 +176,11 @@ class RegistryClient:
 
     def _handle_subscriber_packet(self, packet):
         request_id = packet['request_id']
-        future = self._pending_requests[request_id]
+        future = self._pending_requests.pop(request_id, None)
         future.set_result(packet['params']['subscribers'])
 
     def _handle_get_instances(self, packet):
-        future = self._pending_requests[packet['request_id']]
+        future = self._pending_requests.pop(packet['request_id'], None)
         future.set_result(packet['params']['instances'])
 
     def _handle_new_instance(self, service, version, host, port, node, type):
