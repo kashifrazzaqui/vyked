@@ -13,4 +13,4 @@ from .exceptions import RequestException, VykedServiceError, VykedServiceExcepti
 from .utils.log import setup_logging, config_logs
 from .wrappers import Response, Request
 
-__version__ = '2.1.58'
+__version__ = '2.1.59'
