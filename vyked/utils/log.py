@@ -1,5 +1,5 @@
 from logging import Handler
-from logging.handlers import RotatingFileHandler
+from logging import FileHandler
 from queue import Queue
 import sys
 import os
@@ -113,18 +113,18 @@ def setup_logging(identifier):
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
     logfile = os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier))
-    rotating_handler = RotatingFileHandler(logfile, maxBytes=FILE_SIZE, backupCount=10)
-    rotating_handler.setFormatter(formatter)
-    logger.addHandler(rotating_handler)
+    filehandler = FileHandler(logfile)
+    filehandler.setFormatter(formatter)
+    logger.addHandler(filehandler)
 
     stats_logger = logging.getLogger('stats')
     stats_formatter = CustomJsonFormatter(stats_logformat)
     stats_logfile = os.path.join(LOGS_DIR, 'vyked_stats.log')
-    stats_handler = RotatingFileHandler(stats_logfile, maxBytes=1024 * 1024, backupCount=5)
+    stats_handler = FileHandler(stats_logfile)
     stats_handler.setLevel(logging.INFO)
     stats_handler.setFormatter(stats_formatter)
     stats_logger.addHandler(stats_handler)
-    stats_logger.addHandler(rotating_handler)
+    stats_logger.addHandler(filehandler)
     # Stats.periodic_stats_logger()
 
     registry_logger = logging.getLogger('vyked.registry')
