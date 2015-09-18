@@ -102,7 +102,7 @@ class RegistryClient:
         elif packet['type'] == 'subscribers':
             self._handle_subscriber_packet(packet)
         elif packet['type'] == 'pong':
-            self._pinger.pong_received()
+            self._pinger.pong_received(payload=self._node_ids)
         elif packet['type'] == 'instances':
             self._handle_get_instances(packet)
 

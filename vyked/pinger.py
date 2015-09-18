@@ -40,13 +40,13 @@ class Pinger:
         self._handler.send_ping(payload=payload)
         self._start_timer()
 
-    def pong_received(self):
+    def pong_received(self, payload=None):
         """
         Called when a pong is received. So the timer is cancelled
         """
         self._timer.cancel()
         self._failures = 0
-        asyncio.async(self.send_ping())
+        asyncio.async(self.send_ping(payload=payload))
 
     def _start_timer(self):
         self._timer = self._loop.call_later(self._timeout, self._on_timeout)
@@ -79,8 +79,8 @@ class TCPPinger:
         self.logger.debug('Node %s timed out', self._node_id)
         self._handler.on_timeout(self._node_id)
 
-    def pong_received(self):
-        self._pinger.pong_received()
+    def pong_received(self, payload=None):
+        self._pinger.pong_received(payload=payload)
 
 
 class HTTPPinger:
