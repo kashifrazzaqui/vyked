@@ -15,7 +15,7 @@ class Pinger:
     Pinger to send ping packets to an endpoint and inform if the timeout has occurred
     """
 
-    def __init__(self, handler, interval, timeout, loop=asyncio.get_event_loop(), max_failures=2):
+    def __init__(self, handler, interval, timeout, loop=asyncio.get_event_loop(), max_failures=5):
         """
         Aysncio based pinger
         :param handler: Pinger uses it to send a ping and inform when timeout occurs.
