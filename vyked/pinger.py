@@ -4,6 +4,7 @@ from aiohttp import request
 
 from vyked.packet import ControlPacket
 import logging
+import functools
 
 PING_TIMEOUT = 10
 PING_INTERVAL = 5
@@ -14,7 +15,7 @@ class Pinger:
     Pinger to send ping packets to an endpoint and inform if the timeout has occurred
     """
 
-    def __init__(self, handler, interval, timeout, loop=asyncio.get_event_loop(), max_failures=5):
+    def __init__(self, handler, interval, timeout, loop=asyncio.get_event_loop(), max_failures=2):
         """
         Aysncio based pinger
         :param handler: Pinger uses it to send a ping and inform when timeout occurs.
@@ -30,6 +31,7 @@ class Pinger:
         self._timer = None
         self._failures = 0
         self._max_failures = max_failures
+        self.logger = logging.getLogger()
 
     @asyncio.coroutine
     def send_ping(self, payload=None):
@@ -38,23 +40,26 @@ class Pinger:
         """
         yield from asyncio.sleep(self._interval)
         self._handler.send_ping(payload=payload)
-        self._start_timer()
+        self._start_timer(payload=payload)
 
     def pong_received(self, payload=None):
         """
         Called when a pong is received. So the timer is cancelled
         """
-        self._timer.cancel()
+        try:
+            self._timer.cancel()
+        except AttributeError as e:
+            self.logger.error(str(e))
         self._failures = 0
         asyncio.async(self.send_ping(payload=payload))
 
-    def _start_timer(self):
-        self._timer = self._loop.call_later(self._timeout, self._on_timeout)
+    def _start_timer(self, payload=None):
+        self._timer = self._loop.call_later(self._timeout, functools.partial(self._on_timeout, payload=payload))
 
-    def _on_timeout(self):
+    def _on_timeout(self, payload=None):
         if self._failures < self._max_failures:
             self._failures += 1
-            asyncio.async(self.send_ping())
+            asyncio.async(self.send_ping(payload=payload))
         else:
             self._handler.on_timeout()
 
