@@ -33,7 +33,7 @@ class RegistryClient:
         self._protocol = None
         self._service = None
         self._version = None
-        self._node_ids = None
+        self._node_ids = {}
         self._pinger = None
         self._conn_handler = None
         self._pending_requests = {}

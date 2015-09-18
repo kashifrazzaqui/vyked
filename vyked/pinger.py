@@ -32,12 +32,12 @@ class Pinger:
         self._max_failures = max_failures
 
     @asyncio.coroutine
-    def send_ping(self):
+    def send_ping(self, payload=None):
         """
         Sends the ping after the interval specified when initializing
         """
         yield from asyncio.sleep(self._interval)
-        self._handler.send_ping()
+        self._handler.send_ping(payload=payload)
         self._start_timer()
 
     def pong_received(self):
