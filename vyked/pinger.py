@@ -69,11 +69,11 @@ class TCPPinger:
         self._protocol = protocol
         self._handler = handler
 
-    def ping(self):
-        asyncio.async(self._pinger.send_ping())
+    def ping(self, payload=None):
+        asyncio.async(self._pinger.send_ping(payload=payload))
 
-    def send_ping(self):
-        self._protocol.send(ControlPacket.ping(self._node_id))
+    def send_ping(self, payload=None):
+        self._protocol.send(ControlPacket.ping(self._node_id, payload=payload))
 
     def on_timeout(self):
         self.logger.debug('Node %s timed out', self._node_id)

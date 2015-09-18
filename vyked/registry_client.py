@@ -33,6 +33,7 @@ class RegistryClient:
         self._protocol = None
         self._service = None
         self._version = None
+        self._node_ids = None
         self._pinger = None
         self._conn_handler = None
         self._pending_requests = {}
@@ -51,6 +52,7 @@ class RegistryClient:
     def register(self, ip, port, service, version, node_id, vendors, service_type):
         self._service = service
         self._version = version
+        self._node_ids[service_type] = node_id
         packet = ControlPacket.registration(ip, port, node_id, service, version, vendors, service_type)
         self._protocol.send(packet)
 
@@ -81,7 +83,7 @@ class RegistryClient:
                                                                                   self._host, self._port, ssl=self._ssl_context)
         yield from self.conn_handler.handle_connected()
         self._pinger = TCPPinger('registry', self._protocol, self)
-        self._pinger.ping()
+        self._pinger.ping(payload=self._node_ids)
         return self._transport, self._protocol
 
     def on_timeout(self, node_id):
