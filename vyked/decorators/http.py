@@ -1,6 +1,7 @@
 from asyncio import iscoroutine, coroutine, wait_for, TimeoutError
 from functools import wraps
-from vyked import HTTPServiceClient, HTTPService, VykedServiceException
+from vyked import HTTPServiceClient, HTTPService
+from ..exceptions import VykedServiceException
 from aiohttp.web import Response
 from ..utils.stats import Stats
 import logging
