@@ -294,6 +294,8 @@ class Registry:
             future.add_done_callback(partial(self._handle_service_connection, node_id))
         elif service_type == 'http':
             pinger = HTTPPinger(node_id, host, port, self)
+            if node_id in self._pingers.keys():
+                del(self._pingers[node_id])
             self._pingers[node_id] = pinger
             pinger.ping()
 
@@ -301,6 +303,8 @@ class Registry:
         transport, protocol = future.result()
         self._service_protocols[node_id] = protocol
         pinger = TCPPinger(node_id, protocol, self)
+        if node_id in self._pingers.keys():
+            del(self._pingers[node_id])
         self._pingers[node_id] = pinger
         pinger.ping()
 
