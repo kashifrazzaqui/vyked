@@ -99,20 +99,20 @@ class HTTPPinger:
         self._url = 'http://{}:{}/ping'.format(host, port)
 
     def ping(self, payload=None):
-        asyncio.async(self._pinger.send_ping())
+        asyncio.async(self._pinger.send_ping(payload=payload))
 
     def send_ping(self, payload=None):
-        asyncio.async(self.ping_coroutine())
+        asyncio.async(self.ping_coroutine(payload=payload))
 
     def ping_coroutine(self, payload=None):
         res = yield from request('get', self._url)
         if res.status == 200:
-            self.pong_received()
+            self.pong_received(payload=payload)
             res.close()
 
-    def on_timeout(self, payload=None):
+    def on_timeout(self):
         self.logger.debug('Node %s timed out', self._node_id)
         self._handler.on_timeout(self._node_id)
 
     def pong_received(self, payload=None):
-        self._pinger.pong_received()
+        self._pinger.pong_received(payload=payload)
