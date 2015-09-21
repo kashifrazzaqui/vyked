@@ -242,7 +242,8 @@ class Registry:
                           params['node_id'], params['type'])
         self._repository.register_service(service)
         self._client_protocols[params['node_id']] = registry_protocol
-        self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
+        if params['node_id'] not in self._service_protocols.keys():
+            self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
         self._handle_pending_registrations()
         self._inform_consumers(service)
 
@@ -294,8 +295,6 @@ class Registry:
             future.add_done_callback(partial(self._handle_service_connection, node_id))
         elif service_type == 'http':
             pinger = HTTPPinger(node_id, host, port, self)
-            if node_id in self._pingers.keys():
-                del(self._pingers[node_id])
             self._pingers[node_id] = pinger
             pinger.ping()
 
@@ -303,8 +302,6 @@ class Registry:
         transport, protocol = future.result()
         self._service_protocols[node_id] = protocol
         pinger = TCPPinger(node_id, protocol, self)
-        if node_id in self._pingers.keys():
-            del(self._pingers[node_id])
         self._pingers[node_id] = pinger
         pinger.ping()
 
