@@ -1,6 +1,6 @@
 from functools import wraps, partial
 from again.utils import unique_hex
-from ..utils.stats import Stats
+from ..utils.stats import Stats, Aggregator
 from ..exceptions import VykedServiceException
 
 import asyncio
@@ -123,6 +123,8 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         result = None
         error = None
 
+        status = 'succesful'
+        success = True
         if not asyncio.iscoroutine(func):
             wrapped_func = asyncio.coroutine(func)
 
@@ -134,16 +136,21 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         except asyncio.TimeoutError as e:
             Stats.tcp_stats['timedout'] += 1
             error = str(e)
+            status = 'timeout'
+            success = False
 
         except VykedServiceException as e:
             Stats.tcp_stats['total_responses'] += 1
             _logger.error(str(e))
             error = str(e)
+            status = 'handled_error'
 
         except Exception as e:
             Stats.tcp_stats['total_errors'] += 1
             _logger.exception('api request exception')
             error = str(e)
+            status = 'unhandled_error'
+            success = False
 
         else:
             Stats.tcp_stats['total_responses'] += 1
@@ -160,6 +167,11 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         }
         logging.getLogger('stats').info(logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
+
+        # call to update aggregator, designed to replace the stats module.
+        Aggregator.update_stats(endpoint=func.__name__, status=status, success=success,
+                                server_type='tcp', time_taken=end_time - start_time)
+
         if not old_api:
             return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
                                               error=error)

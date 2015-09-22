@@ -3,7 +3,7 @@ from functools import wraps
 from vyked import HTTPServiceClient, HTTPService
 from ..exceptions import VykedServiceException
 from aiohttp.web import Response
-from ..utils.stats import Stats
+from ..utils.stats import Stats, Aggregator
 import logging
 import setproctitle
 import socket
@@ -40,10 +40,12 @@ def get_decorated_fun(method, path, required_params):
                     if len(missing_params) > 0:
                         res_d = {'error': 'Required params {} not found'.format(','.join(missing_params))}
                         Stats.http_stats['total_responses'] += 1
+                        Aggregator.update_stats(endpoint=path, status=400, success=False, server_type='http', time_taken=0)
                         return Response(status=400, content_type='application/json', body=json.dumps(res_d).encode())
 
                 t1 = time.time()
                 wrapped_func = func
+                success = True
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
                 try:
@@ -52,21 +54,27 @@ def get_decorated_fun(method, path, required_params):
                 except TimeoutError as e:
                     Stats.http_stats['timedout'] += 1
                     logging.error("HTTP request had a %s" % str(e))
+                    status = 'timeout'
+                    success = False
 
                 except VykedServiceException as e:
                     Stats.http_stats['total_responses'] += 1
                     _logger.error(str(e))
+                    status = 'handled_exception'
                     raise e
 
                 except Exception as e:
                     Stats.http_stats['total_errors'] += 1
                     _logger.exception('api request exception')
+                    status = 'unhandled_exception'
+                    success = False
                     raise e
 
                 else:
                     t2 = time.time()
                     hostname = socket.gethostname()
                     service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+                    status = result.status
 
                     logd = {
                         'status': result.status,
@@ -77,6 +85,11 @@ def get_decorated_fun(method, path, required_params):
                     logging.getLogger('stats').info(logd)
                     Stats.http_stats['total_responses'] += 1
                     return result
+
+                finally:
+                    t2 = time.time()
+                    Aggregator.update_stats(endpoint=path, status=status, success=success,
+                                            server_type='http', time_taken=int((t2 - t1) * 1000))
 
         f.is_http_method = True
         f.method = method

@@ -1,5 +1,6 @@
 from asyncio import Future, get_event_loop
 import logging
+import json
 
 from again.utils import unique_hex
 
@@ -8,6 +9,7 @@ from aiohttp.web import Response
 from .packet import MessagePacket
 from .exceptions import RequestException, ClientException
 from .utils.ordered_class_member import OrderedClassMembers
+from .utils.stats import Aggregator
 
 _logger = logging.getLogger(__name__)
 
@@ -113,6 +115,7 @@ class TCPServiceClient(_Service):
 
 
 class _ServiceHost(_Service):
+
     def __init__(self, service_name, service_version, host_ip, host_port):
         super(_ServiceHost, self).__init__(service_name, service_version)
         self._node_id = unique_hex()
@@ -182,9 +185,11 @@ class _ServiceHost(_Service):
 
 
 class TCPService(_ServiceHost):
+
     def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None):
         super(TCPService, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context
+
     @property
     def ssl_context(self):
         return self._ssl_context
@@ -221,6 +226,7 @@ def default_preflight_response(request):
 
 
 class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
+
     def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None,
                  allow_cross_domain=False,
                  preflight_response=default_preflight_response):
@@ -245,8 +251,14 @@ class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
     def pong(_):
         return Response()
 
+    @staticmethod
+    def stats(_):
+        res_d = Aggregator.dump_stats()
+        return Response(status=200, content_type='application/json', body=json.dumps(res_d).encode())
+
 
 class HTTPServiceClient(_Service):
+
     def __init__(self, service_name, service_version):
         super(HTTPServiceClient, self).__init__(service_name, service_version)
 
