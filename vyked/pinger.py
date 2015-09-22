@@ -77,6 +77,7 @@ class TCPPinger:
         self._protocol.send(ControlPacket.ping(self._node_id))
 
     def on_timeout(self):
+        self.logger.debug('%s timed out', self._node_id)
         # Dummy packet to cleanly close transport
         self._protocol._transport.write(
             '{"closed":"true", "type":"closed", "service":"none", "version":"none"}'.encode())
@@ -111,6 +112,7 @@ class HTTPPinger:
             res.close()
 
     def on_timeout(self):
+        self.logger.debug('%s timed out', self._node_id)
         self._handler.on_timeout(self._host, self._port, self._node_id)
 
     def pong_received(self):
