@@ -77,6 +77,7 @@ class TCPPinger:
 
     def on_timeout(self):
         self.logger.debug('Node %s timed out', self._node_id)
+        self._protocol.close()
         self._handler.on_timeout(self._node_id)
 
     def pong_received(self):
