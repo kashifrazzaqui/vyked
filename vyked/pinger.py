@@ -52,6 +52,10 @@ class Pinger:
     def _start_timer(self):
         self._timer = self._loop.call_later(self._timeout, self._on_timeout)
 
+    def stop(self):
+        if self._timer is not None:
+            self._timer.cancel()
+
     def _on_timeout(self):
         if self._failures < self._max_failures:
             self._failures += 1
@@ -85,6 +89,9 @@ class TCPPinger:
         self._protocol.close()
         self._handler.on_timeout(self._host, self._port, self._node_id)
 
+    def stop(self):
+        self._pinger.stop()
+
     def pong_received(self):
         self._pinger.pong_received()
 
@@ -111,6 +118,9 @@ class HTTPPinger:
         if res.status == 200:
             self.pong_received()
             res.close()
+
+    def stop(self):
+        self._pinger.stop()
 
     def on_timeout(self):
         self.logger.debug('%s timed out', self._node_id)

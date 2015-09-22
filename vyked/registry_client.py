@@ -81,6 +81,8 @@ class RegistryClient:
                                                                                   self._host, self._port,
                                                                                   ssl=self._ssl_context)
         self.conn_handler.handle_connected()
+        if self._pinger:
+            self._pinger.stop()
         self._pinger = TCPPinger(self._host, self._port, 'registry', self._protocol, self)
         self._pinger.ping()
         return self._transport, self._protocol
