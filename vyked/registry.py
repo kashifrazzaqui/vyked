@@ -122,7 +122,7 @@ class Repository:
                 now = int(time.time())
                 live = d.get('downtime', 0) < d['uptime']
                 uptime = now - d['uptime'] if live else 0
-                logd = {'service': name, 'host': host, 'status': live,
+                logd = {'service_name': name.split('/')[0], 'hostname': host, 'status': live,
                         'uptime': int(uptime)}
                 logger.info(logd)
 
