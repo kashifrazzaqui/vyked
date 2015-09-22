@@ -156,9 +156,6 @@ class Repository:
     def _split_key(key: str):
         return tuple(key.split('/'))
 
-    def json_dump(self):
-        print("JSON Dump")
-        print(json.dumps(self._registered_services, indent=4))
 
 class Registry:
     def __init__(self, ip, port, repository: Repository):
@@ -193,7 +190,6 @@ class Registry:
             self._loop.close()
 
     def _stop(self, signame: str):
-        self._repository.json_dump()
         print('\ngot signal {} - exiting'.format(signame))
         self._loop.stop()
 
@@ -300,9 +296,9 @@ class Registry:
             self._pingers[node_id] = pinger
             pinger.ping()
         elif service_type == 'ws':
-            coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), host, port)
-            future = asyncio.async(coroutine)
-            future.add_done_callback(partial(self._handle_service_connection, node_id))
+            pinger = HTTPPinger(node_id, host, port, self)
+            self._pingers[node_id] = pinger
+            pinger.ping()
 
     def _handle_service_connection(self, node_id, future):
         transport, protocol = future.result()

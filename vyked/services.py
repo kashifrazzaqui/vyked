@@ -268,3 +268,6 @@ class WSService(_ServiceHost, metaclass=OrderedClassMembers):
     def ssl_context(self):
         return self._ssl_context
 
+    @staticmethod
+    def pong(_):
+        return Response()

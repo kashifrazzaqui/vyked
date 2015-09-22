@@ -102,8 +102,10 @@ class Host:
     def _create_ws_server(cls):
         if cls._ws_service:
             host_ip, host_port = cls._ws_service.socket_address
-            ssl_context = cls._http_service.ssl_context
+            ssl_context = cls._ws_service.ssl_context
             app = Application(loop=asyncio.get_event_loop())
+            fn = getattr(cls._ws_service, 'pong')
+            app.router.add_route('GET', '/ping', fn)
             app['sockets'] = []
             for each in cls._ws_service.__ordered__:
                 fn = getattr(cls._ws_service, each)

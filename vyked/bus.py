@@ -83,7 +83,13 @@ class TCPBus:
         return asyncio.gather(*futures, return_exceptions=False)
 
     def connect(self):
-        clients = self.tcp_host.clients if self.tcp_host else self.http_host.clients
+        clients = []
+        if self.tcp_host:
+            clients = self.tcp_host.clients
+        if self.http_host:
+            clients = self.http_host.clients
+        if self.ws_host:
+            clients = self.ws_host.clients
         for client in clients:
             if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
                 client.bus = self

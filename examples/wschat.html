@@ -1,0 +1,27 @@
+<center>
+    <div id="tb"></div>
+    <input id="i" type="text"/>
+    <button onclick="send()">Send</button>
+
+</center>
+
+<script>
+
+var ws = new WebSocket("ws://127.0.0.1:4501");
+
+ws.onopen = function(){
+var timertoggle = setInterval(function(){ws.send('updater');}, 1000);
+}
+
+ws.onmessage = function(event){
+document.getElementById("tb").innerHTML=event.data;
+}
+
+function send(){
+
+ws.send(document.getElementById("i").value);
+document.getElementById("i").value = "";
+
+}
+
+</script>
