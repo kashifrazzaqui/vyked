@@ -78,13 +78,16 @@ class RegistryClient:
            strategy=[0, 2, 4, 8, 16, 32])
     def connect(self):
         self._transport, self._protocol = yield from self._loop.create_connection(partial(get_vyked_protocol, self),
-                                                                                  self._host, self._port, ssl=self._ssl_context)
+                                                                                  self._host, self._port,
+                                                                                  ssl=self._ssl_context)
         self.conn_handler.handle_connected()
-        self._pinger = TCPPinger('registry', self._protocol, self)
+        if self._pinger:
+            self._pinger.stop()
+        self._pinger = TCPPinger(self._host, self._port, 'registry', self._protocol, self)
         self._pinger.ping()
         return self._transport, self._protocol
 
-    def on_timeout(self, node_id):
+    def on_timeout(self, host, port, node_id):
         asyncio.async(self.connect())
 
     def receive(self, packet: dict, protocol, transport):
@@ -92,7 +95,7 @@ class RegistryClient:
             self.cache_vendors(packet['params']['vendors'])
             self.bus.registration_complete()
         elif packet['type'] == 'new_instance':
-            #TODO : once method for both vendors and new instance
+            # TODO : once method for both vendors and new instance
             self.cache_instance(**packet['params'])
             self._handle_new_instance(**packet['params'])
         elif packet['type'] == 'deregister':
