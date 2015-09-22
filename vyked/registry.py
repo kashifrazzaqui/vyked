@@ -290,9 +290,10 @@ class Registry:
 
     def _connect_to_service(self, host, port, node_id, service_type):
         if service_type == 'tcp':
-            coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), host, port)
-            future = asyncio.async(coroutine)
-            future.add_done_callback(partial(self._handle_service_connection, node_id, host, port))
+            if node_id not in self._service_protocols:
+                coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), host, port)
+                future = asyncio.async(coroutine)
+                future.add_done_callback(partial(self._handle_service_connection, node_id, host, port))
         elif service_type == 'http':
             if not (host, port) in self._http_pingers:
                 pinger = HTTPPinger(host, port, node_id, self)
