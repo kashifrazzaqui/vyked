@@ -165,7 +165,8 @@ class Registry:
         self._client_protocols = {}
         self._service_protocols = {}
         self._repository = repository
-        self._pingers = {}
+        self._tcp_pingers = {}
+        self._http_pingers = {}
         try:
             config = json_file_to_dict('./config.json')
             self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
@@ -217,8 +218,10 @@ class Registry:
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
 
-    def deregister_service(self, node_id):
+    def deregister_service(self, host, port, node_id):
         service = self._repository.get_node(node_id)
+        self._tcp_pingers.pop(node_id, None)
+        self._http_pingers.pop((host, port), None)
         if service:
             for_log = {"caller_name": service.name + '/' + service.version, "caller_address": service.host,
                        "request_type": 'deregister'}
@@ -289,17 +292,18 @@ class Registry:
         if service_type == 'tcp':
             coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), host, port)
             future = asyncio.async(coroutine)
-            future.add_done_callback(partial(self._handle_service_connection, node_id))
+            future.add_done_callback(partial(self._handle_service_connection, node_id, host, port))
         elif service_type == 'http':
-            pinger = HTTPPinger(node_id, host, port, self)
-            self._pingers[node_id] = pinger
-            pinger.ping()
+            if not (host, port) in self._http_pingers:
+                pinger = HTTPPinger(host, port, node_id, self)
+                self._http_pingers[(host, port)] = pinger
+                pinger.ping()
 
-    def _handle_service_connection(self, node_id, future):
+    def _handle_service_connection(self, node_id, host, port, future):
         transport, protocol = future.result()
         self._service_protocols[node_id] = protocol
-        pinger = TCPPinger(node_id, protocol, self)
-        self._pingers[node_id] = pinger
+        pinger = TCPPinger(host, port, node_id, protocol, self)
+        self._tcp_pingers[node_id] = pinger
         pinger.ping()
 
     def _notify_consumers(self, service, version, node_id):
@@ -324,13 +328,13 @@ class Registry:
         packet = ControlPacket.subscribers(service, version, endpoint, request_id, subscribers)
         protocol.send(packet)
 
-    def on_timeout(self, node_id):
+    def on_timeout(self, host, port, node_id):
         service = self._repository.get_node(node_id)
         logger.debug('%s timed out', service)
-        self.deregister_service(node_id)
+        self.deregister_service(host, port, node_id)
 
     def _ping(self, packet):
-        pinger = self._pingers[packet['node_id']]
+        pinger = self._tcp_pingers[packet['node_id']]
         pinger.pong_received()
 
     def _pong(self, packet, protocol):

@@ -60,10 +60,11 @@ class Pinger:
 
 
 class TCPPinger:
-
     logger = logging.getLogger(__name__)
 
-    def __init__(self, node_id, protocol, handler):
+    def __init__(self, host, port, node_id, protocol, handler):
+        self._host = host
+        self._port = port
         self._pinger = Pinger(self, PING_INTERVAL, PING_TIMEOUT)
         self._node_id = node_id
         self._protocol = protocol
@@ -76,20 +77,22 @@ class TCPPinger:
         self._protocol.send(ControlPacket.ping(self._node_id))
 
     def on_timeout(self):
-        #Dummy packet to cleanly close transport
-        self._protocol._transport.write('{"closed":"true", "type":"closed", "service":"none", "version":"none"}'.encode())
+        # Dummy packet to cleanly close transport
+        self._protocol._transport.write(
+            '{"closed":"true", "type":"closed", "service":"none", "version":"none"}'.encode())
         self._protocol.close()
-        self._handler.on_timeout(self._node_id)
+        self._handler.on_timeout(self._host, self._port, self._node_id)
 
     def pong_received(self):
         self._pinger.pong_received()
 
 
 class HTTPPinger:
-
     logger = logging.getLogger(__name__)
 
-    def __init__(self, node_id, host, port, handler):
+    def __init__(self, host, port, node_id, handler):
+        self._host = host
+        self._port = port
         self._pinger = Pinger(self, PING_INTERVAL, PING_TIMEOUT)
         self._node_id = node_id
         self._handler = handler
@@ -108,7 +111,7 @@ class HTTPPinger:
             res.close()
 
     def on_timeout(self):
-        self._handler.on_timeout(self._node_id)
+        self._handler.on_timeout(self._host, self._port, self._node_id)
 
     def pong_received(self):
         self._pinger.pong_received()
