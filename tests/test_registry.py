@@ -73,7 +73,7 @@ def test_deregister_dependent_service(service_a1, service_b1, registry):
 
     assert no_pending_services(registry)
 
-    registry.deregister_service(service_a1['node_id'])
+    registry.deregister_service(service_a1['host'], service_a1['port'], service_a1['node_id'])
     assert not no_pending_services(registry)
 
 
