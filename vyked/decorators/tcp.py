@@ -160,7 +160,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         }
         logging.getLogger('stats').info(logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
-        if not (old_api):
+        if not old_api:
             return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
                                               error=error)
         else:
