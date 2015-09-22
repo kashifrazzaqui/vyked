@@ -44,9 +44,10 @@ class Pinger:
         """
         Called when a pong is received. So the timer is cancelled
         """
-        self._timer.cancel()
-        self._failures = 0
-        asyncio.async(self.send_ping())
+        if self._timer is not None:
+            self._timer.cancel()
+            self._failures = 0
+            asyncio.async(self.send_ping())
 
     def _start_timer(self):
         self._timer = self._loop.call_later(self._timeout, self._on_timeout)
