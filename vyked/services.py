@@ -69,8 +69,8 @@ class TCPServiceClient(_Service):
             self.tcp_bus.send(packet)
         except ClientException as e:
             if not future.done() and not future.cancelled():
-                ERROR = 'Client not found'
-                exception = ClientException(ERROR)
+                ERROR = '101_Client not found'
+                exception = RequestException(ERROR)
                 exception.error = ERROR
                 future.set_exception(exception)
         _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)

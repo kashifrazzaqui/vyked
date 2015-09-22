@@ -182,16 +182,6 @@ class Host:
         service.pubsub_bus = pubsub_bus
 
     @classmethod
-    def _register_services(cls):
-        if not cls.ronin:
-            if cls._tcp_service:
-                cls._tcp_service.register()
-            if cls._http_service:
-                cls._http_service.register()
-            if cls._ws_service:
-                cls._ws_service.register()
-
-    @classmethod
     def _setup_logging(cls):
         host = cls._tcp_service if cls._tcp_service else cls._http_service
         host = host if host else cls._ws_service

@@ -1,5 +1,6 @@
 from aiohttp.web import Request as Req, Response as Res, WebSocketResponse as Wres
 
+
 class Request(Req):
     """
     Wraps the aiohttp request object to hide it from user

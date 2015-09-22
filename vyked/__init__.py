@@ -14,5 +14,4 @@ from .utils.log import setup_logging, config_logs
 from .wrappers import Response, Request, WebSocketResponse
 from .decorators.ws import ws
 
-
-__version__ = '2.1.64'
+__version__ = '2.1.58'
