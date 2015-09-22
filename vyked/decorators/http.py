@@ -1,6 +1,7 @@
 from asyncio import iscoroutine, coroutine, wait_for, TimeoutError
 from functools import wraps
 from vyked import HTTPServiceClient, HTTPService
+from ..exceptions import VykedServiceException
 from aiohttp.web import Response
 from ..utils.stats import Stats
 import logging
@@ -47,12 +48,21 @@ def get_decorated_fun(method, path, required_params):
                     wrapped_func = coroutine(func)
                 try:
                     result = yield from wait_for(wrapped_func(self, *args, **kwargs), 120)
+
                 except TimeoutError as e:
                     Stats.http_stats['timedout'] += 1
                     logging.error("HTTP request had a %s" % str(e))
-                except BaseException as e:
-                    Stats.http_stats['total_errors'] += 1
+
+                except VykedServiceException as e:
+                    Stats.http_stats['total_responses'] += 1
+                    _logger.error(str(e))
                     raise e
+
+                except Exception as e:
+                    Stats.http_stats['total_errors'] += 1
+                    _logger.exception('api request exception')
+                    raise e
+
                 else:
                     t2 = time.time()
                     hostname = socket.gethostname()
@@ -66,7 +76,7 @@ def get_decorated_fun(method, path, required_params):
                     }
                     logging.getLogger('stats').info(logd)
                     Stats.http_stats['total_responses'] += 1
-                    return (result)
+                    return result
 
         f.is_http_method = True
         f.method = method
