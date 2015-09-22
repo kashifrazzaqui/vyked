@@ -32,7 +32,6 @@ def json_file_to_dict(_file: str) -> dict:
 
 
 class Repository:
-
     def __init__(self):
         self._registered_services = defaultdict(lambda: defaultdict(list))
         self._pending_services = defaultdict(list)
@@ -111,6 +110,7 @@ class Repository:
             for host, uptimes in nodes.items():
                 if host == thehost and uptimes['node_id'] == node_id:
                     uptimes['downtime'] = int(time.time())
+                    self.log_uptimes()
         return None
 
     def get_uptimes(self):
@@ -158,7 +158,6 @@ class Repository:
 
 
 class Registry:
-
     def __init__(self, ip, port, repository: Repository):
         self._ip = ip
         self._port = port
@@ -220,21 +219,20 @@ class Registry:
 
     def deregister_service(self, node_id):
         service = self._repository.get_node(node_id)
-        for_log = {}
-        for_log["caller_name"] = service.name + '/' + service.version
-        for_log["caller_address"] = service.host
-        for_log["request_type"] = 'deregister'
-        logger.debug(for_log)
-        self._repository.remove_node(node_id)
-        if service is not None:
-            self._service_protocols.pop(node_id, None)
-            self._client_protocols.pop(node_id, None)
-            self._notify_consumers(service.name, service.version, node_id)
-            if not len(self._repository.get_instances(service.name, service.version)):
-                consumers = self._repository.get_consumers(service.name, service.version)
-                for consumer_name, consumer_version in consumers:
-                    for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
-                        self._repository.add_pending_service(consumer_name, consumer_version, node_id)
+        if service:
+            for_log = {"caller_name": service.name + '/' + service.version, "caller_address": service.host,
+                       "request_type": 'deregister'}
+            logger.debug(for_log)
+            self._repository.remove_node(node_id)
+            if service is not None:
+                self._service_protocols.pop(node_id, None)
+                self._client_protocols.pop(node_id, None)
+                self._notify_consumers(service.name, service.version, node_id)
+                if not len(self._repository.get_instances(service.name, service.version)):
+                    consumers = self._repository.get_consumers(service.name, service.version)
+                    for consumer_name, consumer_version in consumers:
+                        for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
+                            self._repository.add_pending_service(consumer_name, consumer_version, node_id)
 
     def register_service(self, packet: dict, registry_protocol):
         params = packet['params']
@@ -327,6 +325,8 @@ class Registry:
         protocol.send(packet)
 
     def on_timeout(self, node_id):
+        service = self._repository.get_node(node_id)
+        logger.debug('%s timed out', service)
         self.deregister_service(node_id)
 
     def _ping(self, packet):
