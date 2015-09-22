@@ -76,6 +76,8 @@ class TCPPinger:
         self._protocol.send(ControlPacket.ping(self._node_id))
 
     def on_timeout(self):
+        #Dummy packet to cleanly close transport
+        self._protocol._transport.write('{"closed":"true", "type":"closed", "service":"none", "version":"none"}'.encode())
         self._protocol.close()
         self._handler.on_timeout(self._node_id)
 
