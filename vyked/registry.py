@@ -111,7 +111,6 @@ class Repository:
             for host, uptimes in nodes.items():
                 if host == thehost and uptimes['node_id'] == node_id:
                     uptimes['downtime'] = int(time.time())
-                    self.log_uptimes()
         return None
 
     def get_uptimes(self):
@@ -333,8 +332,6 @@ class Registry:
         protocol.send(packet)
 
     def on_timeout(self, node_id):
-        service = self._repository.get_node(node_id)
-        logger.debug('%s timed out', service)
         self.deregister_service(node_id)
 
     def _ping(self, packet):
