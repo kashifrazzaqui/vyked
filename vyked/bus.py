@@ -31,7 +31,6 @@ def _retry_for_exception(_):
 
 
 class HTTPBus:
-
     def __init__(self, registry_client):
         self._registry_client = registry_client
 
@@ -59,7 +58,6 @@ class HTTPBus:
 
 
 class TCPBus:
-
     def __init__(self, registry_client):
         registry_client.conn_handler = self
         self._registry_client = registry_client
@@ -83,13 +81,22 @@ class TCPBus:
                     futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
-    def register(self):
+    def connect(self):
         clients = self.tcp_host.clients if self.tcp_host else self.http_host.clients
         for client in clients:
             if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
                 client.bus = self
         self._service_clients = clients
-        asyncio.get_event_loop().run_until_complete(self._registry_client.connect())
+        yield from self._registry_client.connect()
+
+    def register(self):
+        if self.tcp_host:
+            self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name,
+                                           self.tcp_host.version, self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
+        if self.http_host:
+            self._registry_client.register(self.http_host.host, self.http_host.port, self.http_host.name,
+                                           self.http_host.version, self.http_host.node_id, self.http_host.clients,
+                                           'http')
 
     def registration_complete(self):
         if not self._registered:
@@ -212,26 +219,25 @@ class TCPBus:
 
     def handle_connected(self):
         if self.tcp_host:
-            self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name, self.tcp_host.version,
-                                           self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
+            yield from self.tcp_host.initiate()
         if self.http_host:
-            self._registry_client.register(self.http_host.host, self.http_host.port, self.http_host.name,
-                                           self.http_host.version, self.http_host.node_id, self.http_host.clients,
-                                           'http')
+            yield from self.http_host.initiate()
 
 
 class PubSubBus:
     PUBSUB_DELAY = 5
 
-    def __init__(self, registry_client, ssl_context=None):
+    def __init__(self, pubsub_host, pubsub_port, registry_client, ssl_context=None):
+        self._host = pubsub_host
+        self._port = pubsub_port
         self._pubsub_handler = None
         self._registry_client = registry_client
         self._clients = None
         self._pending_publishes = {}
         self._ssl_context = ssl_context
 
-    def create_pubsub_handler(self, host, port):
-        self._pubsub_handler = PubSub(host, port)
+    def create_pubsub_handler(self):
+        self._pubsub_handler = PubSub(self._host, self._port)
         yield from self._pubsub_handler.connect()
 
     def register_for_subscription(self, host, port, node_id, clients):

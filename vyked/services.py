@@ -4,6 +4,7 @@ import logging
 from again.utils import unique_hex
 
 from aiohttp.web import Response
+import asyncio
 
 from .packet import MessagePacket
 from .exceptions import RequestException, ClientException
@@ -165,9 +166,6 @@ class _ServiceHost(_Service):
     def clients(self, clients):
         self._clients = clients
 
-    def register(self):
-        self._tcp_bus.register()
-
     @property
     def socket_address(self):
         return self._ip, self._port
@@ -180,11 +178,17 @@ class _ServiceHost(_Service):
     def port(self):
         return self._port
 
+    def initiate(self):
+        self.tcp_bus.register()
+        yield from self.pubsub_bus.create_pubsub_handler()
+        asyncio.async(self.pubsub_bus.register_for_subscription(self.host, self.port, self.node_id, self.clients))
+
 
 class TCPService(_ServiceHost):
     def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None):
         super(TCPService, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context
+
     @property
     def ssl_context(self):
         return self._ssl_context
