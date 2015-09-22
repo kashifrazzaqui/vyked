@@ -16,9 +16,12 @@ import json
 import ssl
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
-tree = lambda: defaultdict(tree)
+logger = logging.getLogger('vyked.registry')
 
-logger = logging.getLogger(__name__)
+
+def tree():
+    return defaultdict(tree)
+
 
 def json_file_to_dict(_file: str) -> dict:
     config = None
@@ -27,8 +30,8 @@ def json_file_to_dict(_file: str) -> dict:
 
     return config
 
-class Repository:
 
+class Repository:
     def __init__(self):
         self._registered_services = defaultdict(lambda: defaultdict(list))
         self._pending_services = defaultdict(list)
@@ -41,7 +44,11 @@ class Repository:
         service_entry = (service.host, service.port, service.node_id, service.type)
         self._registered_services[service.name][service.version].append(service_entry)
         self._pending_services[service_name].append(service.node_id)
-        self._uptimes[service_name][service.node_id]['uptime'] = int(time.time())
+        self._uptimes[service_name][service.host] = {
+            'uptime': int(time.time()),
+            'node_id': service.node_id
+        }
+
         if len(service.dependencies):
             if self._service_dependencies.get(service_name) is None:
                 self._service_dependencies[service_name] = service.dependencies
@@ -90,20 +97,34 @@ class Repository:
         return None
 
     def remove_node(self, node_id):
+        thehost = None
         for name, versions in self._registered_services.items():
             for version, instances in versions.items():
                 for instance in instances:
                     host, port, node, service_type = instance
                     if node_id == node:
+                        thehost = host
                         instances.remove(instance)
+                        break
         for name, nodes in self._uptimes.items():
-            for node, uptimes in nodes.items():
-                if node == node_id:
+            for host, uptimes in nodes.items():
+                if host == thehost and uptimes['node_id'] == node_id:
                     uptimes['downtime'] = int(time.time())
+                    self.log_uptimes()
         return None
 
     def get_uptimes(self):
         return self._uptimes
+
+    def log_uptimes(self):
+        for name, nodes in self._uptimes.items():
+            for host, d in nodes.items():
+                now = int(time.time())
+                live = d.get('downtime', 0) < d['uptime']
+                uptime = now - d['uptime'] if live else 0
+                logd = {'service': name, 'host': host, 'status': live,
+                        'uptime': int(uptime)}
+                logger.info(logd)
 
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
         entry = (service, version, host, port, node_id)
@@ -140,7 +161,6 @@ class Repository:
         print(json.dumps(self._registered_services, indent=4))
 
 class Registry:
-
     def __init__(self, ip, port, repository: Repository):
         self._ip = ip
         self._port = port
@@ -160,7 +180,8 @@ class Registry:
         setup_logging("registry")
         self._loop.add_signal_handler(getattr(signal, 'SIGINT'), partial(self._stop, 'SIGINT'))
         self._loop.add_signal_handler(getattr(signal, 'SIGTERM'), partial(self._stop, 'SIGTERM'))
-        registry_coroutine = self._loop.create_server(partial(get_vyked_protocol, self), self._ip, self._port, ssl=self._ssl_context)
+        registry_coroutine = self._loop.create_server(
+            partial(get_vyked_protocol, self), self._ip, self._port, ssl=self._ssl_context)
         server = self._loop.run_until_complete(registry_coroutine)
         try:
             self._loop.run_forever()
@@ -178,6 +199,13 @@ class Registry:
 
     def receive(self, packet: dict, protocol, transport):
         request_type = packet['type']
+        if request_type in ['register', 'get_instances', 'xsubscribe', 'get_subscribers']:
+            for_log = {}
+            params = packet['params']
+            for_log["caller_name"] = params['service'] + '/' + params['version']
+            for_log["caller_address"] = transport.get_extra_info("peername")[0]
+            for_log["request_type"] = request_type
+            logger.debug(for_log)
         if request_type == 'register':
             self.register_service(packet, protocol)
         elif request_type == 'get_instances':
@@ -195,16 +223,20 @@ class Registry:
 
     def deregister_service(self, node_id):
         service = self._repository.get_node(node_id)
-        self._repository.remove_node(node_id)
-        if service is not None:
-            self._service_protocols.pop(node_id, None)
-            self._client_protocols.pop(node_id, None)
-            self._notify_consumers(service.name, service.version, node_id)
-            if not len(self._repository.get_instances(service.name, service.version)):
-                consumers = self._repository.get_consumers(service.name, service.version)
-                for consumer_name, consumer_version in consumers:
-                    for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
-                        self._repository.add_pending_service(consumer_name, consumer_version, node_id)
+        if service:
+            for_log = {"caller_name": service.name + '/' + service.version, "caller_address": service.host,
+                       "request_type": 'deregister'}
+            logger.debug(for_log)
+            self._repository.remove_node(node_id)
+            if service is not None:
+                self._service_protocols.pop(node_id, None)
+                self._client_protocols.pop(node_id, None)
+                self._notify_consumers(service.name, service.version, node_id)
+                if not len(self._repository.get_instances(service.name, service.version)):
+                    consumers = self._repository.get_consumers(service.name, service.version)
+                    for consumer_name, consumer_version in consumers:
+                        for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
+                            self._repository.add_pending_service(consumer_name, consumer_version, node_id)
 
     def register_service(self, packet: dict, registry_protocol):
         params = packet['params']
@@ -212,7 +244,8 @@ class Registry:
                           params['node_id'], params['type'])
         self._repository.register_service(service)
         self._client_protocols[params['node_id']] = registry_protocol
-        self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
+        if params['node_id'] not in self._service_protocols.keys():
+            self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
         self._handle_pending_registrations()
         self._inform_consumers(service)
 
@@ -266,6 +299,10 @@ class Registry:
             pinger = HTTPPinger(node_id, host, port, self)
             self._pingers[node_id] = pinger
             pinger.ping()
+        elif service_type == 'ws':
+            coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), host, port)
+            future = asyncio.async(coroutine)
+            future.add_done_callback(partial(self._handle_service_connection, node_id))
 
     def _handle_service_connection(self, node_id, future):
         transport, protocol = future.result()
@@ -297,6 +334,8 @@ class Registry:
         protocol.send(packet)
 
     def on_timeout(self, node_id):
+        service = self._repository.get_node(node_id)
+        logger.debug('%s timed out', service)
         self.deregister_service(node_id)
 
     def _ping(self, packet):
@@ -317,6 +356,11 @@ class Registry:
         uptimes = self._repository.get_uptimes()
         protocol.send(ControlPacket.uptime(uptimes))
 
+    def periodic_uptime_logger(self):
+        self._repository.log_uptimes()
+        asyncio.get_event_loop().call_later(300, self.periodic_uptime_logger)
+
+
 if __name__ == '__main__':
     config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
     from setproctitle import setproctitle
@@ -325,4 +369,5 @@ if __name__ == '__main__':
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT, Repository())
+    registry.periodic_uptime_logger()
     registry.start()

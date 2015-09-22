@@ -4,12 +4,11 @@ import logging
 from again.utils import unique_hex
 
 from aiohttp.web import Response
+import asyncio
 
 from .packet import MessagePacket
 from .exceptions import RequestException, ClientException
 from .utils.ordered_class_member import OrderedClassMembers
-
-from asyncio import coroutine
 
 _logger = logging.getLogger(__name__)
 
@@ -70,8 +69,9 @@ class TCPServiceClient(_Service):
             self.tcp_bus.send(packet)
         except ClientException as e:
             if not future.done() and not future.cancelled():
-                exception = RequestException()
-                exception.error = str(e)
+                ERROR = 'Client not found'
+                exception = ClientException(ERROR)
+                exception.error = ERROR
                 future.set_exception(exception)
         _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
@@ -166,9 +166,6 @@ class _ServiceHost(_Service):
     def clients(self, clients):
         self._clients = clients
 
-    def register(self):
-        self._tcp_bus.register()
-
     @property
     def socket_address(self):
         return self._ip, self._port
@@ -181,11 +178,17 @@ class _ServiceHost(_Service):
     def port(self):
         return self._port
 
+    def initiate(self):
+        self.tcp_bus.register()
+        yield from self.pubsub_bus.create_pubsub_handler()
+        asyncio.async(self.pubsub_bus.register_for_subscription(self.host, self.port, self.node_id, self.clients))
+
 
 class TCPService(_ServiceHost):
     def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None):
         super(TCPService, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context
+
     @property
     def ssl_context(self):
         return self._ssl_context
@@ -257,10 +260,11 @@ class HTTPServiceClient(_Service):
         return response
 
 class WSService(_ServiceHost, metaclass=OrderedClassMembers):
-    def __init__(self, service_name, service_version, host_ip=None, host_port=None):
+    def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None):
         super(WSService, self).__init__(service_name, service_version, host_ip, host_port)
+        self._ssl_context = ssl_context
 
-    def register(self):
-        self._tcp_bus.register(self._ip, self._port, self.name, self.version, self._clients, 'ws')
+    @property
+    def ssl_context(self):
+        return self._ssl_context
 
-#TODO: Need WSServiceClient??

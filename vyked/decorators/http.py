@@ -1,10 +1,16 @@
-from asyncio import iscoroutine, coroutine
+from asyncio import iscoroutine, coroutine, wait_for, TimeoutError
 from functools import wraps
 from vyked import HTTPServiceClient, HTTPService
+from ..exceptions import VykedServiceException
 from aiohttp.web import Response
+from ..utils.stats import Stats
 import logging
+import setproctitle
+import socket
 import json
 import time
+
+_logger = logging.getLogger()
 
 
 def make_request(func, self, args, kwargs, method):
@@ -23,6 +29,7 @@ def get_decorated_fun(method, path, required_params):
             if isinstance(self, HTTPServiceClient):
                 return (yield from make_request(func, self, args, kwargs, method))
             elif isinstance(self, HTTPService):
+                Stats.http_stats['total_requests'] += 1
                 if required_params is not None:
                     req = args[0]
                     query_params = req.GET
@@ -31,23 +38,45 @@ def get_decorated_fun(method, path, required_params):
                         params = [required_params]
                     missing_params = list(filter(lambda x: x not in query_params, params))
                     if len(missing_params) > 0:
-                        return Response(status=400, content_type='application/json',
-                                        body=json.dumps({'error': 'Required params {} not found'.format(
-                                            ','.join(missing_params))}).encode())
+                        res_d = {'error': 'Required params {} not found'.format(','.join(missing_params))}
+                        Stats.http_stats['total_responses'] += 1
+                        return Response(status=400, content_type='application/json', body=json.dumps(res_d).encode())
+
                 t1 = time.time()
                 wrapped_func = func
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
-                result = yield from wrapped_func(self, *args, **kwargs)
-                t2 = time.time()
-                logd = {
-                    'status': result.status,
-                    'time_taken': int((t2 - t1) * 1000),
-                    'type': 'http',
-                }
-                logging.getLogger('stats').info(logd)
+                try:
+                    result = yield from wait_for(wrapped_func(self, *args, **kwargs), 120)
 
-                return (result)
+                except TimeoutError as e:
+                    Stats.http_stats['timedout'] += 1
+                    logging.error("HTTP request had a %s" % str(e))
+
+                except VykedServiceException as e:
+                    Stats.http_stats['total_responses'] += 1
+                    _logger.error(str(e))
+                    raise e
+
+                except Exception as e:
+                    Stats.http_stats['total_errors'] += 1
+                    _logger.exception('api request exception')
+                    raise e
+
+                else:
+                    t2 = time.time()
+                    hostname = socket.gethostname()
+                    service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+
+                    logd = {
+                        'status': result.status,
+                        'time_taken': int((t2 - t1) * 1000),
+                        'type': 'http',
+                        'hostname': hostname, 'service_name': service_name
+                    }
+                    logging.getLogger('stats').info(logd)
+                    Stats.http_stats['total_responses'] += 1
+                    return result
 
         f.is_http_method = True
         f.method = method

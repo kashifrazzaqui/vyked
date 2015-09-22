@@ -1,5 +1,5 @@
 from logging import Handler
-from logging.handlers import RotatingFileHandler
+from logging import FileHandler
 from queue import Queue
 import sys
 import os
@@ -9,8 +9,6 @@ import asyncio
 import datetime
 from functools import partial, wraps
 from pythonjsonlogger import jsonlogger
-import setproctitle
-import socket
 
 FILE_SIZE = 5 * 1024 * 1024
 
@@ -25,10 +23,7 @@ END = '\033[0m'
 stream_handler = logging.StreamHandler()
 ping_logs_enabled = False
 
-stats_logformat = 'Python: { "loggerName":"%(name)s", "asciTime":"%(asctime)s",' \
-    ' "pathName":"%(pathname)s", "logRecordCreationTime":"%(created)f",' \
-    ' "functionName":"%(funcName)s", "levelNo":"%(levelno)s", "lineNo":"%(lineno)d",' \
-    ' "time":"%(msecs)d", "levelName":"%(levelname)s", "message":"%(message)s"}'
+stats_logformat = '{ "timestamp":"%(asctime)s", "message":"%(message)s"}'
 
 
 class CustomTimeLoggingFormatter(logging.Formatter):
@@ -50,17 +45,11 @@ class CustomTimeLoggingFormatter(logging.Formatter):
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
     def __init__(self, *args, **kwargs):
-        self.hostname = socket.gethostname()
-        self.proctitle = setproctitle.getproctitle()
-        elements = self.proctitle.split('_')
-        self.service_name = '_'.join(elements[:-1])
-        self.node_id = elements[-1]
+        self.extrad = kwargs.pop('extrad', {})
         super().__init__(*args, **kwargs)
 
     def add_fields(self, log_record, record, message_dict):
-        d = {'service_name': self.service_name, 'hostname': self.hostname,
-             'node_id': self.node_id, 'proctitle': self.proctitle}
-        message_dict.update(d)
+        message_dict.update(self.extrad)
         super().add_fields(log_record, record, message_dict)
 
 
@@ -124,18 +113,22 @@ def setup_logging(identifier):
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
     logfile = os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier))
-    rotating_handler = RotatingFileHandler(logfile, maxBytes=FILE_SIZE, backupCount=10)
-    rotating_handler.setFormatter(formatter)
-    logger.addHandler(rotating_handler)
+    filehandler = FileHandler(logfile)
+    filehandler.setFormatter(formatter)
+    logger.addHandler(filehandler)
 
     stats_logger = logging.getLogger('stats')
     stats_formatter = CustomJsonFormatter(stats_logformat)
-    stats_logfile = os.path.join(LOGS_DIR, LOG_FILE_NAME.format(identifier + '_stats'))
-    stats_handler = RotatingFileHandler(stats_logfile, maxBytes=1024 * 1024, backupCount=5)
+    stats_logfile = os.path.join(LOGS_DIR, 'vyked_stats.log')
+    stats_handler = FileHandler(stats_logfile)
     stats_handler.setLevel(logging.INFO)
     stats_handler.setFormatter(stats_formatter)
     stats_logger.addHandler(stats_handler)
-    stats_logger.addHandler(rotating_handler)
+    stats_logger.addHandler(filehandler)
+    # Stats.periodic_stats_logger()
+
+    registry_logger = logging.getLogger('vyked.registry')
+    registry_logger.addHandler(stats_handler)
 
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):

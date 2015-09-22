@@ -3,6 +3,7 @@ import logging
 from functools import partial
 import signal
 import os
+import socket
 
 from aiohttp.web import Application
 
@@ -11,6 +12,7 @@ from vyked.registry_client import RegistryClient
 from vyked.services import HTTPService, TCPService, WSService
 from .protocol_factory import get_vyked_protocol
 from .utils.log import setup_logging
+from vyked.utils.stats import Stats
 
 _logger = logging.getLogger(__name__)
 
@@ -100,6 +102,7 @@ class Host:
     def _create_ws_server(cls):
         if cls._ws_service:
             host_ip, host_port = cls._ws_service.socket_address
+            ssl_context = cls._http_service.ssl_context
             app = Application(loop=asyncio.get_event_loop())
             app['sockets'] = []
             for each in cls._ws_service.__ordered__:
@@ -108,7 +111,7 @@ class Host:
                     for path in fn.paths:
                         app.router.add_route(fn.method, path, fn)
             handler = app.make_handler(access_log=_logger)
-            task = asyncio.get_event_loop().create_server(handler, host_ip, host_port)
+            task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             result = asyncio.get_event_loop().run_until_complete(task)
             return result
 
@@ -123,9 +126,13 @@ class Host:
         tcp_server = cls._create_tcp_server()
         http_server = cls._create_http_server()
         ws_server = cls._create_ws_server()
-        cls._register_services()
-        cls._create_pubsub_handler()
-        cls._subscribe()
+        if not cls.ronin:
+            if cls._tcp_service:
+                asyncio.get_event_loop().run_until_complete(cls._tcp_service.tcp_bus.connect())
+            if cls._http_service:
+                asyncio.get_event_loop().run_until_complete(cls._http_service.tcp_bus.connect())
+            if cls._ws_service:
+                asyncio.get_event_loop().run_until_complete(cls._ws_service.tcp_bus.connect())
         if tcp_server:
             _logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
         if http_server:
@@ -142,52 +149,33 @@ class Host:
             if tcp_server:
                 tcp_server.close()
                 asyncio.get_event_loop().run_until_complete(tcp_server.wait_closed())
+
             if http_server:
                 http_server.close()
                 asyncio.get_event_loop().run_until_complete(http_server.wait_closed())
+
             if ws_server:
                 ws_server.close()
                 asyncio.get_event_loop().run_until_complete(ws_server.wait_closed())
+
             asyncio.get_event_loop().close()
 
     @classmethod
-    def _create_pubsub_handler(cls):
-        if not cls.ronin:
-            if cls._tcp_service:
-                asyncio.get_event_loop().run_until_complete(
-                    cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
-            if cls._http_service:
-                asyncio.get_event_loop().run_until_complete(
-                    cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
-
-    @classmethod
-    def _subscribe(cls):
-        if not cls.ronin:
-            if cls._tcp_service:
-                asyncio.async(
-                    cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.host, cls._tcp_service.port,
-                                                                          cls._tcp_service.node_id,
-                                                                          cls._tcp_service.clients))
-            if cls._http_service:
-                asyncio.async(
-                    cls._http_service.pubsub_bus.register_for_subscription(cls._http_service.host,
-                                                                           cls._http_service.port,
-                                                                           cls._http_service.node_id,
-                                                                           cls._http_service.clients))
-
-    @classmethod
     def _set_bus(cls, service):
-        registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port,
-                                         cls.registry_client_ssl)
+        registry_client = RegistryClient(
+            asyncio.get_event_loop(), cls.registry_host, cls.registry_port, cls.registry_client_ssl)
         tcp_bus = TCPBus(registry_client)
         registry_client.conn_handler = tcp_bus
-        pubsub_bus = PubSubBus(registry_client)
+        # pubsub_bus = PubSubBus(registry_client, ssl_context=cls._tcp_service._ssl_context)
+        pubsub_bus = PubSubBus(cls.pubsub_host, cls.pubsub_port, registry_client)  # , cls._tcp_service._ssl_context)
 
         registry_client.bus = tcp_bus
         if isinstance(service, TCPService):
             tcp_bus.tcp_host = service
         if isinstance(service, HTTPService):
             tcp_bus.http_host = service
+        if isinstance(service, WSService):
+            tcp_bus.ws_host = service
         service.tcp_bus = tcp_bus
         service.pubsub_bus = pubsub_bus
 
@@ -206,3 +194,5 @@ class Host:
         host = cls._tcp_service if cls._tcp_service else cls._http_service
         host = host if host else cls._ws_service
         setup_logging('{}_{}'.format(host.name, host.socket_address[1]))
+        Stats.service_name = host.name
+        Stats.periodic_stats_logger()

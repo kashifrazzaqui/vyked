@@ -18,8 +18,6 @@ from .exceptions import ClientNotFoundError, ClientDisconnected
 
 HTTP = 'http'
 TCP = 'tcp'
-total_requests = 0
-total_responses = 0
 
 _logger = logging.getLogger(__name__)
 
@@ -69,6 +67,7 @@ class TCPBus:
         self._service_clients = []
         self.tcp_host = None
         self.http_host = None
+        self.ws_host = None
         self._host_id = unique_hex()
         self._ronin = False
         self._registered = False
@@ -83,13 +82,26 @@ class TCPBus:
                     futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
-    def register(self):
+    def connect(self):
         clients = self.tcp_host.clients if self.tcp_host else self.http_host.clients
         for client in clients:
             if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
                 client.bus = self
         self._service_clients = clients
-        asyncio.get_event_loop().run_until_complete(self._registry_client.connect())
+        yield from self._registry_client.connect()
+
+    def register(self):
+        if self.tcp_host:
+            self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name,
+                                           self.tcp_host.version, self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
+        if self.http_host:
+            self._registry_client.register(self.http_host.host, self.http_host.port, self.http_host.name,
+                                           self.http_host.version, self.http_host.node_id, self.http_host.clients,
+                                           'http')
+        if self.ws_host:
+            self._registry_client.register(self.ws_host.host, self.ws_host.port, self.ws_host.name,
+                                           self.ws_host.version, self.ws_host.node_id, self.ws_host.clients,'ws')
+
 
     def registration_complete(self):
         if not self._registered:
@@ -113,8 +125,9 @@ class TCPBus:
         auto dispatch method called from self.send()
         """
         node_id = self._get_node_id_for_packet(packet)
-        if node_id is not None:
-            client_protocol = self._client_protocols[node_id]
+        client_protocol = self._client_protocols.get(node_id)
+
+        if node_id and client_protocol:
             if client_protocol.is_connected():
                 packet['to'] = node_id
                 client_protocol.send(packet)
@@ -123,7 +136,7 @@ class TCPBus:
                 raise ClientDisconnected()
         else:
             # No node found to send request
-            _logger.error('Client Not found for packet %s', packet)
+            _logger.error('Out of %s, Client Not found for packet %s', self._client_protocols.keys(), packet)
             raise ClientNotFoundError()
 
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
@@ -186,9 +199,6 @@ class TCPBus:
                 _logger.warn('wrongly routed packet: ', packet)
 
     def _request_receiver(self, packet, protocol):
-        global total_requests, total_responses
-        total_requests += 1
-        _logger.debug('Total Requests received %d, Total Responses returned %d', total_requests, total_responses)
         api_fn = getattr(self.tcp_host, packet['endpoint'])
         if api_fn.is_api:
             from_node_id = packet['from']
@@ -196,20 +206,16 @@ class TCPBus:
             future = asyncio.async(api_fn(from_id=from_node_id, entity=entity, **packet['payload']))
 
             def send_result(f):
-                global total_requests, total_responses
                 result_packet = f.result()
                 protocol.send(result_packet)
-                total_responses += 1
-                _logger.debug('Total Requests received %d, Total Responses returned %d', total_requests,
-                              total_responses)
 
             future.add_done_callback(send_result)
         else:
             print('no api found for packet: ', packet)
 
     def _handle_publish(self, packet, protocol):
-        service, version, endpoint, payload, publish_id = packet['service'], packet['version'], packet['endpoint'], \
-                                                          packet['payload'], packet['publish_id']
+        service, version, endpoint, payload, publish_id = (packet['service'], packet['version'], packet['endpoint'],
+                                                           packet['payload'], packet['publish_id'])
         for client in self._service_clients:
             if client.name == service and client.version == version:
                 fun = getattr(client, endpoint)
@@ -218,26 +224,27 @@ class TCPBus:
 
     def handle_connected(self):
         if self.tcp_host:
-            self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name, self.tcp_host.version,
-                                           self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
+            yield from self.tcp_host.initiate()
         if self.http_host:
-            self._registry_client.register(self.http_host.host, self.http_host.port, self.http_host.name,
-                                           self.http_host.version, self.http_host.node_id, self.http_host.clients,
-                                           'http')
+            yield from self.http_host.initiate()
+        if self.ws_host:
+            yield from self.ws_host.initiate()
 
 
 class PubSubBus:
     PUBSUB_DELAY = 5
 
-    def __init__(self, registry_client, ssl_context= None):
+    def __init__(self, pubsub_host, pubsub_port, registry_client, ssl_context=None):
+        self._host = pubsub_host
+        self._port = pubsub_port
         self._pubsub_handler = None
         self._registry_client = registry_client
         self._clients = None
         self._pending_publishes = {}
         self._ssl_context = ssl_context
 
-    def create_pubsub_handler(self, host, port):
-        self._pubsub_handler = PubSub(host, port)
+    def create_pubsub_handler(self):
+        self._pubsub_handler = PubSub(self._host, self._port)
         yield from self._pubsub_handler.connect()
 
     def register_for_subscription(self, host, port, node_id, clients):
