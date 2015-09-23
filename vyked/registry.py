@@ -214,6 +214,8 @@ class Registry:
         elif request_type == 'get_subscribers':
             self.get_subscribers(packet, protocol)
         elif request_type == 'pong':
+            self._ping(packet)
+        elif request_type == 'ping':
             if 'payload' in packet:
                 to_send=True
                 node_ids = list(packet['payload'].values())
@@ -225,8 +227,6 @@ class Registry:
                     self._ping(packet)
             else:
                 self._ping(packet)
-        elif request_type == 'ping':
-            self._pong(packet, protocol)
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
 
