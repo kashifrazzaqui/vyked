@@ -222,9 +222,9 @@ class Registry:
                         to_send = False
                         break
                 if to_send:
-                    self._pong(packet, protocol)
+                    self._ping(packet)
             else:
-                self._pong(packet, protocol)
+                self._ping(packet)
         elif request_type == 'ping':
             self._pong(packet, protocol)
         elif request_type == 'uptime_report':
