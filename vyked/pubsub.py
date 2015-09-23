@@ -5,11 +5,11 @@ import asyncio_redis as redis
 
 
 class PubSub:
+
     """
     Pub sub handler which uses redis.
     Can be used to publish an event or subscribe to a list of endpoints
     """
-    _logger = logging.getLogger(__name__)
 
     def __init__(self, redis_host, redis_port):
         """
@@ -20,6 +20,7 @@ class PubSub:
         self._redis_host = redis_host
         self._redis_port = redis_port
         self._conn = None
+        self._logger = logging.getLogger(__name__)
 
     @asyncio.coroutine
     def connect(self):

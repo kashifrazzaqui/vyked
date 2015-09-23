@@ -10,7 +10,7 @@ from .decorators.tcp import (api, request, subscribe, publish, xsubscribe, depre
 from .registry import Registry
 from .utils import log
 from .exceptions import RequestException, VykedServiceError, VykedServiceException
-from .utils.log import setup_logging, config_logs
+from .utils.log import setup_logging
 from .wrappers import Response, Request
 
 __version__ = '2.1.66'

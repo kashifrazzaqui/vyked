@@ -97,7 +97,6 @@ class TCPPinger:
 
 
 class HTTPPinger:
-    logger = logging.getLogger(__name__)
 
     def __init__(self, host, port, node_id, handler):
         self._host = host
@@ -106,6 +105,7 @@ class HTTPPinger:
         self._node_id = node_id
         self._handler = handler
         self._url = 'http://{}:{}/ping'.format(host, port)
+        self.logger = logging.getLogger(__name__)
 
     def ping(self):
         asyncio.async(self._pinger.send_ping())

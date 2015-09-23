@@ -1,5 +1,4 @@
 from asyncio import Future, get_event_loop
-import logging
 import json
 
 from again.utils import unique_hex
@@ -10,8 +9,6 @@ from .packet import MessagePacket
 from .exceptions import RequestException, ClientException
 from .utils.ordered_class_member import OrderedClassMembers
 from .utils.stats import Aggregator
-
-_logger = logging.getLogger(__name__)
 
 
 class _Service:

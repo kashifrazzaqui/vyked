@@ -8,7 +8,6 @@ import logging
 import socket
 import setproctitle
 import time
-_logger = logging.getLogger()
 
 
 def publish(func):
@@ -113,7 +112,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
     @asyncio.coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
-
+        _logger = logging.getLogger(__name__)
         start_time = int(time.time() * 1000)
         self = args[0]
         rid = kwargs.pop('request_id')

@@ -22,7 +22,6 @@ def _retry_for_exception(_):
 
 
 class RegistryClient:
-    logger = logging.getLogger(__name__)
 
     def __init__(self, loop, host, port, ssl_context=None):
         self._loop = loop
@@ -39,6 +38,7 @@ class RegistryClient:
         self._available_services = defaultdict(list)
         self._assigned_services = defaultdict(lambda: defaultdict(list))
         self._ssl_context = ssl_context
+        self.logger = logging.getLogger(__name__)
 
     @property
     def conn_handler(self):
