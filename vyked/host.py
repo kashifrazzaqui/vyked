@@ -3,7 +3,6 @@ import logging
 from functools import partial
 import signal
 import os
-import socket
 
 from aiohttp.web import Application
 
@@ -13,8 +12,6 @@ from vyked.services import HTTPService, TCPService
 from .protocol_factory import get_vyked_protocol
 from .utils.log import setup_logging
 from vyked.utils.stats import Stats
-
-_logger = logging.getLogger(__name__)
 
 
 class Host:
@@ -29,6 +26,8 @@ class Host:
     _http_service = None
     registry_client_ssl = None
 
+    _logger = logging.getLogger(__name__)
+
     @classmethod
     def _set_process_name(cls):
         from setproctitle import setproctitle
@@ -37,7 +36,7 @@ class Host:
 
     @classmethod
     def _stop(cls, signame: str):
-        _logger.info('\ngot signal {} - exiting'.format(signame))
+        cls._logger.info('\ngot signal {} - exiting'.format(signame))
         asyncio.get_event_loop().stop()
 
     @classmethod
@@ -47,19 +46,20 @@ class Host:
         elif isinstance(service, TCPService):
             cls._tcp_service = service
         else:
-            _logger.error('Invalid argument attached as service')
+            cls._logger.error('Invalid argument attached as service')
         cls._set_bus(service)
 
     @classmethod
     def run(cls):
         if cls._tcp_service or cls._http_service:
             cls._set_host_id()
+            cls._setup_logging()
+
             cls._set_process_name()
             cls._set_signal_handlers()
-            cls._setup_logging()
             cls._start_server()
         else:
-            _logger.error('No services to host')
+            cls._logger.error('No services to host')
 
     @classmethod
     def _set_signal_handlers(cls):
@@ -91,7 +91,7 @@ class Host:
                         app.router.add_route(fn.method, path, fn)
                         if cls._http_service.cross_domain_allowed:
                             app.router.add_route('options', path, cls._http_service.preflight_response)
-            handler = app.make_handler(access_log=_logger)
+            handler = app.make_handler(access_log=cls._logger)
             task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             return asyncio.get_event_loop().run_until_complete(task)
 
@@ -109,11 +109,11 @@ class Host:
         cls._create_pubsub_handler()
         cls._subscribe()
         if tcp_server:
-            _logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
+            cls._logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
         if http_server:
-            _logger.info('Serving HTTP on {}'.format(http_server.sockets[0].getsockname()))
-        _logger.info("Event loop running forever, press CTRL+c to interrupt.")
-        _logger.info("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
+            cls._logger.info('Serving HTTP on {}'.format(http_server.sockets[0].getsockname()))
+        cls._logger.info("Event loop running forever, press CTRL+c to interrupt.")
+        cls._logger.info("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
         try:
             asyncio.get_event_loop().run_forever()
         except Exception as e:
@@ -183,6 +183,7 @@ class Host:
     @classmethod
     def _setup_logging(cls):
         host = cls._tcp_service if cls._tcp_service else cls._http_service
-        setup_logging('{}_{}'.format(host.name, host.socket_address[1]))
+        identifier = '{}_{}'.format(host.name, host.socket_address[1])
+        setup_logging(identifier)
         Stats.service_name = host.name
         Stats.periodic_stats_logger()

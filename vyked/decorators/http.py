@@ -10,8 +10,6 @@ import socket
 import json
 import time
 
-_logger = logging.getLogger()
-
 
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
@@ -46,6 +44,8 @@ def get_decorated_fun(method, path, required_params):
                 t1 = time.time()
                 wrapped_func = func
                 success = True
+                _logger = logging.getLogger()
+
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
                 try:

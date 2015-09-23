@@ -3,9 +3,6 @@ import asyncio
 import setproctitle
 from collections import defaultdict
 import socket
-import json
-
-_logger = logging.getLogger('stats')
 
 
 class Stats:
@@ -29,6 +26,7 @@ class Stats:
             logd[key] += value
             logd['tcp_' + key] = value
 
+        _logger = logging.getLogger('stats')
         _logger.info(dict(logd))
 
         asyncio.get_event_loop().call_later(120, cls.periodic_stats_logger)
