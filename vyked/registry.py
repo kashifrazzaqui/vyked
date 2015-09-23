@@ -224,9 +224,9 @@ class Registry:
                         to_send = False
                         break
                 if to_send:
-                    self._ping(packet)
+                    self._pong(packet, protocol)
             else:
-                self._ping(packet)
+                self._pong(packet, protocol)
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
 
