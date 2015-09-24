@@ -98,10 +98,14 @@ class TCPServiceClient(_Service):
             if not future.done() and not future.cancelled():
                 future.set_result(payload['result'])
         elif has_error:
-            exception = RequestException()
-            exception.error = payload['error']
-            if not future.done() and not future.cancelled():
-                future.set_exception(exception)
+            if payload.get('failed', False):
+                if not future.done() and not future.cancelled():
+                    future.set_exception(Exception(payload['error']))
+            else:
+                exception = RequestException()
+                exception.error = payload['error']
+                if not future.done() and not future.cancelled():
+                    future.set_exception(exception)
         else:
             print('Invalid response to request:', packet)
 
