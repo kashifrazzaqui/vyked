@@ -107,8 +107,8 @@ class ControlPacket(_Packet):
     @classmethod
     def xsubscribe(cls, service, version, host, port, node_id, endpoints):
         params = {'service': service, 'version': version, 'host': host, 'port': port, 'node_id': node_id}
-        events = [{'service': service, 'version': version, 'endpoint': endpoint, 'strategy': strategy} for
-                  service, version, endpoint, strategy in endpoints]
+        events = [{'service': _service, 'version': _version, 'endpoint': endpoint, 'strategy': strategy} for
+                  _service, _version, endpoint, strategy in endpoints]
         params['events'] = events
         packet = {'pid': cls._next_pid(),
                   'type': 'xsubscribe',
@@ -118,8 +118,8 @@ class ControlPacket(_Packet):
     @classmethod
     def subscribers(cls, service, version, endpoint, request_id, subscribers):
         params = {'service': service, 'version': version, 'endpoint': endpoint}
-        subscribers = [{'service': service, 'version': version, 'host': host, 'port': port, 'node_id': node_id,
-                        'strategy': strategy} for service, version, host, port, node_id, strategy in subscribers]
+        subscribers = [{'service': _service, 'version': _version, 'host': host, 'port': port, 'node_id': node_id,
+                        'strategy': strategy} for _service, _version, host, port, node_id, strategy in subscribers]
         params['subscribers'] = subscribers
         packet = {'pid': cls._next_pid(),
                   'request_id': request_id,

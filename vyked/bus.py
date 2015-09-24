@@ -92,7 +92,7 @@ class TCPBus:
 
     def registration_complete(self):
         if not self._registered:
-            f = self._create_service_clients()
+            self._create_service_clients()
             self._registered = True
 
     def new_instance(self, service, version, host, port, node_id, type):
@@ -158,7 +158,7 @@ class TCPBus:
         asyncio.async(pinger.pong_received(count))
 
     def _get_node_id_for_packet(self, packet):
-        app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
+        service, version, entity = packet['service'], packet['version'], packet['entity']
         node = self._registry_client.resolve(service, version, entity, TCP)
         return node[2] if node else None
 
@@ -211,8 +211,8 @@ class TCPBus:
 
     def handle_connected(self):
         if self.tcp_host:
-            self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name, self.tcp_host.version,
-                                           self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
+            self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name,
+                                           self.tcp_host.version, self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
         if self.http_host:
             self._registry_client.register(self.http_host.host, self.http_host.port, self.http_host.name,
                                            self.http_host.version, self.http_host.node_id, self.http_host.clients,

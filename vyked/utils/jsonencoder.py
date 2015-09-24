@@ -1,7 +1,10 @@
-import json, datetime
+import json
+import datetime
 from time import mktime
 
+
 class VykedEncoder(json.JSONEncoder):
+
     """
     json dump encoder class
     """
@@ -13,4 +16,3 @@ class VykedEncoder(json.JSONEncoder):
         if isinstance(obj, datetime.datetime):
             return int(mktime(obj.timetuple()))
         return json.JSONEncoder.default(self, obj)
-

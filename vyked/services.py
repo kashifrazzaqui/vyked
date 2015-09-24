@@ -65,7 +65,7 @@ class TCPServiceClient(_Service):
         self._pending_requests[request_id] = future
         try:
             self.tcp_bus.send(packet)
-        except ClientException as e:
+        except ClientException:
             if not future.done() and not future.cancelled():
                 error = 'Client not found'
                 exception = ClientException(error)

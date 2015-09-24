@@ -38,7 +38,8 @@ def get_decorated_fun(method, path, required_params):
                     if len(missing_params) > 0:
                         res_d = {'error': 'Required params {} not found'.format(','.join(missing_params))}
                         Stats.http_stats['total_responses'] += 1
-                        Aggregator.update_stats(endpoint=path, status=400, success=False, server_type='http', time_taken=0)
+                        Aggregator.update_stats(endpoint=func.__name__, status=400, success=False,
+                                                server_type='http', time_taken=0)
                         return Response(status=400, content_type='application/json', body=json.dumps(res_d).encode())
 
                 t1 = time.time()
