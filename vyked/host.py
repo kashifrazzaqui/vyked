@@ -84,6 +84,7 @@ class Host:
             app = Application(loop=asyncio.get_event_loop())
             fn = getattr(cls._http_service, 'pong')
             app.router.add_route('GET', '/ping', fn)
+            app.router.add_route('GET', '/_stats', getattr(cls._http_service, 'stats'))
             for each in cls._http_service.__ordered__:
                 fn = getattr(cls._http_service, each)
                 if callable(fn) and getattr(fn, 'is_http_method', False):
