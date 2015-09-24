@@ -88,7 +88,7 @@ def get_decorated_fun(method, path, required_params):
 
                 finally:
                     t2 = time.time()
-                    Aggregator.update_stats(endpoint=path, status=status, success=success,
+                    Aggregator.update_stats(endpoint=func.__name__, status=status, success=success,
                                             server_type='http', time_taken=int((t2 - t1) * 1000))
 
         f.is_http_method = True

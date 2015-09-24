@@ -93,3 +93,33 @@ class Aggregator:
     @classmethod
     def dump_stats(cls):
         return cls._stats.to_dict()
+
+    @classmethod
+    def periodic_aggregated_stats_logger(cls):
+        hostname = socket.gethostname()
+        service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+
+        logd = cls._stats.to_dict()
+        logs = []
+        for server_type in ['http', 'tcp']:
+            try:
+                server_type_d = logd['sub'][server_type]['sub']
+            except KeyError:
+                continue
+            for k, v in server_type_d.items():
+                d = dict({
+                    'method': k,
+                    'server_type': server_type,
+                    'hostname': hostname,
+                    'service_name': service_name,
+                    'average_response_time': v['average'],
+                })
+                for k2, v2 in v['sub'].items():
+                    d[k2] = v2['count']
+                logs.append(d)
+
+        _logger = logging.getLogger('stats')
+        for logd in logs:
+            _logger.info(dict(logd))
+
+        asyncio.get_event_loop().call_later(300, cls.periodic_aggregated_stats_logger)
