@@ -121,6 +121,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         wrapped_func = func
         result = None
         error = None
+        failed = False
 
         status = 'succesful'
         success = True
@@ -137,6 +138,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             error = str(e)
             status = 'timeout'
             success = False
+            failed = True
 
         except VykedServiceException as e:
             Stats.tcp_stats['total_responses'] += 1
@@ -150,6 +152,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             error = str(e)
             status = 'unhandled_error'
             success = False
+            failed = True
 
         else:
             Stats.tcp_stats['total_responses'] += 1
@@ -173,9 +176,11 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
 
         if not old_api:
             return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
-                                              error=error)
+                                              error=error, failed=failed)
         else:
             return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
-                                              error=error, old_api=old_api, replacement_api=replacement_api)
+                                              error=error, failed=failed, old_api=old_api,
+                                              replacement_api=replacement_api)
+
     wrapper.is_api = True
     return wrapper
