@@ -67,9 +67,9 @@ class TCPServiceClient(_Service):
             self.tcp_bus.send(packet)
         except ClientException as e:
             if not future.done() and not future.cancelled():
-                ERROR = 'Client not found'
-                exception = ClientException(ERROR)
-                exception.error = ERROR
+                error = 'Client not found'
+                exception = ClientException(error)
+                exception.error = error
                 future.set_exception(exception)
         _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
@@ -116,7 +116,6 @@ class TCPServiceClient(_Service):
 
 
 class _ServiceHost(_Service):
-
     def __init__(self, service_name, service_version, host_ip, host_port):
         super(_ServiceHost, self).__init__(service_name, service_version)
         self._node_id = unique_hex()
@@ -186,7 +185,6 @@ class _ServiceHost(_Service):
 
 
 class TCPService(_ServiceHost):
-
     def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None):
         super(TCPService, self).__init__(service_name, service_version, host_ip, host_port)
         self._ssl_context = ssl_context
@@ -203,14 +201,14 @@ class TCPService(_ServiceHost):
 
     @staticmethod
     def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object,
-                              old_api=None, replacement_api=None):
+                              failed: bool, old_api=None, replacement_api=None):
         if error:
-            payload = {'request_id': request_id, 'error': error}
+            payload = {'request_id': request_id, 'error': error, 'failed': failed}
         else:
             payload = {'request_id': request_id, 'result': result}
-        if (old_api):
+        if old_api:
             payload['old_api'] = old_api
-            if (replacement_api):
+            if replacement_api:
                 payload['replacement_api'] = replacement_api
         packet = {'pid': unique_hex(),
                   'to': from_id,
@@ -227,7 +225,6 @@ def default_preflight_response(request):
 
 
 class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
-
     def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None,
                  allow_cross_domain=False,
                  preflight_response=default_preflight_response):
@@ -259,7 +256,6 @@ class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
 
 
 class HTTPServiceClient(_Service):
-
     def __init__(self, service_name, service_version):
         super(HTTPServiceClient, self).__init__(service_name, service_version)
 
