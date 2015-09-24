@@ -198,7 +198,10 @@ class TCPBus:
         if api_fn.is_api:
             from_node_id = packet['from']
             entity = packet['entity']
+            trace_id = packet['payload'].pop('trace_id', None)
             future = asyncio.async(api_fn(from_id=from_node_id, entity=entity, **packet['payload']))
+            if trace_id:
+                future.trace_id = trace_id
 
             def send_result(f):
                 result_packet = f.result()
