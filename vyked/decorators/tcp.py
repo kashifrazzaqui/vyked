@@ -68,6 +68,28 @@ def _get_subscribe_decorator(func):
     return wrapper
 
 
+def _trace_id_getter(task):
+    trace_id = getattr(task, 'trace_id', None)
+    if trace_id:
+        return trace_id
+    else:
+        try:
+            new_task = task._callbacks[0]
+            try:
+                new_task = new_task.args[0]
+            except:
+                pass
+            try:
+                return _trace_id_getter(new_task)
+            except:
+                try:
+                    return _trace_id_getter(new_task.__self__)
+                except:
+                    raise Exception
+        except:
+            raise Exception
+
+
 def request(func):
     """
     use to request an api call from a specific endpoint
@@ -81,15 +103,18 @@ def request(func):
         app_name = params.pop('app_name', None)
         request_id = unique_hex()
         params['request_id'] = request_id
-        trace_id = unique_hex()
-        all_tasks = asyncio.Task._all_tasks
-        for a_task in list(all_tasks):
-            try:
-                if id(a_task._fut_waiter)==id(asyncio.Task.current_task()._callbacks[0].args[0]):
-                    trace_id = getattr(a_task, 'trace_id', trace_id)
-                    break
-            except:
-                pass
+        # all_tasks = asyncio.Task._all_tasks
+        # for a_task in list(all_tasks):
+        #     try:
+        #         if id(a_task._fut_waiter)==id(asyncio.Task.current_task()._callbacks[0].args[0]):
+        #             trace_id = getattr(a_task, 'trace_id', trace_id)
+        #             break
+        #     except:
+        #         pass
+        try:
+            trace_id = _trace_id_getter(asyncio.Task.current_task())
+        except:
+            trace_id = unique_hex()
         params['trace_id'] = trace_id
         future = self._send_request(app_name, endpoint=func.__name__, entity=entity, params=params)
         return future
