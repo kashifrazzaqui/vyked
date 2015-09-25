@@ -83,7 +83,7 @@ def get_decorated_fun(method, path, required_params):
                         'type': 'http',
                         'hostname': hostname, 'service_name': service_name
                     }
-                    logging.getLogger('stats').info(logd)
+                    logging.getLogger('stats').debug(logd)
                     Stats.http_stats['total_responses'] += 1
                     return result
 
