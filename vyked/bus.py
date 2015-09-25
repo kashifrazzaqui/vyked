@@ -65,9 +65,7 @@ class TCPBus:
         self._pingers = {}
         self._node_clients = {}
         self._service_clients = []
-        self.tcp_host = None
-        self.http_host = None
-        self.ws_host = None
+        self.hosts = {'tcp_host': None, 'http_host': None, 'ws_host': None}
         self._host_id = unique_hex()
         self._ronin = False
         self._registered = False
@@ -84,12 +82,9 @@ class TCPBus:
 
     def connect(self):
         clients = []
-        if self.tcp_host:
-            clients = self.tcp_host.clients
-        if self.http_host:
-            clients = self.http_host.clients
-        if self.ws_host:
-            clients = self.ws_host.clients
+        for host in self.hosts.values():
+            if host:
+                clients = host.clients
         for client in clients:
             if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
                 client.bus = self
@@ -97,17 +92,10 @@ class TCPBus:
         yield from self._registry_client.connect()
 
     def register(self):
-        if self.tcp_host:
-            self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name,
-                                           self.tcp_host.version, self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
-        if self.http_host:
-            self._registry_client.register(self.http_host.host, self.http_host.port, self.http_host.name,
-                                           self.http_host.version, self.http_host.node_id, self.http_host.clients,
-                                           'http')
-        if self.ws_host:
-            self._registry_client.register(self.ws_host.host, self.ws_host.port, self.ws_host.name,
-                                           self.ws_host.version, self.ws_host.node_id, self.ws_host.clients,'ws')
-
+        for key, host in self.hosts.items():
+            if host:
+                self._registry_client.register(host.host, host.port, host.name, host.version, host.node_id,
+                                               host.clients, key.split('_')[0])
 
     def registration_complete(self):
         if not self._registered:
@@ -198,14 +186,14 @@ class TCPBus:
         elif packet['type'] == 'publish':
             self._handle_publish(packet, protocol)
         else:
-            if self.tcp_host.is_for_me(packet['service'], packet['version']):
+            if self.hosts['tcp_host'].is_for_me(packet['service'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
                 func(packet, protocol)
             else:
                 _logger.warn('wrongly routed packet: ', packet)
 
     def _request_receiver(self, packet, protocol):
-        api_fn = getattr(self.tcp_host, packet['endpoint'])
+        api_fn = getattr(self.hosts['tcp_host'], packet['endpoint'])
         if api_fn.is_api:
             from_node_id = packet['from']
             entity = packet['entity']
@@ -229,12 +217,9 @@ class TCPBus:
         protocol.send(MessagePacket.ack(publish_id))
 
     def handle_connected(self):
-        if self.tcp_host:
-            yield from self.tcp_host.initiate()
-        if self.http_host:
-            yield from self.http_host.initiate()
-        if self.ws_host:
-            yield from self.ws_host.initiate()
+        for host in self.hosts.values():
+            if host:
+                yield from host.initiate()
 
 
 class PubSubBus:

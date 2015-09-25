@@ -3,7 +3,6 @@ import logging
 from functools import partial
 import signal
 import os
-import socket
 
 from aiohttp.web import Application
 
@@ -25,9 +24,7 @@ class Host:
     name = None
     ronin = False
     _host_id = None
-    _tcp_service = None
-    _http_service = None
-    _ws_service = None
+    _services = {'_tcp_service': None, '_http_service': None, '_ws_service': None}
     registry_client_ssl = None
 
     @classmethod
@@ -43,19 +40,20 @@ class Host:
 
     @classmethod
     def attach_service(cls, service):
-        if isinstance(service, HTTPService):
-            cls._http_service = service
-        elif isinstance(service, TCPService):
-            cls._tcp_service = service
-        elif isinstance(service, WSService):
-            cls._ws_service = service
-        else:
+        invalid_service = True
+        _service_classes = {'_tcp_service': TCPService, '_http_service': HTTPService, '_ws_service': WSService}
+        for key, value in _service_classes.items():
+            if isinstance(service, value):
+                cls._services[key] = service
+                invalid_service = False
+                break
+        if invalid_service:
             _logger.error('Invalid argument attached as service')
         cls._set_bus(service)
 
     @classmethod
     def run(cls):
-        if cls._tcp_service or cls._http_service or cls._ws_service:
+        if not all(v is None for v in cls._services.values()):
             cls._set_host_id()
             cls._set_process_name()
             cls._set_signal_handlers()
@@ -71,51 +69,33 @@ class Host:
 
     @classmethod
     def _create_tcp_server(cls):
-        if cls._tcp_service:
-            ssl_context = cls._tcp_service.ssl_context
-            host_ip, host_port = cls._tcp_service.socket_address
-            task = asyncio.get_event_loop().create_server(partial(get_vyked_protocol, cls._tcp_service.tcp_bus),
+        if cls._services['_tcp_service']:
+            ssl_context = cls._services['_tcp_service'].ssl_context
+            host_ip, host_port = cls._services['_tcp_service'].socket_address
+            task = asyncio.get_event_loop().create_server(partial(get_vyked_protocol, cls._services['_tcp_service'].tcp_bus),
                                                           host_ip, host_port, ssl=ssl_context)
             result = asyncio.get_event_loop().run_until_complete(task)
             return result
 
     @classmethod
-    def _create_http_server(cls):
-        if cls._http_service:
-            host_ip, host_port = cls._http_service.socket_address
-            ssl_context = cls._http_service.ssl_context
+    def _create_web_server(cls, service):
+        if service:
+            host_ip, host_port = service.socket_address
+            ssl_context = service.ssl_context
             app = Application(loop=asyncio.get_event_loop())
-            fn = getattr(cls._http_service, 'pong')
+            fn = getattr(service, 'pong')
             app.router.add_route('GET', '/ping', fn)
-            for each in cls._http_service.__ordered__:
-                fn = getattr(cls._http_service, each)
-                if callable(fn) and getattr(fn, 'is_http_method', False):
+            for each in service.__ordered__:
+                fn = getattr(service, each)
+                if callable(fn) and (getattr(fn, 'is_http_method', False) or getattr(fn, 'is_ws_method', False)):
                     for path in fn.paths:
                         app.router.add_route(fn.method, path, fn)
-                        if cls._http_service.cross_domain_allowed:
-                            app.router.add_route('options', path, cls._http_service.preflight_response)
+                        if getattr(fn, 'is_http_method', False):
+                            if service.cross_domain_allowed:
+                                app.router.add_route('options', path, service.preflight_response)
             handler = app.make_handler(access_log=_logger)
             task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             return asyncio.get_event_loop().run_until_complete(task)
-
-    @classmethod
-    def _create_ws_server(cls):
-        if cls._ws_service:
-            host_ip, host_port = cls._ws_service.socket_address
-            ssl_context = cls._ws_service.ssl_context
-            app = Application(loop=asyncio.get_event_loop())
-            fn = getattr(cls._ws_service, 'pong')
-            app.router.add_route('GET', '/ping', fn)
-            app['sockets'] = []
-            for each in cls._ws_service.__ordered__:
-                fn = getattr(cls._ws_service, each)
-                if callable(fn) and getattr(fn, 'is_ws_method', False):
-                    for path in fn.paths:
-                        app.router.add_route(fn.method, path, fn)
-            handler = app.make_handler(access_log=_logger)
-            task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
-            result = asyncio.get_event_loop().run_until_complete(task)
-            return result
 
     @classmethod
     def _set_host_id(cls):
@@ -126,21 +106,16 @@ class Host:
     @classmethod
     def _start_server(cls):
         tcp_server = cls._create_tcp_server()
-        http_server = cls._create_http_server()
-        ws_server = cls._create_ws_server()
+        http_server = cls._create_web_server(cls._services['_http_service'])
+        ws_server = cls._create_web_server(cls._services['_ws_service'])
+        server_dict = {'TCP': tcp_server, 'HTTP': http_server, 'WS': ws_server}
         if not cls.ronin:
-            if cls._tcp_service:
-                asyncio.get_event_loop().run_until_complete(cls._tcp_service.tcp_bus.connect())
-            if cls._http_service:
-                asyncio.get_event_loop().run_until_complete(cls._http_service.tcp_bus.connect())
-            if cls._ws_service:
-                asyncio.get_event_loop().run_until_complete(cls._ws_service.tcp_bus.connect())
-        if tcp_server:
-            _logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
-        if http_server:
-            _logger.info('Serving HTTP on {}'.format(http_server.sockets[0].getsockname()))
-        if ws_server:
-            _logger.info('Serving WS on {}'.format(ws_server.sockets[0].getsockname()))
+            for service in cls._services.values():
+                if service:
+                    asyncio.get_event_loop().run_until_complete(service.tcp_bus.connect())
+        for key, server in server_dict.items():
+            if server:
+                _logger.info('Serving '+key+' on {}'.format(server.sockets[0].getsockname()))
         _logger.info("Event loop running forever, press CTRL+c to interrupt.")
         _logger.info("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
         try:
@@ -148,17 +123,10 @@ class Host:
         except Exception as e:
             print(e)
         finally:
-            if tcp_server:
-                tcp_server.close()
-                asyncio.get_event_loop().run_until_complete(tcp_server.wait_closed())
-
-            if http_server:
-                http_server.close()
-                asyncio.get_event_loop().run_until_complete(http_server.wait_closed())
-
-            if ws_server:
-                ws_server.close()
-                asyncio.get_event_loop().run_until_complete(ws_server.wait_closed())
+            for server in server_dict.values():
+                if server:
+                    server.close()
+                    asyncio.get_event_loop().run_until_complete(server.wait_closed())
 
             asyncio.get_event_loop().close()
 
@@ -168,23 +136,20 @@ class Host:
             asyncio.get_event_loop(), cls.registry_host, cls.registry_port, cls.registry_client_ssl)
         tcp_bus = TCPBus(registry_client)
         registry_client.conn_handler = tcp_bus
-        # pubsub_bus = PubSubBus(registry_client, ssl_context=cls._tcp_service._ssl_context)
-        pubsub_bus = PubSubBus(cls.pubsub_host, cls.pubsub_port, registry_client)  # , cls._tcp_service._ssl_context)
+        pubsub_bus = PubSubBus(cls.pubsub_host, cls.pubsub_port, registry_client)
 
         registry_client.bus = tcp_bus
-        if isinstance(service, TCPService):
-            tcp_bus.tcp_host = service
-        if isinstance(service, HTTPService):
-            tcp_bus.http_host = service
-        if isinstance(service, WSService):
-            tcp_bus.ws_host = service
+        _service_classes = {'tcp_host': TCPService, 'http_host': HTTPService, 'ws_host': WSService}
+        for key, value in _service_classes.items():
+            if isinstance(service, value):
+                tcp_bus.hosts[key] = service
         service.tcp_bus = tcp_bus
         service.pubsub_bus = pubsub_bus
 
     @classmethod
     def _setup_logging(cls):
-        host = cls._tcp_service if cls._tcp_service else cls._http_service
-        host = host if host else cls._ws_service
+        host = cls._services['_tcp_service'] if cls._services['_tcp_service'] else cls._services['_http_service']
+        host = host if host else cls._services['_ws_service']
         setup_logging('{}_{}'.format(host.name, host.socket_address[1]))
         Stats.service_name = host.name
         Stats.periodic_stats_logger()

@@ -1,6 +1,6 @@
 from asyncio import iscoroutine, coroutine, wait_for, TimeoutError
 from functools import wraps
-from vyked import HTTPServiceClient, HTTPService
+from vyked import HTTPServiceClient, HTTPService, WSService
 from aiohttp.web import Response
 from ..utils.stats import Stats
 import logging
@@ -21,12 +21,17 @@ def make_request(func, self, args, kwargs, method):
     return response
 
 
-def get_decorated_fun(method, path, required_params):
+def get_decorated_fun(method, path, required_params, is_ws=False):
     def decorator(func):
         @wraps(func)
         def f(self, *args, **kwargs):
             if isinstance(self, HTTPServiceClient):
                 return (yield from make_request(func, self, args, kwargs, method))
+            elif isinstance(self, WSService):
+                wrapped_func = func
+                if not iscoroutine(func):
+                    wrapped_func = coroutine(func)
+                return (yield from wrapped_func(self, *args, **kwargs))
             elif isinstance(self, HTTPService):
                 Stats.http_stats['total_requests'] += 1
                 if required_params is not None:
@@ -66,9 +71,10 @@ def get_decorated_fun(method, path, required_params):
                     }
                     logging.getLogger('stats').info(logd)
                     Stats.http_stats['total_responses'] += 1
-                    return (result)
+                    return result
 
-        f.is_http_method = True
+        f.is_http_method = not is_ws
+        f.is_ws_method = is_ws
         f.method = method
         f.paths = path
         if not isinstance(path, list):
@@ -108,3 +114,7 @@ def trace(path=None, required_params=None):
 
 def delete(path=None, required_params=None):
     return get_decorated_fun('delete', path, required_params)
+
+
+def ws(path=None, required_params=None, is_ws=True):
+    return get_decorated_fun('get', path, required_params, is_ws=is_ws)
