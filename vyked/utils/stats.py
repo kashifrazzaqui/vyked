@@ -113,9 +113,11 @@ class Aggregator:
                     'hostname': hostname,
                     'service_name': service_name,
                     'average_response_time': v['average'],
+                    'total_request_count': v['count'],
+                    'success_count': v['success_count']
                 })
                 for k2, v2 in v['sub'].items():
-                    d[k2] = v2['count']
+                    d['CODE_{}'.format(k2)] = v2['count']
                 logs.append(d)
 
         _logger = logging.getLogger('stats')
