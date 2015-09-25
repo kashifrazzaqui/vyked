@@ -1,16 +1,15 @@
 from vyked import Host, WSService, ws, WebSocketResponse
 from aiohttp.web import MsgType
 
-msgs = []
-
 
 class ChatWSService(WSService):
+
     def __init__(self, ip, port):
         super(ChatWSService, self).__init__("ChatService", "1", ip, port)
+        self.msgs = []
 
     @ws(path='/')
     def chat(self, request):
-        global msgs
         wsk = WebSocketResponse()
         wsk.start(request)
         while True:
@@ -20,11 +19,11 @@ class ChatWSService(WSService):
                     yield from wsk.close()
                 elif 'updater' in msg.data:
                     messages = ""
-                    for m in msgs:
+                    for m in self.msgs:
                         messages += m + "<br>"
                     wsk.send_str(messages)
                 else:
-                    msgs.append(msg.data)
+                    self.msgs.append(msg.data)
         return wsk
 
 if __name__ == '__main__':
