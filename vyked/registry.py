@@ -363,7 +363,7 @@ if __name__ == '__main__':
     # config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
     from setproctitle import setproctitle
 
-    setproctitle("registry")
+    setproctitle("vyked-registry")
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT, Repository())
