@@ -60,6 +60,6 @@ if __name__ == '__main__':
     Host.registry_port = REGISTRY_PORT
     Host.pubsub_host = REDIS_HOST
     Host.pubsub_port = REDIS_PORT
-    Host.name = 'Identity'
+    Host.name = 'AccountService'
     Host.attach_service(tcp)
     Host.run()
