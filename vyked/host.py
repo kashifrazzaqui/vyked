@@ -29,6 +29,23 @@ class Host:
     _logger = logging.getLogger(__name__)
 
     @classmethod
+    def configure(cls, name, registry_host: str = "0.0.0.0", registry_port: int = 4500,
+                  pubsub_host: str = "0.0.0.0", pubsub_port: int = 6379):
+        """ A convenience method for providing registry and pubsub(redis) endpoints
+        :param name: Used for process name
+        :param registry_host: IP Address for vyked-registry; default = 0.0.0.0
+        :param registry_port: Port for vyked-registry; default = 4500
+        :param pubsub_host: IP Address for pubsub component, usually redis; default = 0.0.0.0
+        :param pubsub_port: Port for pubsub component = 6379
+        :return: None
+        """
+        Host.name = name
+        Host.registry_host=registry_host
+        Host.registry_port=registry_port
+        Host.pubsub_host=pubsub_host
+        Host.pubsub_port = pubsub_port
+
+    @classmethod
     def _set_process_name(cls):
         from setproctitle import setproctitle
 
@@ -135,8 +152,7 @@ class Host:
         if not cls.ronin:
             if cls._tcp_service:
                 asyncio.get_event_loop().run_until_complete(
-                    cls._tcp_service.pubsub_bus
-                        .create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
+                    cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
             if cls._http_service:
                 asyncio.get_event_loop().run_until_complete(
                     cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))

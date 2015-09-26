@@ -24,19 +24,10 @@ class AccountService(TCPService):
         return locals()
 
 
-class AccountClient(TCPServiceClient):
-    @request
-    def authenticate(self, user_name, password):
-        return locals()
 
-    @subscribe
-    def logged_out(self, user_name):
-        pass
-
-
-class IdentityClient(TCPServiceClient):
+class UserClient(TCPServiceClient):
     def __init__(self):
-        super(IdentityClient, self).__init__("IdentityService", 1)
+        super(UserClient, self).__init__("UserService", 1)
 
     @request
     def create(self, user_name, password):
@@ -48,18 +39,9 @@ class IdentityClient(TCPServiceClient):
         yield from asyncio.sleep(4)
         print("Password changed {}".format(user_name))
 
-    def repeat_request(self):
-        yield from asyncio.sleep(5)
-        yield from self.create('test', 'test@123')
-        yield from self.repeat_request()
-
 if __name__ == '__main__':
     tcp = AccountService(ACCOUNTS_HOST, ACCOUNTS_PORT)
-    tcp.clients = [IdentityClient()]
-    Host.registry_host = REGISTRY_HOST
-    Host.registry_port = REGISTRY_PORT
-    Host.pubsub_host = REDIS_HOST
-    Host.pubsub_port = REDIS_PORT
-    Host.name = 'AccountService'
+    tcp.clients = [UserClient()]
+    Host.configure('AccountService')
     Host.attach_service(tcp)
     Host.run()
