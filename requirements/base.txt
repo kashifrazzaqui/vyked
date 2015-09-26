@@ -1,7 +1,6 @@
 setuptools>=18.0
 again==1.2.21
 aiohttp>=0.17.0
-aiopgx==0.7.0
 async-retrial>0.2
 asyncio-redis==0.13.4
 setproctitle==1.1.8
