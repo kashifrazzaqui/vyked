@@ -40,9 +40,9 @@ class Host:
         :return: None
         """
         Host.name = name
-        Host.registry_host=registry_host
-        Host.registry_port=registry_port
-        Host.pubsub_host=pubsub_host
+        Host.registry_host = registry_host
+        Host.registry_port = registry_port
+        Host.pubsub_host = pubsub_host
         Host.pubsub_port = pubsub_port
 
     @classmethod

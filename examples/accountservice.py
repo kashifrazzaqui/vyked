@@ -24,7 +24,6 @@ class AccountService(TCPService):
         return locals()
 
 
-
 class UserClient(TCPServiceClient):
     def __init__(self):
         super(UserClient, self).__init__("UserService", 1)
@@ -38,6 +37,7 @@ class UserClient(TCPServiceClient):
         print("Password changed event received")
         yield from asyncio.sleep(4)
         print("Password changed {}".format(user_name))
+
 
 if __name__ == '__main__':
     tcp = AccountService(ACCOUNTS_HOST, ACCOUNTS_PORT)
