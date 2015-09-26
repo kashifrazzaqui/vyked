@@ -8,7 +8,6 @@ import socket
 class Stats:
     hostname = socket.gethostname()
     service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
-    # hostd = {'hostname': '', 'service_name': ''}
     http_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0, 'total_errors': 0}
     tcp_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0, 'total_errors': 0}
 
