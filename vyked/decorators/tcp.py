@@ -100,9 +100,9 @@ def api(func):  # incoming
     return wrapper
 
 
-def deprecated(func=None, replacement_api=None):
+def apideprecated(func=None, replacement_api=None):
     if func is None:
-        return partial(deprecated, replacement_api=replacement_api)
+        return partial(apideprecated, replacement_api=replacement_api)
     else:
         wrapper = _get_api_decorator(func=func, old_api=func.__name__, replacement_api=replacement_api)
         return wrapper
