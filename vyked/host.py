@@ -79,6 +79,7 @@ class Host:
         """
         if cls._http_service is None:
             cls._http_service = http_service
+            cls._set_bus(http_service)
         else:
             warnings.warn('HTTP service is already attached')
 
@@ -89,11 +90,14 @@ class Host:
         """
         if cls._tcp_service is None:
             cls._tcp_service = tcp_service
+            cls._set_bus(tcp_service)
         else:
             warnings.warn('TCP service is already attached')
 
     @classmethod
     def run(cls):
+        """ Fires up the event loop and starts serving attached services
+        """
         if cls._tcp_service or cls._http_service:
             cls._set_host_id()
             cls._setup_logging()
@@ -106,7 +110,6 @@ class Host:
     @classmethod
     def _set_process_name(cls):
         from setproctitle import setproctitle
-
         setproctitle('{}_{}'.format(cls.name, cls._host_id))
 
     @classmethod
@@ -134,25 +137,28 @@ class Host:
         if cls._http_service:
             host_ip, host_port = cls._http_service.socket_address
             ssl_context = cls._http_service.ssl_context
-            app = Application(loop=asyncio.get_event_loop())
-            fn = getattr(cls._http_service, 'pong')
-            app.router.add_route('GET', '/ping', fn)
-            app.router.add_route('GET', '/_stats', getattr(cls._http_service, 'stats'))
-            for each in cls._http_service.__ordered__:
-                fn = getattr(cls._http_service, each)
-                if callable(fn) and getattr(fn, 'is_http_method', False):
-                    for path in fn.paths:
-                        app.router.add_route(fn.method, path, fn)
-                        if cls._http_service.cross_domain_allowed:
-                            app.router.add_route('options', path, cls._http_service.preflight_response)
-            handler = app.make_handler(access_log=cls._logger)
+            handler = cls._make_aiohttp_handler()
             task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             return asyncio.get_event_loop().run_until_complete(task)
 
     @classmethod
+    def _make_aiohttp_handler(cls):
+        app = Application(loop=asyncio.get_event_loop())
+        for each in cls._http_service.__ordered__:
+            # iterate all attributes in the service looking for http endpoints and add them
+            fn = getattr(cls._http_service, each)
+            if callable(fn) and getattr(fn, 'is_http_method', False):
+                for path in fn.paths:
+                    app.router.add_route(fn.method, path, fn)
+                    if cls._http_service.cross_domain_allowed:
+                        # add an 'options' for this specific path to make it CORS friendly
+                        app.router.add_route('options', path, cls._http_service.preflight_response)
+        handler = app.make_handler(access_log=cls._logger)
+        return handler
+
+    @classmethod
     def _set_host_id(cls):
         from uuid import uuid4
-
         cls._host_id = uuid4()
 
     @classmethod

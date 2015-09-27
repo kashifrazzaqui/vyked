@@ -1,15 +1,317 @@
-from asyncio import Future, get_event_loop
 import json
+import logging
+import socket
+import time
+import setproctitle
 
+from asyncio import iscoroutine, coroutine, wait_for, TimeoutError, Future, get_event_loop, async
+from functools import wraps, partial
+from aiohttp.web import Response
 from again.utils import unique_hex
 
-from aiohttp.web import Response
-import asyncio
-
 from .packet import MessagePacket
-from .exceptions import RequestException, ClientException
+from .exceptions import RequestException, ClientException, VykedServiceException
 from .utils.ordered_class_member import OrderedClassMembers
-from .utils.stats import Aggregator
+from .utils.stats import Aggregator, Stats
+
+
+def publish(func):
+    """
+    publish the return value of this function as a message from this endpoint
+    """
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):  # outgoing
+        payload = func(self, *args, **kwargs)
+        payload.pop('self', None)
+        self._publish(func.__name__, payload)
+        return None
+
+    wrapper.is_publish = True
+
+    return wrapper
+
+
+def subscribe(func):
+    """
+    use to listen for publications from a specific endpoint of a service,
+    this method receives a publication from a remote service
+    """
+    wrapper = _get_subscribe_decorator(func)
+    wrapper.is_subscribe = True
+    return wrapper
+
+
+def xsubscribe(func=None, strategy='DESIGNATION'):
+    """
+    Used to listen for publications from a specific endpoint of a service. If multiple instances
+    subscribe to an endpoint, only one of them receives the event. And the publish event is retried till
+    an acknowledgment is received from the other end.
+    :param func: the function to decorate with. The name of the function is the event subscribers will subscribe to.
+    :param strategy: The strategy of delivery. Can be 'RANDOM' or 'LEADER'. If 'RANDOM', then the event will be randomly
+    passed to any one of the interested parties. If 'LEADER' then it is passed to the first instance alive
+    which registered for that endpoint.
+    """
+    if func is None:
+        return partial(xsubscribe, strategy=strategy)
+    else:
+        wrapper = _get_subscribe_decorator(func)
+        wrapper.is_xsubscribe = True
+        wrapper.strategy = strategy
+        return wrapper
+
+
+def _get_subscribe_decorator(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        coroutine_func = func
+        if not iscoroutine(func):
+            coroutine_func = coroutine(func)
+        return (yield from coroutine_func(*args, **kwargs))
+
+    return wrapper
+
+
+def request(func):
+    """
+    use to request an api call from a specific endpoint
+    """
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        params = func(self, *args, **kwargs)
+        self = params.pop('self', None)
+        entity = params.pop('entity', None)
+        app_name = params.pop('app_name', None)
+        request_id = unique_hex()
+        params['request_id'] = request_id
+        future = self._send_request(app_name, endpoint=func.__name__, entity=entity, params=params)
+        return future
+
+    wrapper.is_request = True
+    return wrapper
+
+
+def api(func):  # incoming
+    """
+    provide a request/response api
+    receives any requests here and return value is the response
+    all functions must have the following signature
+        - request_id
+        - entity (partition/routing key)
+        followed by kwargs
+    """
+    wrapper = _get_api_decorator(func)
+    return wrapper
+
+
+def apideprecated(func=None, replacement_api=None):
+    if func is None:
+        return partial(apideprecated, replacement_api=replacement_api)
+    else:
+        wrapper = _get_api_decorator(func=func, old_api=func.__name__, replacement_api=replacement_api)
+        return wrapper
+
+
+def _get_api_decorator(func=None, old_api=None, replacement_api=None):
+    @coroutine
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        _logger = logging.getLogger(__name__)
+        start_time = int(time.time() * 1000)
+        self = args[0]
+        rid = kwargs.pop('request_id')
+        entity = kwargs.pop('entity')
+        from_id = kwargs.pop('from_id')
+        wrapped_func = func
+        result = None
+        error = None
+        failed = False
+
+        status = 'succesful'
+        success = True
+        if not iscoroutine(func):
+            wrapped_func = coroutine(func)
+
+        Stats.tcp_stats['total_requests'] += 1
+
+        try:
+            result = yield from wait_for(wrapped_func(self, **kwargs), 120)
+
+        except TimeoutError as e:
+            Stats.tcp_stats['timedout'] += 1
+            error = str(e)
+            status = 'timeout'
+            success = False
+            failed = True
+
+        except VykedServiceException as e:
+            Stats.tcp_stats['total_responses'] += 1
+            _logger.error(str(e))
+            error = str(e)
+            status = 'handled_error'
+
+        except Exception as e:
+            Stats.tcp_stats['total_errors'] += 1
+            _logger.exception('api request exception')
+            error = str(e)
+            status = 'unhandled_error'
+            success = False
+            failed = True
+
+        else:
+            Stats.tcp_stats['total_responses'] += 1
+
+        end_time = int(time.time() * 1000)
+
+        hostname = socket.gethostname()
+        service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+
+        logd = {
+            'endpoint': func.__name__,
+            'time_taken': end_time - start_time,
+            'hostname': hostname, 'service_name': service_name
+        }
+        logging.getLogger('stats').debug(logd)
+        _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
+
+        # call to update aggregator, designed to replace the stats module.
+        Aggregator.update_stats(endpoint=func.__name__, status=status, success=success,
+                                server_type='tcp', time_taken=end_time - start_time)
+
+        if not old_api:
+            return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
+                                              error=error, failed=failed)
+        else:
+            return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
+                                              error=error, failed=failed, old_api=old_api,
+                                              replacement_api=replacement_api)
+
+    wrapper.is_api = True
+    return wrapper
+
+
+def make_request(func, self, args, kwargs, method):
+    params = func(self, *args, **kwargs)
+    entity = params.pop('entity', None)
+    app_name = params.pop('app_name', None)
+    self = params.pop('self')
+    response = yield from self._send_http_request(app_name, method, entity, params)
+    return response
+
+
+def get_decorated_fun(method, path, required_params):
+    def decorator(func):
+        @wraps(func)
+        def f(self, *args, **kwargs):
+            if isinstance(self, HTTPServiceClient):
+                return (yield from make_request(func, self, args, kwargs, method))
+            elif isinstance(self, HTTPService):
+                Stats.http_stats['total_requests'] += 1
+                if required_params is not None:
+                    req = args[0]
+                    query_params = req.GET
+                    params = required_params
+                    if not isinstance(required_params, list):
+                        params = [required_params]
+                    missing_params = list(filter(lambda x: x not in query_params, params))
+                    if len(missing_params) > 0:
+                        res_d = {'error': 'Required params {} not found'.format(','.join(missing_params))}
+                        Stats.http_stats['total_responses'] += 1
+                        Aggregator.update_stats(endpoint=func.__name__, status=400, success=False,
+                                                server_type='http', time_taken=0)
+                        return Response(status=400, content_type='application/json', body=json.dumps(res_d).encode())
+
+                t1 = time.time()
+                wrapped_func = func
+                success = True
+                _logger = logging.getLogger()
+
+                if not iscoroutine(func):
+                    wrapped_func = coroutine(func)
+                try:
+                    result = yield from wait_for(wrapped_func(self, *args, **kwargs), 120)
+
+                except TimeoutError as e:
+                    Stats.http_stats['timedout'] += 1
+                    logging.error("HTTP request had a %s" % str(e))
+                    status = 'timeout'
+                    success = False
+
+                except VykedServiceException as e:
+                    Stats.http_stats['total_responses'] += 1
+                    _logger.error(str(e))
+                    status = 'handled_exception'
+                    raise e
+
+                except Exception as e:
+                    Stats.http_stats['total_errors'] += 1
+                    _logger.exception('api request exception')
+                    status = 'unhandled_exception'
+                    success = False
+                    raise e
+
+                else:
+                    t2 = time.time()
+                    hostname = socket.gethostname()
+                    service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+                    status = result.status
+
+                    logd = {
+                        'status': result.status,
+                        'time_taken': int((t2 - t1) * 1000),
+                        'type': 'http',
+                        'hostname': hostname, 'service_name': service_name
+                    }
+                    logging.getLogger('stats').debug(logd)
+                    Stats.http_stats['total_responses'] += 1
+                    return result
+
+                finally:
+                    t2 = time.time()
+                    Aggregator.update_stats(endpoint=func.__name__, status=status, success=success,
+                                            server_type='http', time_taken=int((t2 - t1) * 1000))
+
+        f.is_http_method = True
+        f.method = method
+        f.paths = path
+        if not isinstance(path, list):
+            f.paths = [path]
+        return f
+
+    return decorator
+
+
+def get(path=None, required_params=None):
+    return get_decorated_fun('get', path, required_params)
+
+
+def head(path=None, required_params=None):
+    return get_decorated_fun('head', path, required_params)
+
+
+def options(path=None, required_params=None):
+    return get_decorated_fun('options', path, required_params)
+
+
+def patch(path=None, required_params=None):
+    return get_decorated_fun('patch', path, required_params)
+
+
+def post(path=None, required_params=None):
+    return get_decorated_fun('post', path, required_params)
+
+
+def put(path=None, required_params=None):
+    return get_decorated_fun('put', path, required_params)
+
+
+def trace(path=None, required_params=None):
+    return get_decorated_fun('put', path, required_params)
+
+
+def delete(path=None, required_params=None):
+    return get_decorated_fun('delete', path, required_params)
 
 
 class _Service:
@@ -184,7 +486,7 @@ class _ServiceHost(_Service):
     def initiate(self):
         self.tcp_bus.register()
         yield from self.pubsub_bus.create_pubsub_handler()
-        asyncio.async(self.pubsub_bus.register_for_subscription(self.host, self.port, self.node_id, self.clients))
+        async(self.pubsub_bus.register_for_subscription(self.host, self.port, self.node_id, self.clients))
 
 
 class TCPService(_ServiceHost):
@@ -248,12 +550,12 @@ class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
     def preflight_response(self):
         return self._preflight_response
 
-    @staticmethod
-    def pong(_):
+    @get('/ping')
+    def pong(self, _):
         return Response()
 
-    @staticmethod
-    def stats(_):
+    @get('/_stats')
+    def stats(self, _):
         res_d = Aggregator.dump_stats()
         return Response(status=200, content_type='application/json', body=json.dumps(res_d).encode())
 
