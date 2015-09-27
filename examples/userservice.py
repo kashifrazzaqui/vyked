@@ -58,6 +58,6 @@ if __name__ == '__main__':
     http = UserHTTPService(USER_HOST, USER_HTTP_PORT)
     tcp = UserTCPService(USER_HOST, USER_TCP_PORT)
     Host.configure('User')
-    Host.attach_service(http)
-    Host.attach_service(tcp)
+    Host.attach_http_service(http)
+    Host.attach_tcp_service(tcp)
     Host.run()

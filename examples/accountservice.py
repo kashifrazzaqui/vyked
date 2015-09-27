@@ -43,5 +43,5 @@ if __name__ == '__main__':
     tcp = AccountService(ACCOUNTS_HOST, ACCOUNTS_PORT)
     tcp.clients = [UserClient()]
     Host.configure('AccountService')
-    Host.attach_service(tcp)
+    Host.attach_tcp_service(tcp)
     Host.run()
