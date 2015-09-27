@@ -245,7 +245,8 @@ class Registry:
                           params['node_id'], params['type'])
         self._repository.register_service(service)
         self._client_protocols[params['node_id']] = registry_protocol
-        self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
+        if params['node_id'] not in self._service_protocols.keys():
+            self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
         self._handle_pending_registrations()
         self._inform_consumers(service)
 

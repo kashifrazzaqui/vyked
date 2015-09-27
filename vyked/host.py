@@ -73,7 +73,7 @@ class Host:
         cls._set_bus(service)
 
     @classmethod
-    def attach_http_service(cls, http_service:HTTPService):
+    def attach_http_service(cls, http_service: HTTPService):
         """ Attaches a service for hosting
         :param http_service: A HTTPService instance
         """
@@ -83,7 +83,7 @@ class Host:
             warnings.warn('HTTP service is already attached')
 
     @classmethod
-    def attach_tcp_service(cls, tcp_service:TCPService):
+    def attach_tcp_service(cls, tcp_service: TCPService):
         """ Attaches a service for hosting
         :param tcp_service: A TCPService instance
         """
@@ -159,9 +159,11 @@ class Host:
     def _start_server(cls):
         tcp_server = cls._create_tcp_server()
         http_server = cls._create_http_server()
-        cls._register_services()
-        cls._create_pubsub_handler()
-        cls._subscribe()
+        if not cls.ronin:
+            if cls._tcp_service:
+                asyncio.get_event_loop().run_until_complete(cls._tcp_service.tcp_bus.connect())
+            if cls._http_service:
+                asyncio.get_event_loop().run_until_complete(cls._http_service.tcp_bus.connect())
         if tcp_server:
             cls._logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
         if http_server:
@@ -184,37 +186,11 @@ class Host:
             asyncio.get_event_loop().close()
 
     @classmethod
-    def _create_pubsub_handler(cls):
-        if not cls.ronin:
-            if cls._tcp_service:
-                asyncio.get_event_loop().run_until_complete(
-                    cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
-            if cls._http_service:
-                asyncio.get_event_loop().run_until_complete(
-                    cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
-
-    @classmethod
-    def _subscribe(cls):
-        if not cls.ronin:
-            if cls._tcp_service:
-                asyncio.async(
-                    cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.host, cls._tcp_service.port,
-                                                                          cls._tcp_service.node_id,
-                                                                          cls._tcp_service.clients))
-            if cls._http_service:
-                asyncio.async(
-                    cls._http_service.pubsub_bus.register_for_subscription(cls._http_service.host,
-                                                                           cls._http_service.port,
-                                                                           cls._http_service.node_id,
-                                                                           cls._http_service.clients))
-
-    @classmethod
     def _set_bus(cls, service):
         registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port)
         tcp_bus = TCPBus(registry_client)
         registry_client.conn_handler = tcp_bus
-        pubsub_bus = PubSubBus(registry_client)
-
+        pubsub_bus = PubSubBus(cls.pubsub_host, cls.pubsub_port, registry_client)  # , cls._tcp_service._ssl_context)
         registry_client.bus = tcp_bus
         if isinstance(service, TCPService):
             tcp_bus.tcp_host = service
@@ -222,14 +198,6 @@ class Host:
             tcp_bus.http_host = service
         service.tcp_bus = tcp_bus
         service.pubsub_bus = pubsub_bus
-
-    @classmethod
-    def _register_services(cls):
-        if not cls.ronin:
-            if cls._tcp_service:
-                cls._tcp_service.register()
-            if cls._http_service:
-                cls._http_service.register()
 
     @classmethod
     def _setup_logging(cls):
