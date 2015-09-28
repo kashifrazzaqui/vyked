@@ -6,7 +6,7 @@ import setproctitle
 
 from asyncio import iscoroutine, coroutine, wait_for, TimeoutError, Future, get_event_loop, async
 from functools import wraps, partial
-from aiohttp.web import Response
+from aiohttp.web import Response, WebSocketResponse
 from again.utils import unique_hex
 
 from .packet import MessagePacket
@@ -210,7 +210,21 @@ def get_decorated_fun(method, path, required_params, is_ws=False):
                 wrapped_func = func
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
-                return (yield from wrapped_func(self, *args, **kwargs))
+                if path == '/ping' or path == '/_stats':
+                    result = yield from wrapped_func(self, *args, **kwargs)
+                    return result
+                wsr = WebSocketResponse()
+                wsr.start(args[0])
+                while True:
+                    try:
+                        msg = yield from wsr.receive()
+                        resp = yield from wrapped_func(self, msg)
+                        if resp:
+                            wsr.send_str(resp)
+                    except:
+                        wsr.close()
+                        break
+                return wsr
             elif isinstance(self, HTTPService):
                 Stats.http_stats['total_requests'] += 1
                 if required_params is not None:
@@ -320,8 +334,8 @@ def delete(path=None, required_params=None):
     return get_decorated_fun('delete', path, required_params)
 
 
-def ws(path=None, required_params=None, is_ws=True):
-    return get_decorated_fun('get', path, required_params, is_ws=is_ws)
+def ws(path=None, required_params=None):
+    return get_decorated_fun('get', path, required_params, is_ws=True)
 
 
 class _Service:

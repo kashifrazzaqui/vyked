@@ -122,8 +122,7 @@ Vyked uses aiohttp to setup Websocket server.
 
 .. code-block:: python
 
-    from vyked import Host, WSService, ws, WebSocketResponse
-    from aiohttp.web import MsgType
+    from vyked import Host, WSService, ws
 
 
     class ChatWSService(WSService):
@@ -133,22 +132,14 @@ Vyked uses aiohttp to setup Websocket server.
             self.msgs = []
 
         @ws(path='/')
-        def chat(self, request):
-            wsk = WebSocketResponse()
-            wsk.start(request)
-            while True:
-                msg = yield from wsk.receive()
-                if msg.tp == MsgType.text:
-                    if msg.data == 'close':
-                        yield from wsk.close()
-                    elif 'updater' in msg.data:
-                        messages = ""
-                        for m in self.msgs:
-                            messages += m + "<br>"
-                        wsk.send_str(messages)
-                    else:
-                        self.msgs.append(msg.data)
-            return wsk
+        def chat(self, msg=None):
+            if 'updater' in msg.data:
+                messages = ""
+                for m in self.msgs:
+                    messages += m + "<br>"
+                return messages
+            else:
+                self.msgs.append(msg.data)
 
 
 To start a service:

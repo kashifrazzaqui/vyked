@@ -15,10 +15,3 @@ class Response(Res):
     Wraps the aiohttp response object to hide it from user
     """
     pass
-
-
-class WebSocketResponse(Wres):
-    """
-    Wraps the aiohttp response object to hide it from user
-    """
-    pass

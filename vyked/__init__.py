@@ -11,6 +11,6 @@ from .registry import Registry  # noqa
 from .utils import log  # noqa
 from .exceptions import RequestException, VykedServiceError, VykedServiceException  # noqa
 from .utils.log import setup_logging  # noqa
-from .wrappers import Response, Request, WebSocketResponse  # noqa
+from .wrappers import Response, Request  # noqa
 
 __version__ = '2.1.73'
