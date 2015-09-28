@@ -56,7 +56,6 @@ class Host:
         Host.pubsub_host = pubsub_host
         Host.pubsub_port = pubsub_port
 
-
     @classmethod
     @deprecated
     def attach_service(cls, service):

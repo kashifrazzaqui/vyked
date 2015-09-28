@@ -216,7 +216,7 @@ class Registry:
         elif request_type == 'pong':
             self._ping(packet)
         elif request_type == 'ping':
-            self._pong(packet, protocol)
+            self._handle_ping(packet, protocol)
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
 
@@ -358,6 +358,24 @@ class Registry:
     def periodic_uptime_logger(self):
         self._repository.log_uptimes()
         asyncio.get_event_loop().call_later(300, self.periodic_uptime_logger)
+
+    def _handle_ping(self, packet, protocol):
+        """ Responds to pings from registry_client only if the node_ids present in the ping payload are registered
+
+        :param packet: The 'ping' packet received
+        :param protocol: The protocol on which the pong should be sent
+        """
+        if 'payload' in packet:
+            is_valid_node = True
+            node_ids = list(packet['payload'].values())
+            for node_id in node_ids:
+                if self._repository.get_node(node_id) is None:
+                    is_valid_node = False
+                    break
+            if is_valid_node:
+                self._pong(packet, protocol)
+        else:
+            self._pong(packet, protocol)
 
 
 if __name__ == '__main__':
