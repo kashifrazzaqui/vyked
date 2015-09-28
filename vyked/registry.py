@@ -216,7 +216,17 @@ class Registry:
         elif request_type == 'pong':
             self._ping(packet)
         elif request_type == 'ping':
-            self._pong(packet, protocol)
+            if 'payload' in packet:
+                to_send=True
+                node_ids = list(packet['payload'].values())
+                for node_id in node_ids:
+                    if self._repository.get_node(node_id) is None:
+                        to_send = False
+                        break
+                if to_send:
+                    self._pong(packet, protocol)
+            else:
+                self._pong(packet, protocol)
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
 
