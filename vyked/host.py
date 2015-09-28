@@ -35,7 +35,6 @@ class Host:
 
     _host_id = None
     _services = {'_tcp_service': None, '_http_service': None, '_ws_service': None}
-    registry_client_ssl = None
     _logger = logging.getLogger(__name__)
 
     @classmethod
@@ -106,7 +105,7 @@ class Host:
             cls._services['_ws_service'] = ws_service
             cls._set_bus(ws_service)
         else:
-            warnings.warn('TCP service is already attached')
+            warnings.warn('WS service is already attached')
 
 
     @classmethod
