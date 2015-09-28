@@ -44,12 +44,17 @@ class Pinger:
         """
         Called when a pong is received. So the timer is cancelled
         """
-        self._timer.cancel()
-        self._failures = 0
-        asyncio.async(self.send_ping())
+        if self._timer is not None:
+            self._timer.cancel()
+            self._failures = 0
+            asyncio.async(self.send_ping())
 
     def _start_timer(self):
         self._timer = self._loop.call_later(self._timeout, self._on_timeout)
+
+    def stop(self):
+        if self._timer is not None:
+            self._timer.cancel()
 
     def _on_timeout(self):
         if self._failures < self._max_failures:
@@ -60,10 +65,11 @@ class Pinger:
 
 
 class TCPPinger:
-
     logger = logging.getLogger(__name__)
 
-    def __init__(self, node_id, protocol, handler):
+    def __init__(self, host, port, node_id, protocol, handler):
+        self._host = host
+        self._port = port
         self._pinger = Pinger(self, PING_INTERVAL, PING_TIMEOUT)
         self._node_id = node_id
         self._protocol = protocol
@@ -76,8 +82,15 @@ class TCPPinger:
         self._protocol.send(ControlPacket.ping(self._node_id))
 
     def on_timeout(self):
-        self.logger.debug('Node %s timed out', self._node_id)
-        self._handler.on_timeout(self._node_id)
+        self.logger.debug('%s timed out', self._node_id)
+        # Dummy packet to cleanly close transport
+        self._protocol._transport.write(
+            '{"closed":"true", "type":"closed", "service":"none", "version":"none"}'.encode())
+        self._protocol.close()
+        self._handler.on_timeout(self._host, self._port, self._node_id)
+
+    def stop(self):
+        self._pinger.stop()
 
     def pong_received(self):
         self._pinger.pong_received()
@@ -85,13 +98,14 @@ class TCPPinger:
 
 class HTTPPinger:
 
-    logger = logging.getLogger(__name__)
-
-    def __init__(self, node_id, host, port, handler):
+    def __init__(self, host, port, node_id, handler):
+        self._host = host
+        self._port = port
         self._pinger = Pinger(self, PING_INTERVAL, PING_TIMEOUT)
         self._node_id = node_id
         self._handler = handler
         self._url = 'http://{}:{}/ping'.format(host, port)
+        self.logger = logging.getLogger(__name__)
 
     def ping(self):
         asyncio.async(self._pinger.send_ping())
@@ -105,9 +119,12 @@ class HTTPPinger:
             self.pong_received()
             res.close()
 
+    def stop(self):
+        self._pinger.stop()
+
     def on_timeout(self):
-        self.logger.debug('Node %s timed out', self._node_id)
-        self._handler.on_timeout(self._node_id)
+        self.logger.debug('%s timed out', self._node_id)
+        self._handler.on_timeout(self._host, self._port, self._node_id)
 
     def pong_received(self):
         self._pinger.pong_received()

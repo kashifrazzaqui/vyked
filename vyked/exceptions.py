@@ -2,8 +2,8 @@
 class VykedServiceException(Exception):
 
     """
-    To be subclassed by service level exceptions and indicate exceptions that 
-    are to be handled at the service level itself. 
+    To be subclassed by service level exceptions and indicate exceptions that
+    are to be handled at the service level itself.
     These exceptions shall not be counted as errors at the macroscopic level.
     eg: record not found, invalid parameter etc.
     """

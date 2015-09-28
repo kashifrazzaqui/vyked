@@ -6,7 +6,6 @@ from collections import defaultdict, namedtuple
 from again.utils import natural_sort
 import time
 
-from .utils.log import config_logs
 from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
 from .pinger import TCPPinger, HTTPPinger
@@ -16,7 +15,6 @@ import json
 import ssl
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
-logger = logging.getLogger('vyked.registry')
 
 
 def tree():
@@ -39,6 +37,7 @@ class Repository:
         self._service_dependencies = {}
         self._subscribe_list = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
         self._uptimes = tree()
+        self.logger = logging.getLogger(__name__)
 
     def register_service(self, service: Service):
         service_name = self._get_full_service_name(service.name, service.version)
@@ -122,9 +121,9 @@ class Repository:
                 now = int(time.time())
                 live = d.get('downtime', 0) < d['uptime']
                 uptime = now - d['uptime'] if live else 0
-                logd = {'service': name, 'host': host, 'status': live,
+                logd = {'service_name': name.split('/')[0], 'hostname': host, 'status': live,
                         'uptime': int(uptime)}
-                logger.info(logd)
+                self.logger.info(logd)
 
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
         entry = (service, version, host, port, node_id)
@@ -166,7 +165,9 @@ class Registry:
         self._client_protocols = {}
         self._service_protocols = {}
         self._repository = repository
-        self._pingers = {}
+        self._tcp_pingers = {}
+        self._http_pingers = {}
+        self.logger = logging.getLogger()
         try:
             config = json_file_to_dict('./config.json')
             self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
@@ -202,7 +203,7 @@ class Registry:
             for_log["caller_name"] = params['service'] + '/' + params['version']
             for_log["caller_address"] = transport.get_extra_info("peername")[0]
             for_log["request_type"] = request_type
-            logger.debug(for_log)
+            self.logger.debug(for_log)
         if request_type == 'register':
             self.register_service(packet, protocol)
         elif request_type == 'get_instances':
@@ -218,23 +219,24 @@ class Registry:
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
 
-    def deregister_service(self, node_id):
+    def deregister_service(self, host, port, node_id):
         service = self._repository.get_node(node_id)
-        for_log = {}
-        for_log["caller_name"] = service.name + '/' + service.version
-        for_log["caller_address"] = service.host
-        for_log["request_type"] = 'deregister'
-        logger.debug(for_log)
-        self._repository.remove_node(node_id)
-        if service is not None:
-            self._service_protocols.pop(node_id, None)
-            self._client_protocols.pop(node_id, None)
-            self._notify_consumers(service.name, service.version, node_id)
-            if not len(self._repository.get_instances(service.name, service.version)):
-                consumers = self._repository.get_consumers(service.name, service.version)
-                for consumer_name, consumer_version in consumers:
-                    for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
-                        self._repository.add_pending_service(consumer_name, consumer_version, node_id)
+        self._tcp_pingers.pop(node_id, None)
+        self._http_pingers.pop((host, port), None)
+        if service:
+            for_log = {"caller_name": service.name + '/' + service.version, "caller_address": service.host,
+                       "request_type": 'deregister'}
+            self.logger.debug(for_log)
+            self._repository.remove_node(node_id)
+            if service is not None:
+                self._service_protocols.pop(node_id, None)
+                self._client_protocols.pop(node_id, None)
+                self._notify_consumers(service.name, service.version, node_id)
+                if not len(self._repository.get_instances(service.name, service.version)):
+                    consumers = self._repository.get_consumers(service.name, service.version)
+                    for consumer_name, consumer_version in consumers:
+                        for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
+                            self._repository.add_pending_service(consumer_name, consumer_version, node_id)
 
     def register_service(self, packet: dict, registry_protocol):
         params = packet['params']
@@ -277,9 +279,9 @@ class Registry:
                 if should_activate:
                     self._send_activated_packet(service, version, node)
                     self._repository.remove_pending_instance(service, version, node)
-                    logger.info('%s activated', (service, version))
+                    self.logger.info('%s activated', (service, version))
                 else:
-                    logger.info('%s can\'t register because it depends on %s', (service, version), vendor)
+                    self.logger.info('%s can\'t register because it depends on %s', (service, version), vendor)
 
     def _make_activated_packet(self, service, version):
         vendors = self._repository.get_vendors(service, version)
@@ -290,19 +292,21 @@ class Registry:
 
     def _connect_to_service(self, host, port, node_id, service_type):
         if service_type == 'tcp':
-            coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), host, port)
-            future = asyncio.async(coroutine)
-            future.add_done_callback(partial(self._handle_service_connection, node_id))
+            if node_id not in self._service_protocols:
+                coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), host, port)
+                future = asyncio.async(coroutine)
+                future.add_done_callback(partial(self._handle_service_connection, node_id, host, port))
         elif service_type == 'ws' or service_type == 'http':
-            pinger = HTTPPinger(node_id, host, port, self)
-            self._pingers[node_id] = pinger
-            pinger.ping()
+            if not (host, port) in self._http_pingers:
+                pinger = HTTPPinger(host, port, node_id, self)
+                self._http_pingers[(host, port)] = pinger
+                pinger.ping()
 
-    def _handle_service_connection(self, node_id, future):
+    def _handle_service_connection(self, node_id, host, port, future):
         transport, protocol = future.result()
         self._service_protocols[node_id] = protocol
-        pinger = TCPPinger(node_id, protocol, self)
-        self._pingers[node_id] = pinger
+        pinger = TCPPinger(host, port, node_id, protocol, self)
+        self._tcp_pingers[node_id] = pinger
         pinger.ping()
 
     def _notify_consumers(self, service, version, node_id):
@@ -327,11 +331,13 @@ class Registry:
         packet = ControlPacket.subscribers(service, version, endpoint, request_id, subscribers)
         protocol.send(packet)
 
-    def on_timeout(self, node_id):
-        self.deregister_service(node_id)
+    def on_timeout(self, host, port, node_id):
+        service = self._repository.get_node(node_id)
+        self.logger.debug('%s timed out', service)
+        self.deregister_service(host, port, node_id)
 
     def _ping(self, packet):
-        pinger = self._pingers[packet['node_id']]
+        pinger = self._tcp_pingers[packet['node_id']]
         pinger.pong_received()
 
     def _pong(self, packet, protocol):
@@ -354,10 +360,10 @@ class Registry:
 
 
 if __name__ == '__main__':
-    config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
+    # config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
     from setproctitle import setproctitle
 
-    setproctitle("registry")
+    setproctitle("vyked-registry")
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT, Repository())

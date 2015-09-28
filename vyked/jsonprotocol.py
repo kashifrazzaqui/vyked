@@ -3,13 +3,9 @@ import json
 import logging
 
 from jsonstreamer import ObjectStreamer
-
 from .sendqueue import SendQueue
-
-from .utils.log import is_ping_logging_enabled
 from .utils.jsonencoder import VykedEncoder
 
-import re
 
 class JSONProtocol(asyncio.Protocol):
     logger = logging.getLogger(__name__)
@@ -54,11 +50,7 @@ class JSONProtocol(asyncio.Protocol):
     def send(self, packet: dict):
         frame = self._make_frame(packet)
         self._send_q.send(frame)
-        if 'ping' in frame.decode() or 'pong' in frame.decode():
-            if is_ping_logging_enabled():
-                self.logger.debug('Data sent: %s', frame.decode())
-        else:
-            self.logger.debug('Data sent: %s', frame.decode())
+        self.logger.debug('Data sent: %s', frame.decode())
 
     def close(self):
         self._transport.write(']'.encode())  # end the json array
@@ -68,15 +60,11 @@ class JSONProtocol(asyncio.Protocol):
         string_data = byte_data.decode()
         if '"old_api":' in string_data:
             payload = json.loads(string_data[:-1])['payload']
-            warning = 'Deprecated API: '+payload['old_api']
+            warning = 'Deprecated API: ' + payload['old_api']
             if 'replacement_api' in payload.keys():
-                warning += ', New API: '+payload['replacement_api']
+                warning += ', New API: ' + payload['replacement_api']
             self.logger.warn(warning)
-        if 'ping' in string_data or 'pong' in string_data:
-            if is_ping_logging_enabled():
-                self.logger.debug('Data received: %s', string_data)
-        else:
-            self.logger.debug('Data received: %s', string_data)
+        self.logger.debug('Data received: %s', string_data)
         self._obj_streamer.consume(string_data)
 
     def on_object_stream_start(self):
@@ -99,6 +87,7 @@ class JSONProtocol(asyncio.Protocol):
 
 
 class VykedProtocol(JSONProtocol):
+
     def __init__(self, handler):
         super().__init__()
         self._handler = handler

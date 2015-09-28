@@ -19,8 +19,6 @@ from .exceptions import ClientNotFoundError, ClientDisconnected
 HTTP = 'http'
 TCP = 'tcp'
 
-_logger = logging.getLogger(__name__)
-
 
 def _retry_for_pub(result):
     return not result
@@ -69,6 +67,7 @@ class TCPBus:
         self._host_id = unique_hex()
         self._ronin = False
         self._registered = False
+        self._logger = logging.getLogger(__name__)
 
     def _create_service_clients(self):
         futures = []
@@ -99,7 +98,7 @@ class TCPBus:
 
     def registration_complete(self):
         if not self._registered:
-            f = self._create_service_clients()
+            self._create_service_clients()
             self._registered = True
 
     def new_instance(self, service, version, host, port, node_id, type):
@@ -126,11 +125,11 @@ class TCPBus:
                 packet['to'] = node_id
                 client_protocol.send(packet)
             else:
-                _logger.error('Client protocol is not connected for packet %s', packet)
+                self._logger.error('Client protocol is not connected for packet %s', packet)
                 raise ClientDisconnected()
         else:
             # No node found to send request
-            _logger.error('Out of %s, Client Not found for packet %s', self._client_protocols.keys(), packet)
+            self._logger.error('Out of %s, Client Not found for packet %s', self._client_protocols.keys(), packet)
             raise ClientNotFoundError()
 
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
@@ -165,15 +164,15 @@ class TCPBus:
         asyncio.async(pinger.pong_received(count))
 
     def _get_node_id_for_packet(self, packet):
-        app, service, version, entity = packet['app'], packet['service'], packet['version'], packet['entity']
+        service, version, entity = packet['service'], packet['version'], packet['entity']
         node = self._registry_client.resolve(service, version, entity, TCP)
         return node[2] if node else None
 
     def handle_ping_timeout(self, node_id):
-        _logger.info("Service client connection timed out {}".format(node_id))
+        self._logger.info("Service client connection timed out {}".format(node_id))
         self._pingers.pop(node_id, None)
         service_props = self._registry_client.get_for_node(node_id)
-        _logger.info('service client props {}'.format(service_props))
+        self._logger.info('service client props {}'.format(service_props))
         if service_props is not None:
             host, port, _node_id, _type = service_props
             asyncio.async(self._connect_to_client(host, _node_id, port, _type))
@@ -190,7 +189,7 @@ class TCPBus:
                 func = getattr(self, '_' + packet['type'] + '_receiver')
                 func(packet, protocol)
             else:
-                _logger.warn('wrongly routed packet: ', packet)
+                self._logger.warn('wrongly routed packet: ', packet)
 
     def _request_receiver(self, packet, protocol):
         api_fn = getattr(self.hosts['tcp_host'], packet['endpoint'])
