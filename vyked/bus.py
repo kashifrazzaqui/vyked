@@ -218,8 +218,6 @@ class TCPBus:
 
     def handle_connected(self):
         if self.tcp_host:
-            self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name,
-                                           self.tcp_host.version, self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
             yield from self.tcp_host.initiate()
         if self.http_host:
             yield from self.http_host.initiate()
