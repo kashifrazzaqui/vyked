@@ -56,8 +56,8 @@ class Host:
         Host.pubsub_host = pubsub_host
         Host.pubsub_port = pubsub_port
 
-    @deprecated
     @classmethod
+    @deprecated
     def attach_service(cls, service):
         """ Allows you to attach one TCP and one HTTP service
 
