@@ -90,16 +90,16 @@ DEFAULT_CONFIG_YAML = """
             stream: ext://sys.stdout
 
         stats:
-            class: logging.FileHandler
+            class: logging.StreamHandler
             level: INFO
             formatter: cjf
-            filename: logs/vyked_stats.log
+            stream: ext://sys.stdout
 
         service:
-            class: logging.FileHandler
+            class: logging.StreamHandler
             level: INFO
             formatter: ctf
-            filename: logs/vyked_service.log
+            stream: ext://sys.stdout
 
     formatters:
         ctf:

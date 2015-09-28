@@ -1,6 +1,4 @@
 from unittest import mock
-# from vyked.registry import Registry, Repository
-# from vyked.packet import ControlPacket
 import uuid
 
 
@@ -104,5 +102,4 @@ def test_xsubscribe(service_a1, service_d1, registry):
         'endpoint': service_d1['events'][0]['endpoint']
     }
     registry.get_subscribers(packet={'params': params, 'request_id': str(uuid.uuid4())}, protocol=protocol)
-    # assert protocol.send.call_args_list[0][0][0] == {}
     assert subscriber_returned_successfully(protocol.send.call_args_list[0][0][0], service_d1)

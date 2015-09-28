@@ -245,7 +245,8 @@ class Registry:
                           params['node_id'], params['type'])
         self._repository.register_service(service)
         self._client_protocols[params['node_id']] = registry_protocol
-        self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
+        if params['node_id'] not in self._service_protocols.keys():
+            self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
         self._handle_pending_registrations()
         self._inform_consumers(service)
 
@@ -296,7 +297,7 @@ class Registry:
                 coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), host, port)
                 future = asyncio.async(coroutine)
                 future.add_done_callback(partial(self._handle_service_connection, node_id, host, port))
-        elif service_type == 'http':
+        elif service_type == 'ws' or service_type == 'http':
             if not (host, port) in self._http_pingers:
                 pinger = HTTPPinger(host, port, node_id, self)
                 self._http_pingers[(host, port)] = pinger
@@ -363,7 +364,7 @@ if __name__ == '__main__':
     # config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
     from setproctitle import setproctitle
 
-    setproctitle("registry")
+    setproctitle("vyked-registry")
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT, Repository())
