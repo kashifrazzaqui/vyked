@@ -56,13 +56,14 @@ class Host:
         Host.pubsub_host = pubsub_host
         Host.pubsub_port = pubsub_port
 
-    @deprecated
+
     @classmethod
+    @deprecated
     def attach_service(cls, service):
-        """ Allows you to attach one TCP and one HTTP service
+        """ Allows you to attach one TCP and one HTTP service and one WS (websocket) service
 
         deprecated:: 2.1.73 use http and tcp specific methods
-        :param service: A vyked TCP or HTTP service that needs to be hosted
+        :param service: A vyked TCP, WS or HTTP service that needs to be hosted
         """
         invalid_service = True
         _service_classes = {'_tcp_service': TCPService, '_http_service': HTTPService, '_ws_service': WSService}
@@ -80,8 +81,8 @@ class Host:
         """ Attaches a service for hosting
         :param http_service: A HTTPService instance
         """
-        if cls._http_service is None:
-            cls._http_service = http_service
+        if cls._services['_http_service'] is None:
+            cls._services['_http_service'] = http_service
             cls._set_bus(http_service)
         else:
             warnings.warn('HTTP service is already attached')
@@ -91,11 +92,23 @@ class Host:
         """ Attaches a service for hosting
         :param tcp_service: A TCPService instance
         """
-        if cls._tcp_service is None:
-            cls._tcp_service = tcp_service
+        if cls._services['_tcp_service'] is None:
+            cls._services['_tcp_service'] = tcp_service
             cls._set_bus(tcp_service)
         else:
             warnings.warn('TCP service is already attached')
+
+    @classmethod
+    def attach_ws_service(cls, ws_service: WSService):
+        """ Attaches a service for hosting
+        :param ws_service: A WSService instance
+        """
+        if cls._services['_ws_service'] is None:
+            cls._services['_ws_service'] = ws_service
+            cls._set_bus(ws_service)
+        else:
+            warnings.warn('TCP service is already attached')
+
 
     @classmethod
     def run(cls):

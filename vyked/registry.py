@@ -110,6 +110,7 @@ class Repository:
             for host, uptimes in nodes.items():
                 if host == thehost and uptimes['node_id'] == node_id:
                     uptimes['downtime'] = int(time.time())
+                    self.log_uptimes()
         return None
 
     def get_uptimes(self):
