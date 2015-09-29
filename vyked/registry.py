@@ -283,10 +283,10 @@ class Registry:
                     self.logger.info('%s can\'t register because it depends on %s', (name, version), dependency)
 
     def _make_activated_packet(self, name, version):
-        vendors = self._repository.get_dependencies(name, version)
+        dependencies = self._repository.get_dependencies(name, version)
         instances = {
-            (v['name'], v['version']): self._repository.get_versioned_instances(v['name'], v['version'])
-            for v in vendors}
+            (dependency['name'], dependency['version']): self._repository.get_versioned_instances(dependency['name'], dependency['version'])
+            for dependency in dependencies}
         return ControlPacket.activated(instances)
 
     def _connect_to_service(self, host, port, node_id, service_type):

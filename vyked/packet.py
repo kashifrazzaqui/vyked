@@ -94,13 +94,13 @@ class ControlPacket(_Packet):
             dependency['name'] = k[0]
             dependency['version'] = k[1]
             for host, port, node, service_type in v:
-                vendor_node_packet = {
+                dependency_node_packet = {
                     'host': host,
                     'port': port,
                     'node_id': node,
                     'type': service_type
                 }
-                dependency['addresses'].append(vendor_node_packet)
+                dependency['addresses'].append(dependency_node_packet)
             dependencies.append(dependency)
         params = {
             'dependencies': dependencies
