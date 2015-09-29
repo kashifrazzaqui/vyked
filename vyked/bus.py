@@ -186,7 +186,7 @@ class TCPBus:
         elif packet['type'] == 'publish':
             self._handle_publish(packet, protocol)
         else:
-            if self.tcp_host.is_for_me(packet['service'], packet['version']):
+            if self.tcp_host.is_for_me(packet['name'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
                 func(packet, protocol)
             else:
@@ -208,7 +208,7 @@ class TCPBus:
             print('no api found for packet: ', packet)
 
     def _handle_publish(self, packet, protocol):
-        service, version, endpoint, payload, publish_id = (packet['service'], packet['version'], packet['endpoint'],
+        service, version, endpoint, payload, publish_id = (packet['name'], packet['version'], packet['endpoint'],
                                                            packet['payload'], packet['publish_id'])
         for client in self._service_clients:
             if client.name == service and client.version == version:
@@ -265,7 +265,7 @@ class PubSubBus:
         subscribers = yield from self._registry_client.get_subscribers(service, version, endpoint)
         strategies = defaultdict(list)
         for subscriber in subscribers:
-            strategies[(subscriber['service'], subscriber['version'])].append(
+            strategies[(subscriber['name'], subscriber['version'])].append(
                 (subscriber['host'], subscriber['port'], subscriber['node_id'], subscriber['strategy']))
         if not len(subscribers):
             future = self._pending_publishes[publish_id]

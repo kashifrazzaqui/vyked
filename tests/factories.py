@@ -4,7 +4,7 @@ logging.getLogger("factory").setLevel(logging.WARN)
 
 
 class ServiceFactory(factory.DictFactory):
-    service = factory.Sequence(lambda n: "service_%d" % n)
+    name = factory.Sequence(lambda n: "service_%d" % n)
     version = "1.0.0"
     dependencies = factory.List([])
     events = factory.List([])
