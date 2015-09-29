@@ -154,9 +154,9 @@ class RegistryClient:
                     (address['host'], address['port'], address['node_id'], address['type']))
         self.logger.debug('Connection cache after registration is %s', self._available_services)
 
-    def cache_instance(self, service, version, host, port, node, type):
+    def cache_instance(self, service, version, host, port, node_id, service_type):
         vendor = self._get_full_service_name(service, version)
-        self._available_services[vendor].append((host, port, node, type))
+        self._available_services[vendor].append((host, port, node_id, service_type))
         self.logger.debug('Connection cache on getting new instance is %s', self._available_services)
 
     def _handle_deregistration(self, packet):
