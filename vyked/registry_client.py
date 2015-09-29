@@ -55,8 +55,8 @@ class RegistryClient:
         packet = ControlPacket.registration(ip, port, node_id, service, version, vendors, service_type)
         self._protocol.send(packet)
 
-    def get_instances(self, service, version):
-        packet = ControlPacket.get_instances(service, version)
+    def get_instances(self, name, version):
+        packet = ControlPacket.get_instances(name, version)
         future = asyncio.Future()
         self._protocol.send(packet)
         self._pending_requests[packet['request_id']] = future
@@ -91,7 +91,7 @@ class RegistryClient:
 
     def receive(self, packet: dict, protocol, transport):
         if packet['type'] == 'registered':
-            self.cache_vendors(packet['params']['vendors'])
+            self.cache_vendors(packet['params']['dependencies'])
             self.bus.registration_complete()
         elif packet['type'] == 'new_instance':
             # TODO : once method for both vendors and new instance
@@ -146,22 +146,22 @@ class RegistryClient:
     def _get_full_service_name(service, version):
         return "{}/{}".format(service, version)
 
-    def cache_vendors(self, vendors):
-        for vendor in vendors:
-            vendor_name = self._get_full_service_name(vendor['name'], vendor['version'])
-            for address in vendor['addresses']:
+    def cache_vendors(self, dependencies):
+        for dependency in dependencies:
+            vendor_name = self._get_full_service_name(dependency['name'], dependency['version'])
+            for address in dependency['addresses']:
                 self._available_services[vendor_name].append(
                     (address['host'], address['port'], address['node_id'], address['type']))
         self.logger.debug('Connection cache after registration is %s', self._available_services)
 
-    def cache_instance(self, service, version, host, port, node, type):
-        vendor = self._get_full_service_name(service, version)
+    def cache_instance(self, name, version, host, port, node, type):
+        vendor = self._get_full_service_name(name, version)
         self._available_services[vendor].append((host, port, node, type))
         self.logger.debug('Connection cache on getting new instance is %s', self._available_services)
 
     def _handle_deregistration(self, packet):
         params = packet['params']
-        vendor = self._get_full_service_name(params['service'], params['version'])
+        vendor = self._get_full_service_name(params['name'], params['version'])
         node = params['node_id']
         for each in self._available_services[vendor]:
             if each[2] == node:
@@ -185,5 +185,5 @@ class RegistryClient:
         future = self._pending_requests.pop(packet['request_id'], None)
         future.set_result(packet['params']['instances'])
 
-    def _handle_new_instance(self, service, version, host, port, node, type):
-        self.bus.new_instance(service, version, host, port, node, type)
+    def _handle_new_instance(self, name, version, host, port, node, type):
+        self.bus.new_instance(name, version, host, port, node, type)
