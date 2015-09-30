@@ -54,13 +54,13 @@ def get_decorated_fun(method, path, required_params):
 
                 except TimeoutError as e:
                     Stats.http_stats['timedout'] += 1
-                    logging.error("HTTP request had a %s" % str(e))
+                    logging.exception("HTTP request had a %s" % str(e))
                     status = 'timeout'
                     success = False
 
                 except VykedServiceException as e:
                     Stats.http_stats['total_responses'] += 1
-                    _logger.error(str(e))
+                    _logger.exception(str(e))
                     status = 'handled_exception'
                     raise e
 
