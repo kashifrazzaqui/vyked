@@ -124,7 +124,7 @@ class Repository:
                 uptime = now - d['uptime'] if live else 0
                 logd = {'service_name': name.split('/')[0], 'hostname': host, 'status': live,
                         'uptime': int(uptime)}
-                self.logger.info(logd)
+                logging.getLogger('stats').info(logd)
 
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
         entry = (service, version, host, port, node_id)
