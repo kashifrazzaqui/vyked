@@ -154,7 +154,7 @@ class TCPBus:
 
     @staticmethod
     def _create_json_service_name(app, service, version):
-        return {'app': app, 'service': service, 'version': version}
+        return {'app': app, 'name': service, 'version': version}
 
     @staticmethod
     def _handle_ping(packet, protocol):
@@ -165,7 +165,7 @@ class TCPBus:
         asyncio.async(pinger.pong_received(count))
 
     def _get_node_id_for_packet(self, packet):
-        service, version, entity = packet['service'], packet['version'], packet['entity']
+        service, version, entity = packet['name'], packet['version'], packet['entity']
         node = self._registry_client.resolve(service, version, entity, TCP)
         return node[2] if node else None
 
