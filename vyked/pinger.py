@@ -126,7 +126,7 @@ class HTTPPinger:
         self._pinger.stop()
 
     def on_timeout(self):
-        self.logger.debug('%s timed out', self._node_id)
+        self.logger.warn('%s timed out', self._node_id)
         self._handler.on_timeout(self._host, self._port, self._node_id)
 
     def pong_received(self):
