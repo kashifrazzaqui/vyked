@@ -297,10 +297,11 @@ class Registry:
                 future = asyncio.async(coroutine)
                 future.add_done_callback(partial(self._handle_service_connection, node_id, host, port))
         elif service_type == 'http':
-            if not (host, port) in self._http_pingers:
-                pinger = HTTPPinger(host, port, node_id, self)
-                self._http_pingers[(host, port)] = pinger
-                pinger.ping()
+            pass
+            # if not (host, port) in self._http_pingers:
+            #    pinger = HTTPPinger(host, port, node_id, self)
+            #    self._http_pingers[(host, port)] = pinger
+            #    pinger.ping()
 
     def _handle_service_connection(self, node_id, host, port, future):
         transport, protocol = future.result()
