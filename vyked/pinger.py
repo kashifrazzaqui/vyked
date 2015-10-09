@@ -114,10 +114,13 @@ class HTTPPinger:
         asyncio.async(self.ping_coroutine())
 
     def ping_coroutine(self):
-        res = yield from request('get', self._url)
-        if res.status == 200:
-            self.pong_received()
-            res.close()
+        try:
+            res = yield from request('get', self._url)
+            if res.status == 200:
+                self.pong_received()
+                res.close()
+        except Exception:
+            self.logger.exception('Error while ping')
 
     def stop(self):
         self._pinger.stop()
