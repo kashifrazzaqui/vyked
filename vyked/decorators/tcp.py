@@ -136,24 +136,24 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         except asyncio.TimeoutError as e:
             Stats.tcp_stats['timedout'] += 1
             error = str(e)
-            _logger.exception('api request timeout')
             status = 'timeout'
             success = False
             failed = True
+            logging.exception("HTTP request had a timeout for method %s", func.__name__)
 
         except VykedServiceException as e:
             Stats.tcp_stats['total_responses'] += 1
-            _logger.exception(str(e))
             error = str(e)
             status = 'handled_error'
+            _logger.exception('Handled exception %s for method %s ', e.__class__.__name__, func.__name__)
 
         except Exception as e:
             Stats.tcp_stats['total_errors'] += 1
-            _logger.exception('api request unhandled exception')
             error = str(e)
             status = 'unhandled_error'
             success = False
             failed = True
+            _logger.exception('Unhandled exception %s for method %s ', e.__class__.__name__, func.__name__)
 
         else:
             Stats.tcp_stats['total_responses'] += 1
