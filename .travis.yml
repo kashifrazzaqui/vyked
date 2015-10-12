@@ -2,6 +2,9 @@ language : python
 sudo: false
 python:
     - "3.4"
+services:
+    - redis-server
+
 before_install:
     # - export LIBRARY_PATH=$HOME/.local/lib/:$LIBRARY_PATH
     - export LD_LIBRARY_PATH=$HOME/.local/lib/:$LD_LIBRARY_PATH
@@ -12,4 +15,5 @@ before_install:
 
 install: "pip install -r requirements.txt"
 script: 
-    - py.test -v
+    - py.test --ignore tests/integration
+    - py.test tests/integration

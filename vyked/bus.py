@@ -8,6 +8,7 @@ import uuid
 
 from again.utils import unique_hex
 import aiohttp
+from retrial.retrial import retry
 
 from .services import TCPServiceClient, HTTPServiceClient
 from .pubsub import PubSub
@@ -111,8 +112,10 @@ class TCPBus:
     def send(self, packet: dict):
         packet['from'] = self._host_id
         func = getattr(self, '_' + packet['type'] + '_sender')
-        func(packet)
+        asyncio.async(func(packet))
 
+    @retry(should_retry_for_result=lambda x: not x, should_retry_for_exception=lambda x: True, timeout=None,
+           max_attempts=5, multiplier=2)
     def _request_sender(self, packet: dict):
         """
         Sends a request to a server from a ServiceClient
@@ -125,6 +128,7 @@ class TCPBus:
             if client_protocol.is_connected():
                 packet['to'] = node_id
                 client_protocol.send(packet)
+                return True
             else:
                 self._logger.error('Client protocol is not connected for packet %s', packet)
                 raise ClientDisconnected()
@@ -154,7 +158,7 @@ class TCPBus:
 
     @staticmethod
     def _create_json_service_name(app, service, version):
-        return {'app': app, 'service': service, 'version': version}
+        return {'app': app, 'name': service, 'version': version}
 
     @staticmethod
     def _handle_ping(packet, protocol):
@@ -165,7 +169,7 @@ class TCPBus:
         asyncio.async(pinger.pong_received(count))
 
     def _get_node_id_for_packet(self, packet):
-        service, version, entity = packet['service'], packet['version'], packet['entity']
+        service, version, entity = packet['name'], packet['version'], packet['entity']
         node = self._registry_client.resolve(service, version, entity, TCP)
         return node[2] if node else None
 
