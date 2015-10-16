@@ -1,7 +1,7 @@
 import logging
 import asyncio
 import setproctitle
-from collections import defaultdict
+from collections import defaultdict, deque
 import socket
 
 
@@ -37,7 +37,7 @@ class StatUnit:
     def __init__(self, key=None):
         self.key = key
         self.average = 0
-        self.values = list()
+        self.values = deque()
         self.count = 0
         self.success_count = 0
         self.sub = dict()
@@ -45,7 +45,7 @@ class StatUnit:
     def update(self, val, success):
         self.values.append(val)
         if len(self.values) > self.MAXSIZE:
-            self.values.pop(0)
+            self.values.popleft()
 
         self.average = sum(self.values) / len(self.values)
         self.count += 1
