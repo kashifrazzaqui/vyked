@@ -50,7 +50,7 @@ def get_decorated_fun(method, path, required_params):
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
                 try:
-                    result = yield from wait_for(wrapped_func(self, *args, **kwargs), 120)
+                    result = yield from wait_for(wrapped_func(self, *args, **kwargs), 60*10)
 
                 except TimeoutError as e:
                     Stats.http_stats['timedout'] += 1

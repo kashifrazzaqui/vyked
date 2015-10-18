@@ -131,7 +131,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         Stats.tcp_stats['total_requests'] += 1
 
         try:
-            result = yield from asyncio.wait_for(wrapped_func(self, **kwargs), 120)
+            result = yield from asyncio.wait_for(wrapped_func(self, **kwargs), 60*10)
 
         except asyncio.TimeoutError as e:
             Stats.tcp_stats['timedout'] += 1
