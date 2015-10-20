@@ -14,6 +14,8 @@ from .exceptions import RequestException, ClientException, VykedServiceException
 from .utils.ordered_class_member import OrderedClassMembers
 from .utils.stats import Aggregator, Stats
 
+API_TIMEOUT = 60 * 100
+
 
 def publish(func):
     """
@@ -136,7 +138,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         Stats.tcp_stats['total_requests'] += 1
 
         try:
-            result = yield from wait_for(wrapped_func(self, **kwargs), 120)
+            result = yield from wait_for(wrapped_func(self, **kwargs), API_TIMEOUT)
 
         except TimeoutError as e:
             Stats.tcp_stats['timedout'] += 1
@@ -231,7 +233,7 @@ def get_decorated_fun(method, path, required_params):
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
                 try:
-                    result = yield from wait_for(wrapped_func(self, *args, **kwargs), 120)
+                    result = yield from wait_for(wrapped_func(self, *args, **kwargs), API_TIMEOUT)
 
                 except TimeoutError as e:
                     Stats.http_stats['timedout'] += 1
