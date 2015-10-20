@@ -3,16 +3,16 @@ import signal
 import asyncio
 from functools import partial
 from collections import defaultdict, namedtuple
-from again.utils import natural_sort
 import time
+import json
+import ssl
+
+from again.utils import natural_sort
 
 from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
-from .pinger import TCPPinger, HTTPPinger
+from .pinger import TCPPinger
 from .utils.log import setup_logging
-
-import json
-import ssl
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
 
