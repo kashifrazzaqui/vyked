@@ -34,14 +34,17 @@ class JSONProtocol(asyncio.Protocol):
     def connection_made(self, transport):
         self._connected = True
         self._transport = transport
-        self._obj_streamer = ObjectStreamer()
-        self._obj_streamer.auto_listen(self, prefix='on_')
 
         self._transport.send = self._transport.write
         self._send_q = SendQueue(transport, self.is_connected)
 
-        self._transport.write('['.encode())  # start a json array
+        self.set_streamer()
         self._send_q.send()
+
+    def set_streamer(self):
+        self._obj_streamer = ObjectStreamer()
+        self._obj_streamer.auto_listen(self, prefix='on_')
+        self._obj_streamer.consume('[')
 
     def connection_lost(self, exc):
         self._connected = False
@@ -65,7 +68,12 @@ class JSONProtocol(asyncio.Protocol):
                 warning += ', New API: ' + payload['replacement_api']
             self.logger.warn(warning)
         self.logger.debug('Data received: %s', string_data)
-        self._obj_streamer.consume(string_data)
+        try:
+            self._obj_streamer.consume(string_data)
+        except:
+            # recover from invalid data
+            self.logger.exception('Invalid data received')
+            self.set_streamer()
 
     def on_object_stream_start(self):
         raise RuntimeError('Incorrect JSON Streaming Format: expect a JSON Array to start at root, got object')
