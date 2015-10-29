@@ -204,6 +204,7 @@ class Registry:
             for_log["request_type"] = request_type
             self.logger.debug(for_log)
         if request_type == 'register':
+            packet['params']['host'] = transport.get_extra_info("peername")[0]
             self.register_service(packet, protocol)
         elif request_type == 'get_instances':
             self.get_service_instances(packet, protocol)
