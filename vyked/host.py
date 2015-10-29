@@ -192,6 +192,26 @@ class Host:
             asyncio.get_event_loop().close()
 
     @classmethod
+    def _create_pubsub_handler(cls):
+        if not cls.ronin:
+            if cls._tcp_service:
+                asyncio.get_event_loop().run_until_complete(
+                    cls._tcp_service.pubsub_bus
+                    .create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
+            if cls._http_service:
+                asyncio.get_event_loop().run_until_complete(
+                    cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
+
+    @classmethod
+    def _subscribe(cls):
+        if not cls.ronin:
+            if cls._tcp_service:
+                asyncio.async(
+                    cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.host, cls._tcp_service.port,
+                                                                          cls._tcp_service.node_id,
+                                                                          cls._tcp_service.clients))
+
+    @classmethod
     def _set_bus(cls, service):
         registry_client = RegistryClient(asyncio.get_event_loop(), cls.registry_host, cls.registry_port)
         tcp_bus = TCPBus(registry_client)
