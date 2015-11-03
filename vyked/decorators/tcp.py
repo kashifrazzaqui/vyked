@@ -145,7 +145,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             Stats.tcp_stats['total_responses'] += 1
             error = str(e)
             status = 'handled_error'
-            _logger.exception('Handled exception %s for method %s ', e.__class__.__name__, func.__name__)
+            _logger.error('Handled exception %s for method %s ', e.__class__.__name__, func.__name__)
 
         except Exception as e:
             Stats.tcp_stats['total_errors'] += 1
