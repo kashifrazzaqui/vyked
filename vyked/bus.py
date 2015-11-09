@@ -249,8 +249,7 @@ class PubSubBus:
     def publish(self, service, version, endpoint, payload):
         endpoint_key = self._get_pubsub_key(service, version, endpoint)
         asyncio.async(self._pubsub_handler.publish(endpoint_key, json.dumps(payload, cls=VykedEncoder)))
-        publish_id = str(uuid.uuid4())
-        asyncio.async(self.xpublish(publish_id, service, version, endpoint, payload))
+        asyncio.async(self.xpublish(service, version, endpoint, payload))
 
     def xpublish(self, service, version, endpoint, payload):
         subscribers = yield from self._registry_client.get_subscribers(service, version, endpoint)
