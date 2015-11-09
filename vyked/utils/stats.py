@@ -1,14 +1,13 @@
 import logging
 import asyncio
 import setproctitle
-from collections import defaultdict
+from collections import defaultdict, deque
 import socket
 
 
 class Stats:
     hostname = socket.gethostbyname(socket.gethostname())
     service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
-    # hostd = {'hostname': '', 'service_name': ''}
     http_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0, 'total_errors': 0}
     tcp_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0, 'total_errors': 0}
 
@@ -38,7 +37,7 @@ class StatUnit:
     def __init__(self, key=None):
         self.key = key
         self.average = 0
-        self.values = list()
+        self.values = deque()
         self.count = 0
         self.success_count = 0
         self.sub = dict()
@@ -46,7 +45,7 @@ class StatUnit:
     def update(self, val, success):
         self.values.append(val)
         if len(self.values) > self.MAXSIZE:
-            self.values.pop(0)
+            self.values.popleft()
 
         self.average = sum(self.values) / len(self.values)
         self.count += 1

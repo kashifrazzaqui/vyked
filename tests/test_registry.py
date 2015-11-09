@@ -1,6 +1,4 @@
 from unittest import mock
-# from vyked.registry import Registry, Repository
-# from vyked.packet import ControlPacket
 import uuid
 
 
@@ -10,7 +8,7 @@ def service_registered_successfully(registry, *services):
             service['host'], service['port'], service['node_id'], service['type'])
         try:
             entry = registry._repository._registered_services[
-                service['service']][service['version']]
+                service['name']][service['version']]
             assert service_entry in entry
         except KeyError:
             raise
@@ -34,9 +32,9 @@ def instance_returned_successfully(response, service):
 
 
 def subscriber_returned_successfully(response, service):
-    service_t = (service['host'], service['port'], service['node_id'], service['service'], service['version'])
+    service_t = (service['host'], service['port'], service['node_id'], service['name'], service['version'])
     for s in response['params']['subscribers']:
-        subscriber_t = (s['host'], s['port'], s['node_id'], s['service'], s['version'])
+        subscriber_t = (s['host'], s['port'], s['node_id'], s['name'], s['version'])
 
         if service_t == subscriber_t:
             return True
@@ -99,10 +97,9 @@ def test_xsubscribe(service_a1, service_d1, registry):
 
     protocol = mock.Mock()
     params = {
-        'service': service_a1['service'],
+        'name': service_a1['name'],
         'version': service_a1['version'],
         'endpoint': service_d1['events'][0]['endpoint']
     }
     registry.get_subscribers(packet={'params': params, 'request_id': str(uuid.uuid4())}, protocol=protocol)
-    # assert protocol.send.call_args_list[0][0][0] == {}
     assert subscriber_returned_successfully(protocol.send.call_args_list[0][0][0], service_d1)

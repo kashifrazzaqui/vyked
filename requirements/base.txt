@@ -1,7 +1,6 @@
 setuptools>=18.0
 again==1.2.21
 aiohttp>=0.17.0
-aiopgx==0.7.0
 async-retrial>0.2
 asyncio-redis==0.13.4
 setproctitle==1.1.8
@@ -14,3 +13,4 @@ pytest==2.7.2
 factory-boy==2.5.2
 python-json-logger==0.1.2
 PyYAML==3.11
+requests==2.4.3

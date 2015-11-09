@@ -8,6 +8,7 @@ import uuid
 
 from again.utils import unique_hex
 import aiohttp
+from retrial.retrial import retry
 
 from .services import TCPServiceClient, HTTPServiceClient
 from .pubsub import PubSub
@@ -80,13 +81,22 @@ class TCPBus:
                     futures.append(future)
         return asyncio.gather(*futures, return_exceptions=False)
 
-    def register(self):
+    def connect(self):
         clients = self.tcp_host.clients if self.tcp_host else self.http_host.clients
         for client in clients:
             if isinstance(client, (TCPServiceClient, HTTPServiceClient)):
                 client.bus = self
         self._service_clients = clients
-        asyncio.get_event_loop().run_until_complete(self._registry_client.connect())
+        yield from self._registry_client.connect()
+
+    def register(self):
+        if self.tcp_host:
+            self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name,
+                                           self.tcp_host.version, self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
+        if self.http_host:
+            self._registry_client.register(self.http_host.host, self.http_host.port, self.http_host.name,
+                                           self.http_host.version, self.http_host.node_id, self.http_host.clients,
+                                           'http')
 
     def registration_complete(self):
         if not self._registered:
@@ -102,8 +112,10 @@ class TCPBus:
     def send(self, packet: dict):
         packet['from'] = self._host_id
         func = getattr(self, '_' + packet['type'] + '_sender')
-        func(packet)
+        asyncio.async(func(packet))
 
+    @retry(should_retry_for_result=lambda x: not x, should_retry_for_exception=lambda x: True, timeout=None,
+           max_attempts=5, multiplier=2)
     def _request_sender(self, packet: dict):
         """
         Sends a request to a server from a ServiceClient
@@ -116,6 +128,7 @@ class TCPBus:
             if client_protocol.is_connected():
                 packet['to'] = node_id
                 client_protocol.send(packet)
+                return True
             else:
                 self._logger.error('Client protocol is not connected for packet %s', packet)
                 raise ClientDisconnected()
@@ -145,7 +158,7 @@ class TCPBus:
 
     @staticmethod
     def _create_json_service_name(app, service, version):
-        return {'app': app, 'service': service, 'version': version}
+        return {'app': app, 'name': service, 'version': version}
 
     @staticmethod
     def _handle_ping(packet, protocol):
@@ -156,7 +169,7 @@ class TCPBus:
         asyncio.async(pinger.pong_received(count))
 
     def _get_node_id_for_packet(self, packet):
-        service, version, entity = packet['service'], packet['version'], packet['entity']
+        service, version, entity = packet['name'], packet['version'], packet['entity']
         node = self._registry_client.resolve(service, version, entity, TCP)
         return node[2] if node else None
 
@@ -177,7 +190,7 @@ class TCPBus:
         elif packet['type'] == 'publish':
             self._handle_publish(packet, protocol)
         else:
-            if self.tcp_host.is_for_me(packet['service'], packet['version']):
+            if self.tcp_host.is_for_me(packet['name'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
                 func(packet, protocol)
             else:
@@ -199,7 +212,7 @@ class TCPBus:
             print('no api found for packet: ', packet)
 
     def _handle_publish(self, packet, protocol):
-        service, version, endpoint, payload, publish_id = (packet['service'], packet['version'], packet['endpoint'],
+        service, version, endpoint, payload, publish_id = (packet['name'], packet['version'], packet['endpoint'],
                                                            packet['payload'], packet['publish_id'])
         for client in self._service_clients:
             if client.name == service and client.version == version:
@@ -209,26 +222,25 @@ class TCPBus:
 
     def handle_connected(self):
         if self.tcp_host:
-            self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name,
-                                           self.tcp_host.version, self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
+            yield from self.tcp_host.initiate()
         if self.http_host:
-            self._registry_client.register(self.http_host.host, self.http_host.port, self.http_host.name,
-                                           self.http_host.version, self.http_host.node_id, self.http_host.clients,
-                                           'http')
+            yield from self.http_host.initiate()
 
 
 class PubSubBus:
     PUBSUB_DELAY = 5
 
-    def __init__(self, registry_client, ssl_context=None):
+    def __init__(self, pubsub_host, pubsub_port, registry_client, ssl_context=None):
+        self._host = pubsub_host
+        self._port = pubsub_port
         self._pubsub_handler = None
         self._registry_client = registry_client
         self._clients = None
         self._pending_publishes = {}
         self._ssl_context = ssl_context
 
-    def create_pubsub_handler(self, host, port):
-        self._pubsub_handler = PubSub(host, port)
+    def create_pubsub_handler(self):
+        self._pubsub_handler = PubSub(self._host, self._port)
         yield from self._pubsub_handler.connect()
 
     def register_for_subscription(self, host, port, node_id, clients):
@@ -255,7 +267,7 @@ class PubSubBus:
         subscribers = yield from self._registry_client.get_subscribers(service, version, endpoint)
         strategies = defaultdict(list)
         for subscriber in subscribers:
-            strategies[(subscriber['service'], subscriber['version'])].append(
+            strategies[(subscriber['name'], subscriber['version'])].append(
                 (subscriber['host'], subscriber['port'], subscriber['node_id'], subscriber['strategy']))
         for key, value in strategies.items():
             publish_id = str(uuid.uuid4())
