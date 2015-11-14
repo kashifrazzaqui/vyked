@@ -29,6 +29,7 @@ def _retry_for_exception(_):
 
 
 class HTTPBus:
+
     def __init__(self, registry_client):
         self._registry_client = registry_client
 
@@ -56,6 +57,7 @@ class HTTPBus:
 
 
 class TCPBus:
+
     def __init__(self, registry_client):
         registry_client.conn_handler = self
         self._registry_client = registry_client
@@ -248,27 +250,33 @@ class PubSubBus:
 
     def publish(self, service, version, endpoint, payload):
         endpoint_key = self._get_pubsub_key(service, version, endpoint)
-        asyncio.async(self._pubsub_handler.publish(endpoint_key, json.dumps(payload, cls=VykedEncoder)))
-        asyncio.async(self.xpublish(service, version, endpoint, payload))
+        asyncio.async(self._retry_publish(endpoint_key, json.dumps(payload, cls=VykedEncoder)))
+        publish_id = str(uuid.uuid4())
+        future = asyncio.async(self.xpublish(publish_id, service, version, endpoint, payload))
+        self._pending_publishes[publish_id] = future
 
-    def xpublish(self, service, version, endpoint, payload):
+    def xpublish(self, publish_id, service, version, endpoint, payload):
         subscribers = yield from self._registry_client.get_subscribers(service, version, endpoint)
         strategies = defaultdict(list)
         for subscriber in subscribers:
             strategies[(subscriber['service'], subscriber['version'])].append(
                 (subscriber['host'], subscriber['port'], subscriber['node_id'], subscriber['strategy']))
-        for key, value in strategies.items():
-            publish_id = str(uuid.uuid4())
-            future = asyncio.async(
-                self._connect_and_publish(publish_id, service, version, endpoint, value, payload))
-            self._pending_publishes[publish_id] = future
+        if not len(subscribers):
+            future = self._pending_publishes[publish_id]
+            future.cancel()
+            return
+        yield from self._connect_and_publish(publish_id, service, version, endpoint, strategies, payload)
+        yield from asyncio.sleep(self.PUBSUB_DELAY)
+        yield from self.xpublish(publish_id, service, version, endpoint, payload)
 
     def receive(self, packet, transport, protocol):
         if packet['type'] == 'ack':
-            future = self._pending_publishes.pop(packet['request_id'], None)
-            if future:
-                future.cancel()
-                transport.close()
+            future = self._pending_publishes.pop(packet['request_id'])
+            future.cancel()
+            transport.close()
+
+    def _retry_publish(self, endpoint, payload):
+        return (yield from self._pubsub_handler.publish(endpoint, payload))
 
     def subscription_handler(self, endpoint, payload):
         service, version, endpoint = endpoint.split('/')
@@ -280,14 +288,14 @@ class PubSubBus:
     def _get_pubsub_key(service, version, endpoint):
         return '/'.join((service, str(version), endpoint))
 
-    def _connect_and_publish(self, publish_id, service, version, endpoint, subscribers, payload):
-        if subscribers[0][3] == 'LEADER':
-            host, port = subscribers[0][0], subscribers[0][1]
-        else:
-            random_metadata = random.choice(subscribers)
-            host, port = random_metadata[0], random_metadata[1]
-        transport, protocol = yield from asyncio.get_event_loop().create_connection(
-            partial(get_vyked_protocol, self), host, port)
-        packet = MessagePacket.publish(publish_id, service, version, endpoint, payload)
-        protocol.send(packet)
-        yield from asyncio.sleep(self.PUBSUB_DELAY)
+    def _connect_and_publish(self, publish_id, service, version, endpoint, strategies, payload):
+        for key, value in strategies.items():
+            if value[0][3] == 'LEADER':
+                host, port = value[0][0], value[0][1]
+            else:
+                random_metadata = random.choice(value)
+                host, port = random_metadata[0], random_metadata[1]
+            transport, protocol = yield from asyncio.get_event_loop().create_connection(
+                partial(get_vyked_protocol, self), host, port)
+            packet = MessagePacket.publish(publish_id, service, version, endpoint, payload)
+            protocol.send(packet)
