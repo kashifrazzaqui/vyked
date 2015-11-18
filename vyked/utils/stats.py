@@ -5,8 +5,18 @@ from collections import defaultdict, deque
 import socket
 
 
+def get_host_or_name():
+    hostname = socket.gethostname()
+    try:
+        host = socket.gethostbyname(hostname)
+    except socket.gaierror:
+        return hostname
+    else:
+        return host
+
+
 class Stats:
-    hostname = socket.gethostbyname(socket.gethostname())
+    hostname = get_host_or_name()
     service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
     http_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0, 'total_errors': 0}
     tcp_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0, 'total_errors': 0}
@@ -95,7 +105,7 @@ class Aggregator:
 
     @classmethod
     def periodic_aggregated_stats_logger(cls):
-        hostname = socket.gethostname()
+        hostname = get_host_or_name()
         service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
 
         logd = cls._stats.to_dict()
