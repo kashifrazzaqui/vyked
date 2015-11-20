@@ -164,14 +164,14 @@ class PersistentRepository(PostgresStore):
         try:
             config = json_file_to_dict('./config.json')
             self.connect(database=config['POSTGRES_DB'], user=config['POSTGRES_USER'],
-                                         password=config['POSTGRES_PASS'], host=config['POSTGRES_HOST'],
-                                         port=config['POSTGRES_PORT'])
+                         password=config['POSTGRES_PASS'], host=config['POSTGRES_HOST'],
+                         port=config['POSTGRES_PORT'])
         except Exception as e:
             self.logger.error(str(e))
 
     def register_service(self, service: Service):
         service_dict = {'service_name': service.name, 'version': service.version, 'ip': service.host,
-                       'port': service.port, 'protocol': service.type, 'node_id': service.node_id, 'is_pending': True}
+                        'port': service.port, 'protocol': service.type, 'node_id': service.node_id, 'is_pending': True}
 
         try:
             yield from self.insert('services', service_dict)
@@ -193,8 +193,8 @@ class PersistentRepository(PostgresStore):
 
     def is_pending(self, service, version):
         rows = yield from self.select('services', 'service_name', columns=['service_name', 'version'],
-                            where_keys=[{'service_name': ('=', service), 'version': ('=', version),
-                                         'is_pending': ('=', True)}])
+                                      where_keys=[{'service_name': ('=', service), 'version': ('=', version),
+                                                   'is_pending': ('=', True)}])
         if len(rows):
             return True
         else:
@@ -205,13 +205,13 @@ class PersistentRepository(PostgresStore):
 
     def get_pending_services(self):
         rows = yield from self.select('services', 'service_name', columns=['service_name', 'version'],
-                            where_keys=[{'is_pending': ('=', True)}])
+                                      where_keys=[{'is_pending': ('=', True)}])
         return rows
 
     def get_pending_instances(self, service, version):
-        rows = yield from self.select('services', 'node_id', columns=['node_id'], where_keys=[{'is_pending': ('=', True),
-                                                                                     'service_name': ('=', service),
-                                                                                     'version': ('=', version)}])
+        rows = yield from self.select('services', 'node_id', columns=['node_id'],
+                                      where_keys=[{'is_pending': ('=', True), 'service_name': ('=', service),
+                                                   'version': ('=', version)}])
         crows = [x for (x,) in rows]
         return crows
 
@@ -220,11 +220,12 @@ class PersistentRepository(PostgresStore):
 
     def get_instances(self, service, version):
         rows = yield from self.select('services', 'port', columns=['ip', 'port', 'node_id', 'protocol'],
-                            where_keys=[{'service_name': ('=', service), 'version': ('=', version)}])
+                                      where_keys=[{'service_name': ('=', service), 'version': ('=', version)}])
         return rows
 
     def get_versioned_instances(self, service, version):
-        rows = yield from self.select('services', 'version', columns=['version'], where_keys=[{'service_name': ('=', service)}])
+        rows = yield from self.select('services', 'version', columns=['version'],
+                                      where_keys=[{'service_name': ('=', service)}])
         crows = [x for (x,) in rows]
         version = self._get_non_breaking_version(version, crows)
         rows2 = yield from self.select('services', 'port', columns=['ip', 'port', 'node_id', 'protocol'],
@@ -232,21 +233,22 @@ class PersistentRepository(PostgresStore):
         return rows2
 
     def get_consumers(self, service_name, service_version):
-        rows = yield from self.select('dependencies', 'child_name',columns=['child_name', 'child_version'],
-                            where_keys=[{'parent_name': ('=', service_name), 'parent_version': ('=', service_version)}])
+        rows = yield from self.select('dependencies', 'child_name', columns=['child_name', 'child_version'],
+                                      where_keys=[{'parent_name': ('=', service_name),
+                                                   'parent_version': ('=', service_version)}])
         crows = set(rows)
         return crows
 
     def get_dependencies(self, service, version):
-        rows = yield from self.select('dependencies', 'parent_name',columns=['parent_name', 'parent_version'],
-                            where_keys=[{'child_name': ('=', service), 'child_version': ('=', version)}])
-        crows = [{'name': s, 'version': v} for (s,v) in rows]
+        rows = yield from self.select('dependencies', 'parent_name', columns=['parent_name', 'parent_version'],
+                                      where_keys=[{'child_name': ('=', service), 'child_version': ('=', version)}])
+        crows = [{'name': s, 'version': v} for (s, v) in rows]
         return crows
 
     def get_node(self, node_id):
         rows = yield from self.select('services', 'service_name',
-                            columns=['service_name','version', 'ip', 'port', 'node_id', 'protocol'],
-                            where_keys=[{'node_id': ('=', node_id)}])
+                                      columns=['service_name', 'version', 'ip', 'port', 'node_id', 'protocol'],
+                                      where_keys=[{'node_id': ('=', node_id)}])
         for name, version, host, port, node, protocol in rows:
             return Service(name, version, [], host, port, node, protocol)
         return None
@@ -282,7 +284,6 @@ class PersistentRepository(PostgresStore):
                 logd = {'service_name': name.split('/')[0], 'hostname': host, 'status': live,
                         'uptime': int(uptime)}
                 logging.getLogger('stats').info(logd)
-
 
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
         for endpoint in endpoints:
@@ -405,12 +406,12 @@ class Registry:
 
     @asyncio.coroutine
     def deregister_service(self, host, port, node_id):
-        service = self._repository.get_node(node_id)
+        service = yield from self._repository.get_node(node_id)
         self._tcp_pingers.pop(node_id, None)
         self._http_pingers.pop((host, port), None)
         if service:
             for_log = {"caller_name": service.name + '/' + service.version, "caller_address": service.host,
-                       "request_type": 'deregister'}
+                       "request_type": "deregister"}
             self.logger.debug(for_log)
             self._repository.remove_node(node_id)
             if service is not None:
@@ -420,7 +421,8 @@ class Registry:
                 if not len((yield from self._repository.get_instances(service.name, service.version))):
                     consumers = yield from self._repository.get_consumers(service.name, service.version)
                     for consumer_name, consumer_version in consumers:
-                        for _, _, node_id, _ in (yield from self._repository.get_instances(consumer_name, consumer_version)):
+                        for _, _, node_id, _ in (yield from self._repository.get_instances(consumer_name,
+                                                                                           consumer_version)):
                             yield from self._repository.add_pending_service(consumer_name, consumer_version, node_id)
 
     @asyncio.coroutine
@@ -459,7 +461,8 @@ class Registry:
             dependencies = yield from self._repository.get_dependencies(name, version)
             should_activate = True
             for dependency in dependencies:
-                instances = yield from self._repository.get_versioned_instances(dependency['name'], dependency['version'])
+                instances = yield from self._repository.get_versioned_instances(dependency['name'],
+                                                                                dependency['version'])
                 tcp_instances = [instance for instance in instances if instance[3] == 'tcp']
                 if not len(tcp_instances):
                     should_activate = False
@@ -505,7 +508,8 @@ class Registry:
     def _notify_consumers(self, name, version, node_id):
         packet = ControlPacket.deregister(name, version, node_id)
         for consumer_name, consumer_version in (yield from self._repository.get_consumers(name, version)):
-            for host, port, node, service_type in (yield from self._repository.get_instances(consumer_name, consumer_version)):
+            for host, port, node, service_type in (yield from self._repository.get_instances(consumer_name,
+                                                                                             consumer_version)):
                 protocol = self._client_protocols[node]
                 protocol.send(packet)
 
