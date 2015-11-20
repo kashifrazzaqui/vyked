@@ -172,13 +172,9 @@ class PersistentRepository(PostgresStore):
     def register_service(self, service: Service):
         service_dict = {'service_name': service.name, 'version': service.version, 'ip': service.host,
                         'port': service.port, 'protocol': service.type, 'node_id': service.node_id, 'is_pending': True}
-
+        uptimes_dict = {'node_id': service.node_id, 'event_type': 'uptime', 'event_time': int(time.time())}
         try:
             yield from self.insert('services', service_dict)
-        except:
-            pass
-        uptimes_dict = {'node_id': service.node_id, 'event_type': 'UPTIME', 'event_time': int(time.time())}
-        try:
             yield from self.insert('uptimes', uptimes_dict)
         except:
             pass
@@ -255,7 +251,7 @@ class PersistentRepository(PostgresStore):
 
     def remove_node(self, node_id):
         yield from self.delete('services', where_keys=[{'node_id': ('=', node_id)}])
-        uptimes_dict = {'node_id': node_id, 'event_type': 'DOWNTIME', 'event_time': int(time.time())}
+        uptimes_dict = {'node_id': node_id, 'event_type': 'downtime', 'event_time': int(time.time())}
         try:
             yield from self.insert('uptimes', uptimes_dict)
         except:
@@ -271,7 +267,7 @@ class PersistentRepository(PostgresStore):
         # Process rows to create _uptimes
         for r in rows:
             _uptimes[r.service_name][r.ip]['node_id'] = r.node_id
-            _uptimes[r.service_name][r.ip][r.event_type.lower()] = r.event_time
+            _uptimes[r.service_name][r.ip][r.event_type] = r.event_time
         return _uptimes
 
     def log_uptimes(self):
@@ -413,7 +409,7 @@ class Registry:
             for_log = {"caller_name": service.name + '/' + service.version, "caller_address": service.host,
                        "request_type": "deregister"}
             self.logger.debug(for_log)
-            self._repository.remove_node(node_id)
+            yield from self._repository.remove_node(node_id)
             if service is not None:
                 self._service_protocols.pop(node_id, None)
                 self._client_protocols.pop(node_id, None)
@@ -531,9 +527,13 @@ class Registry:
         protocol.send(packet)
 
     def on_timeout(self, host, port, node_id):
-        service = self._repository.get_node(node_id)
+        asyncio.async(self.service_timeout(host, port, node_id))
+
+    @asyncio.coroutine
+    def service_timeout(self, host, port, node_id):
+        service = yield from self._repository.get_node(node_id)
         self.logger.debug('%s timed out', service)
-        self.deregister_service(host, port, node_id)
+        asyncio.async(self.deregister_service(host, port, node_id))
 
     def _ping(self, packet):
         pinger = self._tcp_pingers[packet['node_id']]
