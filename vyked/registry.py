@@ -173,14 +173,23 @@ class PersistentRepository(PostgresStore):
         service_dict = {'service_name': service.name, 'version': service.version, 'ip': service.host,
                        'port': service.port, 'protocol': service.type, 'node_id': service.node_id, 'is_pending': True}
 
-        yield from self.insert('services', service_dict)
+        try:
+            yield from self.insert('services', service_dict)
+        except:
+            pass
         uptimes_dict = {'node_id': service.node_id, 'event_type': 'UPTIME', 'event_time': int(time.time())}
-        yield from self.insert('uptimes', uptimes_dict)
+        try:
+            yield from self.insert('uptimes', uptimes_dict)
+        except:
+            pass
         if len(service.dependencies):
             for parent in service.dependencies:
                 dependencies_dict = {'child_name': service.name, 'child_version': service.version,
                                      'parent_name': parent['name'], 'parent_version': parent['version']}
-                yield from self.insert('dependencies', dependencies_dict)
+                try:
+                    yield from self.insert('dependencies', dependencies_dict)
+                except:
+                    pass
 
     def is_pending(self, service, version):
         rows = yield from self.select('services', 'service_name', columns=['service_name', 'version'],
@@ -245,30 +254,45 @@ class PersistentRepository(PostgresStore):
     def remove_node(self, node_id):
         yield from self.delete('services', where_keys=[{'node_id': ('=', node_id)}])
         uptimes_dict = {'node_id': node_id, 'event_type': 'DOWNTIME', 'event_time': int(time.time())}
-        yield from self.insert('uptimes', uptimes_dict)
+        try:
+            yield from self.insert('uptimes', uptimes_dict)
+        except:
+            pass
         return None
 
     def get_uptimes(self):
-        rows = yield from self.select('uptimes', 'node_id', columns=['node_id', 'event_type', 'event_time'])
-        return rows
+        # Return _uptimes, in the format uptimes[service_name][host]{uptimes:, node_id}
+        _uptimes = tree()
+        query = "select service_name, ip, s.node_id, event_type, event_time from services as s, uptimes as u " \
+                "where s.node_id = u.node_id"
+        rows = yield from self.raw_sql(query, 'abcd')
+        # Process rows to create _uptimes
+        for r in rows:
+            _uptimes[r.service_name][r.ip]['node_id'] = r.node_id
+            _uptimes[r.service_name][r.ip][r.event_type.lower()] = r.event_time
+        return _uptimes
 
-    # def log_uptimes(self):
-    #     for name, nodes in self._uptimes.items():
-    #         for host, d in nodes.items():
-    #             now = time.time()
-    #             live = d.get('downtime', 0) < d['uptime']
-    #             uptime = now - d['uptime'] if live else 0
-    #             logd = {'service': name, 'host': host, 'status': live,
-    #                     'uptime': int(uptime)}
-    #             logger.info(logd)
+    def log_uptimes(self):
+        _uptimes = yield from self.get_uptimes()
+        for name, nodes in _uptimes.items():
+            for host, d in nodes.items():
+                now = int(time.time())
+                live = d.get('downtime', 0) < d['uptime']
+                uptime = now - d['uptime'] if live else 0
+                logd = {'service_name': name.split('/')[0], 'hostname': host, 'status': live,
+                        'uptime': int(uptime)}
+                logging.getLogger('stats').info(logd)
 
 
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
         for endpoint in endpoints:
             subscription_dict = {'subscriber_name': service, 'subscriber_version': version,
-                                 'subscribee_name': endpoint['service'], 'subscribee_version': endpoint['version'],
+                                 'subscribee_name': endpoint['name'], 'subscribee_version': endpoint['version'],
                                  'event_name': endpoint['endpoint'], 'strategy': endpoint['strategy']}
-            yield from self.insert('subscriptions', subscription_dict)
+            try:
+                yield from self.insert('subscriptions', subscription_dict)
+            except:
+                pass
 
     def get_subscribers(self, service, version, endpoint):
         query = "select subscriber_name, subscriber_version, ip, port, node_id, strategy " \
@@ -281,11 +305,11 @@ class PersistentRepository(PostgresStore):
     def deactivate_dependencies(self, service, version):
         query = "update services set is_pending = True from dependencies where service_name = child_name and " \
                 "version = child_version and parent_name = %s and parent_version = %s"
-        yield from self.raw_sql(query, (service,version))
+        yield from self.raw_sql(query, (service, version))
 
     def inform_consumers(self, service, version):
         query = "select host, port, node_id, protocol from services, dependencies where is_pending='False' and "\
-                "service_name = child_name and verion = child_version and parent_name = %s and parent_version = %s"
+                "service_name = child_name and version = child_version and parent_name = %s and parent_version = %s"
         rows = yield from self.raw_sql(query, (service, version))
         return rows
 
@@ -524,12 +548,15 @@ class Registry:
 
     @asyncio.coroutine
     def _get_uptime_report(self, packet, protocol):
-        uptimes = self._repository.get_uptimes()
+        uptimes = yield from self._repository.get_uptimes()
         protocol.send(ControlPacket.uptime(uptimes))
 
+    @asyncio.coroutine
     def periodic_uptime_logger(self):
-        self._repository.log_uptimes()
-        asyncio.get_event_loop().call_later(300, self.periodic_uptime_logger)
+        yield from self._repository.log_uptimes()
+        yield from asyncio.sleep(300)
+        asyncio.async(self.periodic_uptime_logger())
+        # asyncio.get_event_loop().call_later(10, self.periodic_uptime_logger)
 
     @asyncio.coroutine
     def _handle_ping(self, packet, protocol):
@@ -558,5 +585,5 @@ if __name__ == '__main__':
     REGISTRY_HOST = None
     REGISTRY_PORT = 4500
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT, PersistentRepository())
-    # registry.periodic_uptime_logger()
+    asyncio.async(registry.periodic_uptime_logger())
     registry.start()
