@@ -402,7 +402,6 @@ class Registry:
             asyncio.async(self.get_subscribers(packet, protocol))
         elif request_type == 'pong':
             self._ping(packet)
-            print("GOT_PONG")
         elif request_type == 'ping':
             asyncio.async(self._handle_ping(packet, protocol))
         elif request_type == 'uptime_report':
