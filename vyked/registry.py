@@ -310,6 +310,11 @@ class PersistentRepository(PostgresStore):
         rows = yield from self.raw_sql(query, (service, version))
         return rows
 
+    def get_listed_services(self):
+        rows = yield from self.select('services', 'port', columns=['ip', 'port', 'node_id', 'protocol', 'service_name',
+                                                                   'version'])
+        return rows
+
     def _get_non_breaking_version(self, version, versions):
         if version in versions:
             return version
@@ -331,11 +336,6 @@ class PersistentRepository(PostgresStore):
     def _split_key(key: str):
         return tuple(key.split('/'))
 
-    def get_registered_services(self):
-        rows = yield from self.select('services', 'port', columns=['ip', 'port', 'node_id', 'protocol', 'service_name',
-                                                                   'version'])
-        return rows
-
 
 class Registry:
     def __init__(self, ip, port, repository: PersistentRepository):
@@ -354,6 +354,7 @@ class Registry:
             self._ssl_context.load_cert_chain(config['SSL_CERTIFICATE'], config['SSL_KEY'])
         except:
             self._ssl_context = None
+        asyncio.async(self.revive())
 
     def start(self):
         setup_logging("registry")
@@ -375,6 +376,12 @@ class Registry:
         print('\ngot signal {} - exiting'.format(signame))
         self._loop.stop()
 
+    @asyncio.coroutine
+    def revive(self):
+        all_services = yield from self._repository.get_listed_services()
+        for service in all_services:
+            self._connect_to_service(service.ip, service.port, service.node_id, service.protocol)
+
     def receive(self, packet: dict, protocol, transport):
         request_type = packet['type']
         if request_type in ['register', 'get_instances', 'xsubscribe', 'get_subscribers']:
@@ -395,6 +402,7 @@ class Registry:
             asyncio.async(self.get_subscribers(packet, protocol))
         elif request_type == 'pong':
             self._ping(packet)
+            print("GOT_PONG")
         elif request_type == 'ping':
             asyncio.async(self._handle_ping(packet, protocol))
         elif request_type == 'uptime_report':
