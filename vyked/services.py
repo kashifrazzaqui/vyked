@@ -94,7 +94,7 @@ def request(func):
     return wrapper
 
 
-def api(func):  # incoming
+def api(func=None, timeout=API_TIMEOUT):  # incoming
     """
     provide a request/response api
     receives any requests here and return value is the response
@@ -103,8 +103,11 @@ def api(func):  # incoming
         - entity (partition/routing key)
         followed by kwargs
     """
-    wrapper = _get_api_decorator(func)
-    return wrapper
+    if func is None:
+        return partial(api, timeout=timeout)
+    else:
+        wrapper = _get_api_decorator(func=func, timeout=timeout)
+        return wrapper
 
 
 def apideprecated(func=None, replacement_api=None):
@@ -115,84 +118,81 @@ def apideprecated(func=None, replacement_api=None):
         return wrapper
 
 
-def _get_api_decorator(func=None, old_api=None, replacement_api=None):
-    @coroutine
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        _logger = logging.getLogger(__name__)
-        start_time = int(time.time() * 1000)
-        self = args[0]
-        rid = kwargs.pop('request_id')
-        entity = kwargs.pop('entity')
-        from_id = kwargs.pop('from_id')
-        wrapped_func = func
-        result = None
-        error = None
-        failed = False
+def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=API_TIMEOUT):
+        @coroutine
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            _logger = logging.getLogger(__name__)
+            start_time = int(time.time() * 1000)
+            self = args[0]
+            rid = kwargs.pop('request_id')
+            entity = kwargs.pop('entity')
+            from_id = kwargs.pop('from_id')
+            wrapped_func = func
+            result = None
+            error = None
+            failed = False
 
-        status = 'succesful'
-        success = True
-        if not iscoroutine(func):
-            wrapped_func = coroutine(func)
+            status = 'succesful'
+            success = True
+            if not iscoroutine(func):
+                wrapped_func = coroutine(func)
 
-        Stats.tcp_stats['total_requests'] += 1
+            Stats.tcp_stats['total_requests'] += 1
 
-        try:
-            result = yield from wait_for(wrapped_func(self, **kwargs), API_TIMEOUT)
+            try:
+                result = yield from wait_for(wrapped_func(self, **kwargs), timeout)
 
-        except TimeoutError as e:
-            Stats.tcp_stats['timedout'] += 1
-            error = str(e)
-            status = 'timeout'
-            success = False
-            failed = True
-            _logger.exception("HTTP request had a timeout for method %s", func.__name__)
+            except TimeoutError as e:
+                Stats.tcp_stats['timedout'] += 1
+                error = str(e)
+                status = 'timeout'
+                success = False
+                failed = True
+                _logger.exception("TCP request had a timeout for method %s", func.__name__)
 
-        except VykedServiceException as e:
-            Stats.tcp_stats['total_responses'] += 1
-            error = str(e)
-            status = 'handled_error'
-            _logger.exception('Handled exception %s for method %s ', e.__class__.__name__, func.__name__)
+            except VykedServiceException as e:
+                Stats.tcp_stats['total_responses'] += 1
+                error = str(e)
+                status = 'handled_error'
+                _logger.exception('Handled exception %s for method %s ', e.__class__.__name__, func.__name__)
 
-        except Exception as e:
-            Stats.tcp_stats['total_errors'] += 1
-            error = str(e)
-            status = 'unhandled_error'
-            success = False
-            failed = True
-            _logger.exception('Unhandled exception %s for method %s ', e.__class__.__name__, func.__name__)
+            except Exception as e:
+                Stats.tcp_stats['total_errors'] += 1
+                error = str(e)
+                status = 'unhandled_error'
+                success = False
+                failed = True
+                _logger.exception('Unhandled exception %s for method %s ', e.__class__.__name__, func.__name__)
+            else:
+                Stats.tcp_stats['total_responses'] += 1
+            end_time = int(time.time() * 1000)
 
-        else:
-            Stats.tcp_stats['total_responses'] += 1
+            hostname = socket.gethostname()
+            service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
 
-        end_time = int(time.time() * 1000)
+            logd = {
+                'endpoint': func.__name__,
+                'time_taken': end_time - start_time,
+                'hostname': hostname, 'service_name': service_name
+            }
+            logging.getLogger('stats').debug(logd)
+            _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
 
-        hostname = socket.gethostname()
-        service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+            # call to update aggregator, designed to replace the stats module.
+            Aggregator.update_stats(endpoint=func.__name__, status=status, success=success,
+                                    server_type='tcp', time_taken=end_time - start_time)
 
-        logd = {
-            'endpoint': func.__name__,
-            'time_taken': end_time - start_time,
-            'hostname': hostname, 'service_name': service_name
-        }
-        logging.getLogger('stats').debug(logd)
-        _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
+            if not old_api:
+                return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
+                                                  error=error, failed=failed)
+            else:
+                return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
+                                                  error=error, failed=failed, old_api=old_api,
+                                                  replacement_api=replacement_api)
 
-        # call to update aggregator, designed to replace the stats module.
-        Aggregator.update_stats(endpoint=func.__name__, status=status, success=success,
-                                server_type='tcp', time_taken=end_time - start_time)
-
-        if not old_api:
-            return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
-                                              error=error, failed=failed)
-        else:
-            return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
-                                              error=error, failed=failed, old_api=old_api,
-                                              replacement_api=replacement_api)
-
-    wrapper.is_api = True
-    return wrapper
-
+        wrapper.is_api = True
+        return wrapper
 
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
@@ -203,7 +203,7 @@ def make_request(func, self, args, kwargs, method):
     return response
 
 
-def get_decorated_fun(method, path, required_params):
+def get_decorated_fun(method, path, required_params, timeout):
     def decorator(func):
         @wraps(func)
         def f(self, *args, **kwargs):
@@ -233,7 +233,7 @@ def get_decorated_fun(method, path, required_params):
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
                 try:
-                    result = yield from wait_for(wrapped_func(self, *args, **kwargs), API_TIMEOUT)
+                    result = yield from wait_for(wrapped_func(self, *args, **kwargs), timeout)
 
                 except TimeoutError as e:
                     Stats.http_stats['timedout'] += 1
@@ -285,36 +285,36 @@ def get_decorated_fun(method, path, required_params):
     return decorator
 
 
-def get(path=None, required_params=None):
-    return get_decorated_fun('get', path, required_params)
+def get(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('get', path, required_params, timeout)
 
 
-def head(path=None, required_params=None):
-    return get_decorated_fun('head', path, required_params)
+def head(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('head', path, required_params, timeout)
 
 
-def options(path=None, required_params=None):
-    return get_decorated_fun('options', path, required_params)
+def options(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('options', path, required_params, timeout)
 
 
-def patch(path=None, required_params=None):
-    return get_decorated_fun('patch', path, required_params)
+def patch(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('patch', path, required_params, timeout)
 
 
-def post(path=None, required_params=None):
-    return get_decorated_fun('post', path, required_params)
+def post(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('post', path, required_params, timeout)
 
 
-def put(path=None, required_params=None):
-    return get_decorated_fun('put', path, required_params)
+def put(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('put', path, required_params, timeout)
 
 
-def trace(path=None, required_params=None):
-    return get_decorated_fun('put', path, required_params)
+def trace(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('put', path, required_params, timeout)
 
 
-def delete(path=None, required_params=None):
-    return get_decorated_fun('delete', path, required_params)
+def delete(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('delete', path, required_params, timeout)
 
 
 class _Service:
