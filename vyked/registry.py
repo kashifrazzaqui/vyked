@@ -501,11 +501,14 @@ class Registry:
             #    pinger.ping()
 
     def _handle_service_connection(self, node_id, host, port, future):
-        transport, protocol = future.result()
-        self._service_protocols[node_id] = protocol
-        pinger = TCPPinger(host, port, node_id, protocol, self)
-        self._tcp_pingers[node_id] = pinger
-        pinger.ping()
+        try:
+            transport, protocol = future.result()
+            self._service_protocols[node_id] = protocol
+            pinger = TCPPinger(host, port, node_id, protocol, self)
+            self._tcp_pingers[node_id] = pinger
+            pinger.ping()
+        except ConnectionRefusedError:
+            asyncio.async(self.deregister_service(host, port, node_id))
 
     @asyncio.coroutine
     def _notify_consumers(self, name, version, node_id):
