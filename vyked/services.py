@@ -194,6 +194,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=AP
     wrapper.is_api = True
     return wrapper
 
+
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
     entity = params.pop('entity', None)
