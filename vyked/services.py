@@ -510,7 +510,7 @@ class TCPService(_ServiceHost):
     @staticmethod
     def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object,
                               failed: bool, old_api=None, replacement_api=None):
-        if error:
+        if failed:
             payload = {'request_id': request_id, 'error': error, 'failed': failed}
         else:
             payload = {'request_id': request_id, 'result': result}
