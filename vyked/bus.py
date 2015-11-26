@@ -187,8 +187,6 @@ class TCPBus:
             self._handle_ping(packet, protocol)
         elif packet['type'] == 'pong':
             self._handle_pong(packet['node_id'], packet['count'])
-        elif packet['type'] == 'publish':
-            self._handle_publish(packet, protocol)
         else:
             if self.tcp_host.is_for_me(packet['name'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
@@ -210,15 +208,6 @@ class TCPBus:
             future.add_done_callback(send_result)
         else:
             print('no api found for packet: ', packet)
-
-    def _handle_publish(self, packet, protocol):
-        service, version, endpoint, payload, publish_id = (packet['name'], packet['version'], packet['endpoint'],
-                                                           packet['payload'], packet['publish_id'])
-        for client in self._service_clients:
-            if client.name == service and client.version == version:
-                fun = getattr(client, endpoint)
-                asyncio.async(fun(**payload))
-        protocol.send(MessagePacket.ack(publish_id))
 
     def handle_connected(self):
         if self.tcp_host:
