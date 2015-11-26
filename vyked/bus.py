@@ -217,7 +217,7 @@ class TCPBus:
         for client in self._service_clients:
             if client.name == service and client.version == version:
                 fun = getattr(client, endpoint)
-                asyncio.async(fun(payload))
+                asyncio.async(fun(**payload))
         protocol.send(MessagePacket.ack(publish_id))
 
     def handle_connected(self):
@@ -245,18 +245,22 @@ class PubSubBus:
 
     def register_for_subscription(self, host, port, node_id, clients):
         self._clients = clients
-        subscription_list = []
-        xsubscription_list = []
+        subs_list = []
+        xsubs_list4registry = []
+        xsubs_list4redis = []
+        node_id = self._registry_client._node_ids['tcp']
         for client in clients:
             if isinstance(client, TCPServiceClient):
                 for each in dir(client):
                     fn = getattr(client, each)
                     if callable(fn) and getattr(fn, 'is_subscribe', False):
-                        subscription_list.append(self._get_pubsub_key(client.name, client.version, fn.__name__))
+                        subs_list.append(self._get_pubsub_key(client.name, client.version, fn.__name__))
                     elif callable(fn) and getattr(fn, 'is_xsubscribe', False):
-                        xsubscription_list.append((client.name, client.version, fn.__name__, getattr(fn, 'strategy')))
-        self._registry_client.x_subscribe(host, port, node_id, xsubscription_list)
-        yield from self._pubsub_handler.subscribe(subscription_list, handler=self.subscription_handler)
+                        xsubs_list4registry.append((client.name, client.version, fn.__name__, getattr(fn, 'strategy')))
+                        xsubs_list4redis.append(self._get_pubsub_key(client.name, client.version, fn.__name__,
+                                                                     node_id=node_id))
+        self._registry_client.x_subscribe(host, port, node_id, xsubs_list4registry)
+        yield from self._pubsub_handler.subscribe(subs_list + xsubs_list4redis, handler=self.subscription_handler)
 
     def publish(self, service, version, endpoint, payload):
         endpoint_key = self._get_pubsub_key(service, version, endpoint)
@@ -272,40 +276,33 @@ class PubSubBus:
             strategies[(subscriber['name'], subscriber['version'])].append(
                 (subscriber['host'], subscriber['port'], subscriber['node_id'], subscriber['strategy']))
         if not len(subscribers):
-            future = self._pending_publishes[publish_id]
+            future = self._pending_publishes.pop(publish_id)
             future.cancel()
             return
-        yield from self._connect_and_publish(publish_id, service, version, endpoint, strategies, payload)
-        yield from asyncio.sleep(self.PUBSUB_DELAY)
-        yield from self.xpublish(publish_id, service, version, endpoint, payload)
-
-    def receive(self, packet, transport, protocol):
-        if packet['type'] == 'ack':
-            future = self._pending_publishes.pop(packet['request_id'])
-            future.cancel()
-            transport.close()
+        for key, value in strategies.items():
+            if value[0][3] == 'LEADER':
+                node_id = value[0][2]
+            else:
+                random_metadata = random.choice(value)
+                node_id = random_metadata[2]
+            endpoint_key = self._get_pubsub_key(service, version, endpoint, node_id=node_id)
+            asyncio.async(self._retry_publish(endpoint_key, json.dumps(payload, cls=VykedEncoder)))
 
     def _retry_publish(self, endpoint, payload):
         return (yield from self._pubsub_handler.publish(endpoint, payload))
 
     def subscription_handler(self, endpoint, payload):
-        service, version, endpoint = endpoint.split('/')
+        elements = endpoint.split('/')
+        if len(elements)>3:
+            service, version, endpoint, node_id = elements
+        else:
+            service, version, endpoint = elements
         client = [sc for sc in self._clients if (sc.name == service and sc.version == version)][0]
         func = getattr(client, endpoint)
         asyncio.async(func(**json.loads(payload)))
 
     @staticmethod
-    def _get_pubsub_key(service, version, endpoint):
+    def _get_pubsub_key(service, version, endpoint, node_id=None):
+        if node_id:
+            return '/'.join((service, str(version), endpoint, node_id))
         return '/'.join((service, str(version), endpoint))
-
-    def _connect_and_publish(self, publish_id, service, version, endpoint, strategies, payload):
-        for key, value in strategies.items():
-            if value[0][3] == 'LEADER':
-                host, port = value[0][0], value[0][1]
-            else:
-                random_metadata = random.choice(value)
-                host, port = random_metadata[0], random_metadata[1]
-            transport, protocol = yield from asyncio.get_event_loop().create_connection(
-                partial(get_vyked_protocol, self), host, port)
-            packet = MessagePacket.publish(publish_id, service, version, endpoint, payload)
-            protocol.send(packet)
