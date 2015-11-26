@@ -248,7 +248,6 @@ class PubSubBus:
         subs_list = []
         xsubs_list4registry = []
         xsubs_list4redis = []
-        node_id = self._registry_client._node_ids['tcp']
         for client in clients:
             if isinstance(client, TCPServiceClient):
                 for each in dir(client):
@@ -293,7 +292,7 @@ class PubSubBus:
 
     def subscription_handler(self, endpoint, payload):
         elements = endpoint.split('/')
-        if len(elements)>3:
+        if len(elements) > 3:
             service, version, endpoint, node_id = elements
         else:
             service, version, endpoint = elements
