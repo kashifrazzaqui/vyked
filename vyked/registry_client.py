@@ -10,6 +10,8 @@ from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
 from .pinger import TCPPinger
 
+from .load_balancer import LoadBalancer
+
 
 def _retry_for_result(result):
     if isinstance(result, tuple):
@@ -39,6 +41,7 @@ class RegistryClient:
         self._assigned_services = defaultdict(lambda: defaultdict(list))
         self._ssl_context = ssl_context
         self.logger = logging.getLogger(__name__)
+        self.load_balancer = LoadBalancer()
 
     @property
     def conn_handler(self):
@@ -48,11 +51,11 @@ class RegistryClient:
     def conn_handler(self, handler):
         self._conn_handler = handler
 
-    def register(self, ip, port, service, version, node_id, vendors, service_type):
+    def register(self, ip, port, service, version, node_id, vendors, service_type, weight, strategy):
         self._service = service
         self._version = version
         self._node_ids[service_type] = node_id
-        packet = ControlPacket.registration(ip, port, node_id, service, version, vendors, service_type)
+        packet = ControlPacket.registration(ip, port, node_id, service, version, vendors, service_type, weight, strategy)
         self._protocol.send(packet)
 
     def get_instances(self, name, version):
@@ -118,12 +121,13 @@ class RegistryClient:
         return None
 
     def get_random_service(self, service_name, service_type):
-        services = self._available_services[service_name]
-        services = [service for service in services if service[3] == service_type]
-        if len(services):
-            return random.choice(services)
-        else:
-            return None
+        return self.load_balancer.get_instance(service_name, service_type)
+        # services = self._available_services[service_name]
+        # services = [service for service in services if service[3] == service_type]
+        # if len(services):
+        #     return random.choice(services)
+        # else:
+        #     return None
 
     def resolve(self, service: str, version: str, entity: str, service_type: str):
         service_name = self._get_full_service_name(service, version)
@@ -152,11 +156,15 @@ class RegistryClient:
             for address in dependency['addresses']:
                 self._available_services[vendor_name].append(
                     (address['host'], address['port'], address['node_id'], address['type']))
+                self.load_balancer.add_instance(vendor_name, address)
         self.logger.debug('Connection cache after registration is %s', self._available_services)
 
-    def cache_instance(self, name, version, host, port, node_id, service_type):
+    def cache_instance(self, name, version, host, port, node_id, service_type, weight, strategy):
         vendor = self._get_full_service_name(name, version)
         self._available_services[vendor].append((host, port, node_id, service_type))
+        instance = {'host': host, 'port': port, 'node_id':node_id, 'type':service_type, 'weight': weight,
+                    'strategy': strategy}
+        self.load_balancer.add_instance(vendor, instance)
         self.logger.debug('Connection cache on getting new instance is %s', self._available_services)
 
     def _handle_deregistration(self, packet):
@@ -166,6 +174,7 @@ class RegistryClient:
         for each in self._available_services[vendor]:
             if each[2] == node:
                 self._available_services[vendor].remove(each)
+        self.load_balancer.remove_instance(vendor, node)
         entity_map = self._assigned_services.get(vendor)
         if entity_map is not None:
             stale_entities = []
@@ -185,5 +194,5 @@ class RegistryClient:
         future = self._pending_requests.pop(packet['request_id'], None)
         future.set_result(packet['params']['instances'])
 
-    def _handle_new_instance(self, name, version, host, port, node, type):
-        self.bus.new_instance(name, version, host, port, node, type)
+    def _handle_new_instance(self, name, version, host, port, node_id, service_type, weight, strategy):
+        self.bus.new_instance(name, version, host, port, node_id, service_type)

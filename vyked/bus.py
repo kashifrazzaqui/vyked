@@ -92,11 +92,12 @@ class TCPBus:
     def register(self):
         if self.tcp_host:
             self._registry_client.register(self.tcp_host.host, self.tcp_host.port, self.tcp_host.name,
-                                           self.tcp_host.version, self.tcp_host.node_id, self.tcp_host.clients, 'tcp')
+                                           self.tcp_host.version, self.tcp_host.node_id, self.tcp_host.clients, 'tcp',
+                                           self.tcp_host.weight, self.tcp_host.strategy)
         if self.http_host:
             self._registry_client.register(self.http_host.host, self.http_host.port, self.http_host.name,
                                            self.http_host.version, self.http_host.node_id, self.http_host.clients,
-                                           'http')
+                                           'http', self.http_host.weight, self.http_host.strategy)
 
     def registration_complete(self):
         if not self._registered:

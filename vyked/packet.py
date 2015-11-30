@@ -37,7 +37,8 @@ class _Packet:
 class ControlPacket(_Packet):
 
     @classmethod
-    def registration(cls, ip: str, port: int, node_id, name: str, version: str, dependencies, service_type: str):
+    def registration(cls, ip: str, port: int, node_id, name: str, version: str, dependencies, service_type: str,
+                     weight, strategy: str):
         v = [{'name': dependency.name, 'version': dependency.version} for dependency in dependencies]
 
         params = {'name': name,
@@ -46,7 +47,9 @@ class ControlPacket(_Packet):
                   'port': port,
                   'node_id': node_id,
                   'dependencies': v,
-                  'type': service_type}
+                  'type': service_type,
+                  'weight': weight,
+                  'strategy': strategy}
 
         packet = {'pid': cls._next_pid(), 'type': 'register', 'params': params}
         return packet
@@ -93,12 +96,14 @@ class ControlPacket(_Packet):
             dependency = defaultdict(list)
             dependency['name'] = k[0]
             dependency['version'] = k[1]
-            for host, port, node, service_type in v:
+            for host, port, node, service_type, weight, strategy in v:
                 dependency_node_packet = {
                     'host': host,
                     'port': port,
                     'node_id': node,
-                    'type': service_type
+                    'type': service_type,
+                    'weight': weight,
+                    'strategy': strategy
                 }
                 dependency['addresses'].append(dependency_node_packet)
             dependencies.append(dependency)
@@ -141,9 +146,9 @@ class ControlPacket(_Packet):
         return packet
 
     @classmethod
-    def new_instance(cls, name, version, host, port, node_id, service_type):
+    def new_instance(cls, name, version, host, port, node_id, service_type, weight, strategy):
         params = {'name': name, 'version': version, 'host': host, 'port': port, 'node_id': node_id,
-                  'service_type': service_type}
+                  'service_type': service_type, 'weight': weight, 'strategy': strategy}
         return {'pid': cls._next_pid(),
                 'type': 'new_instance',
                 'params': params}

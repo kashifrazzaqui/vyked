@@ -428,6 +428,8 @@ class _ServiceHost(_Service):
         self._ip = host_ip
         self._port = host_port
         self._clients = []
+        self.weight = 1
+        self.strategy = 'random_strategy'
 
     def is_for_me(self, service, version):
         return service == self.name and version == self.version
