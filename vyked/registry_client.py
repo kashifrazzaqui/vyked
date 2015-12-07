@@ -185,5 +185,5 @@ class RegistryClient:
         future = self._pending_requests.pop(packet['request_id'], None)
         future.set_result(packet['params']['instances'])
 
-    def _handle_new_instance(self, name, version, host, port, node, type):
-        self.bus.new_instance(name, version, host, port, node, type)
+    def _handle_new_instance(self, name, version, host, port, node_id, service_type):
+        self.bus.new_instance(name, version, host, port, node_id, service_type)
