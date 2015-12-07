@@ -122,12 +122,6 @@ class RegistryClient:
 
     def get_random_service(self, service_name, service_type):
         return self.load_balancer.get_instance(service_name, service_type)
-        # services = self._available_services[service_name]
-        # services = [service for service in services if service[3] == service_type]
-        # if len(services):
-        #     return random.choice(services)
-        # else:
-        #     return None
 
     def resolve(self, service: str, version: str, entity: str, service_type: str):
         service_name = self._get_full_service_name(service, version)
@@ -194,5 +188,5 @@ class RegistryClient:
         future = self._pending_requests.pop(packet['request_id'], None)
         future.set_result(packet['params']['instances'])
 
-    def _handle_new_instance(self, name, version, host, port, node_id, service_type, weight, strategy):
+    def _handle_new_instance(self, name, version, host, port, node_id, service_type):
         self.bus.new_instance(name, version, host, port, node_id, service_type)
