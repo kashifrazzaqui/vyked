@@ -169,7 +169,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=AP
         end_time = int(time.time() * 1000)
 
         hostname = socket.gethostname()
-        service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+        service_name = '_'.join(setproctitle.getproctitle().split('_')[1:-1])
 
         logd = {
             'endpoint': func.__name__,
@@ -259,7 +259,7 @@ def get_decorated_fun(method, path, required_params, timeout):
                 else:
                     t2 = time.time()
                     hostname = socket.gethostname()
-                    service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+                    service_name = '_'.join(setproctitle.getproctitle().split('_')[1:-1])
                     status = result.status
 
                     logd = {
