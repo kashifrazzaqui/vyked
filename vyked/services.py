@@ -14,7 +14,7 @@ from .exceptions import RequestException, ClientException, VykedServiceException
 from .utils.ordered_class_member import OrderedClassMembers
 from .utils.stats import Aggregator, Stats
 
-API_TIMEOUT = 60 * 100
+API_TIMEOUT = 60 * 10
 
 
 def publish(func):
