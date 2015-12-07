@@ -189,7 +189,7 @@ class TCPBus:
         elif packet['type'] == 'publish':
             self._handle_publish(packet, protocol)
         else:
-            if self.hosts['tcp_host'].is_for_me(packet['service'], packet['version']):
+            if self.hosts['tcp_host'].is_for_me(packet['name'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
                 func(packet, protocol)
             else:
