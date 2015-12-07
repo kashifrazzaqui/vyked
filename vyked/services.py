@@ -74,10 +74,12 @@ def _get_subscribe_decorator(func):
     return wrapper
 
 
-def request(func):
+def request(func=None, timeout=600):
     """
     use to request an api call from a specific endpoint
     """
+    if func is None:
+        return partial(request, timeout=timeout)
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
@@ -87,7 +89,7 @@ def request(func):
         app_name = params.pop('app_name', None)
         request_id = unique_hex()
         params['request_id'] = request_id
-        future = self._send_request(app_name, endpoint=func.__name__, entity=entity, params=params)
+        future = self._send_request(app_name, endpoint=func.__name__, entity=entity, params=params, timeout=timeout)
         return future
 
     wrapper.is_request = True
@@ -351,7 +353,6 @@ class _Service:
 
 
 class TCPServiceClient(_Service):
-    REQUEST_TIMEOUT_SECS = 600
 
     def __init__(self, service_name, service_version, ssl_context=None):
         super(TCPServiceClient, self).__init__(service_name, service_version)
@@ -363,7 +364,7 @@ class TCPServiceClient(_Service):
     def ssl_context(self):
         return self._ssl_context
 
-    def _send_request(self, app_name, endpoint, entity, params):
+    def _send_request(self, app_name, endpoint, entity, params, timeout):
         packet = MessagePacket.request(self.name, self.version, app_name, _Service._REQ_PKT_STR, endpoint, params,
                                        entity)
         future = Future()
@@ -377,7 +378,7 @@ class TCPServiceClient(_Service):
                 exception = ClientException(error)
                 exception.error = error
                 future.set_exception(exception)
-        _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
+        _Service.time_future(future, timeout)
         return future
 
     def receive(self, packet: dict, protocol, transport):
