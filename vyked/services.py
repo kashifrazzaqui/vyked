@@ -14,7 +14,7 @@ from .exceptions import RequestException, ClientException, VykedServiceException
 from .utils.ordered_class_member import OrderedClassMembers
 from .utils.stats import Aggregator, Stats
 
-API_TIMEOUT = 60 * 100
+API_TIMEOUT = 60 * 10
 
 
 def publish(func):
@@ -94,7 +94,7 @@ def request(func):
     return wrapper
 
 
-def api(func):  # incoming
+def api(func=None, timeout=API_TIMEOUT):  # incoming
     """
     provide a request/response api
     receives any requests here and return value is the response
@@ -103,8 +103,11 @@ def api(func):  # incoming
         - entity (partition/routing key)
         followed by kwargs
     """
-    wrapper = _get_api_decorator(func)
-    return wrapper
+    if func is None:
+        return partial(api, timeout=timeout)
+    else:
+        wrapper = _get_api_decorator(func=func, timeout=timeout)
+        return wrapper
 
 
 def apideprecated(func=None, replacement_api=None):
@@ -115,7 +118,7 @@ def apideprecated(func=None, replacement_api=None):
         return wrapper
 
 
-def _get_api_decorator(func=None, old_api=None, replacement_api=None):
+def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=API_TIMEOUT):
     @coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -138,7 +141,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         Stats.tcp_stats['total_requests'] += 1
 
         try:
-            result = yield from wait_for(wrapped_func(self, **kwargs), API_TIMEOUT)
+            result = yield from wait_for(wrapped_func(self, **kwargs), timeout)
 
         except TimeoutError as e:
             Stats.tcp_stats['timedout'] += 1
@@ -146,7 +149,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             status = 'timeout'
             success = False
             failed = True
-            _logger.exception("HTTP request had a timeout for method %s", func.__name__)
+            _logger.exception("TCP request had a timeout for method %s", func.__name__)
 
         except VykedServiceException as e:
             Stats.tcp_stats['total_responses'] += 1
@@ -161,10 +164,8 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             success = False
             failed = True
             _logger.exception('Unhandled exception %s for method %s ', e.__class__.__name__, func.__name__)
-
         else:
             Stats.tcp_stats['total_responses'] += 1
-
         end_time = int(time.time() * 1000)
 
         hostname = socket.gethostname()
@@ -203,7 +204,7 @@ def make_request(func, self, args, kwargs, method):
     return response
 
 
-def get_decorated_fun(method, path, required_params):
+def get_decorated_fun(method, path, required_params, timeout):
     def decorator(func):
         @wraps(func)
         def f(self, *args, **kwargs):
@@ -233,13 +234,14 @@ def get_decorated_fun(method, path, required_params):
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
                 try:
-                    result = yield from wait_for(wrapped_func(self, *args, **kwargs), API_TIMEOUT)
+                    result = yield from wait_for(wrapped_func(self, *args, **kwargs), timeout)
 
                 except TimeoutError as e:
                     Stats.http_stats['timedout'] += 1
                     status = 'timeout'
                     success = False
                     _logger.exception("HTTP request had a timeout for method %s", func.__name__)
+                    return Response(status=408, body='Request Timeout'.encode())
 
                 except VykedServiceException as e:
                     Stats.http_stats['total_responses'] += 1
@@ -285,36 +287,36 @@ def get_decorated_fun(method, path, required_params):
     return decorator
 
 
-def get(path=None, required_params=None):
-    return get_decorated_fun('get', path, required_params)
+def get(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('get', path, required_params, timeout)
 
 
-def head(path=None, required_params=None):
-    return get_decorated_fun('head', path, required_params)
+def head(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('head', path, required_params, timeout)
 
 
-def options(path=None, required_params=None):
-    return get_decorated_fun('options', path, required_params)
+def options(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('options', path, required_params, timeout)
 
 
-def patch(path=None, required_params=None):
-    return get_decorated_fun('patch', path, required_params)
+def patch(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('patch', path, required_params, timeout)
 
 
-def post(path=None, required_params=None):
-    return get_decorated_fun('post', path, required_params)
+def post(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('post', path, required_params, timeout)
 
 
-def put(path=None, required_params=None):
-    return get_decorated_fun('put', path, required_params)
+def put(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('put', path, required_params, timeout)
 
 
-def trace(path=None, required_params=None):
-    return get_decorated_fun('put', path, required_params)
+def trace(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('put', path, required_params, timeout)
 
 
-def delete(path=None, required_params=None):
-    return get_decorated_fun('delete', path, required_params)
+def delete(path=None, required_params=None, timeout=API_TIMEOUT):
+    return get_decorated_fun('delete', path, required_params, timeout)
 
 
 class _Service:
@@ -399,6 +401,11 @@ class TCPServiceClient(_Service):
         request_id = payload['request_id']
         has_result = 'result' in payload
         has_error = 'error' in payload
+        if 'old_api' in payload:
+            warning = 'Deprecated API: ' + payload['old_api']
+            if 'replacement_api' in payload:
+                warning += ', New API: ' + payload['replacement_api']
+            logging.getLogger().warn(warning)
         future = self._pending_requests.pop(request_id)
         if has_result:
             if not future.done() and not future.cancelled():
@@ -510,7 +517,7 @@ class TCPService(_ServiceHost):
     @staticmethod
     def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object,
                               failed: bool, old_api=None, replacement_api=None):
-        if error:
+        if failed:
             payload = {'request_id': request_id, 'error': error, 'failed': failed}
         else:
             payload = {'request_id': request_id, 'result': result}

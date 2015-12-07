@@ -61,12 +61,6 @@ class JSONProtocol(asyncio.Protocol):
 
     def data_received(self, byte_data):
         string_data = byte_data.decode()
-        if '"old_api":' in string_data:
-            payload = json.loads(string_data[:-1])['payload']
-            warning = 'Deprecated API: ' + payload['old_api']
-            if 'replacement_api' in payload.keys():
-                warning += ', New API: ' + payload['replacement_api']
-            self.logger.warn(warning)
         self.logger.debug('Data received: %s', string_data)
         try:
             self._obj_streamer.consume(string_data)

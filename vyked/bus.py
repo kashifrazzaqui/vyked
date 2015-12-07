@@ -252,21 +252,15 @@ class PubSubBus:
 
     def publish(self, service, version, endpoint, payload):
         endpoint_key = self._get_pubsub_key(service, version, endpoint)
-        asyncio.async(self._retry_publish(endpoint_key, json.dumps(payload, cls=VykedEncoder)))
-        publish_id = str(uuid.uuid4())
-        future = asyncio.async(self.xpublish(publish_id, service, version, endpoint, payload))
-        self._pending_publishes[publish_id] = future
+        asyncio.async(self._pubsub_handler.publish(endpoint_key, json.dumps(payload, cls=VykedEncoder)))
+        asyncio.async(self.xpublish(service, version, endpoint, payload))
 
-    def xpublish(self, publish_id, service, version, endpoint, payload):
+    def xpublish(self, service, version, endpoint, payload):
         subscribers = yield from self._registry_client.get_subscribers(service, version, endpoint)
         strategies = defaultdict(list)
         for subscriber in subscribers:
             strategies[(subscriber['name'], subscriber['version'])].append(
                 (subscriber['host'], subscriber['port'], subscriber['node_id'], subscriber['strategy']))
-        if not len(subscribers):
-            future = self._pending_publishes.pop(publish_id)
-            future.cancel()
-            return
         for key, value in strategies.items():
             if value[0][3] == 'LEADER':
                 node_id = value[0][2]
@@ -274,10 +268,7 @@ class PubSubBus:
                 random_metadata = random.choice(value)
                 node_id = random_metadata[2]
             endpoint_key = self._get_pubsub_key(service, version, endpoint, node_id=node_id)
-            asyncio.async(self._retry_publish(endpoint_key, json.dumps(payload, cls=VykedEncoder)))
-
-    def _retry_publish(self, endpoint, payload):
-        return (yield from self._pubsub_handler.publish(endpoint, payload))
+            asyncio.async(self._pubsub_handler.publish(endpoint_key, json.dumps(payload, cls=VykedEncoder)))
 
     def subscription_handler(self, endpoint, payload):
         elements = endpoint.split('/')
