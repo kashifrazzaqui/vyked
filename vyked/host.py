@@ -124,7 +124,7 @@ class Host:
     @classmethod
     def _set_process_name(cls):
         from setproctitle import setproctitle
-        setproctitle('{}_{}'.format(cls.name, cls._host_id))
+        setproctitle('vyked_{}_{}'.format(cls.name, cls._host_id))
 
     @classmethod
     def _stop(cls, signame: str):
@@ -202,6 +202,26 @@ class Host:
                     asyncio.get_event_loop().run_until_complete(server.wait_closed())
 
             asyncio.get_event_loop().close()
+
+    @classmethod
+    def _create_pubsub_handler(cls):
+        if not cls.ronin:
+            if cls._tcp_service:
+                asyncio.get_event_loop().run_until_complete(
+                    cls._tcp_service.pubsub_bus
+                    .create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
+            if cls._http_service:
+                asyncio.get_event_loop().run_until_complete(
+                    cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
+
+    @classmethod
+    def _subscribe(cls):
+        if not cls.ronin:
+            if cls._tcp_service:
+                asyncio.async(
+                    cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.host, cls._tcp_service.port,
+                                                                          cls._tcp_service.node_id,
+                                                                          cls._tcp_service.clients))
 
     @classmethod
     def _set_bus(cls, service):

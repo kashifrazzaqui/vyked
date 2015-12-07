@@ -16,14 +16,14 @@ def service(*args, **kwargs):
 
 @pytest.fixture
 def dependencies_from_services(*services):
-    return [{'service': service['service'], 'version': service['version']} for service in services]
+    return [{'name': service['name'], 'version': service['version']} for service in services]
 
 
 def endpoints_for_service(service, n):
     endpoints = []
     for _ in range(n):
         endpoint = EndpointFactory()
-        endpoint['service'] = service['service']
+        endpoint['name'] = service['name']
         endpoint['version'] = service['version']
         endpoints.append(endpoint)
     return endpoints
@@ -36,7 +36,7 @@ def service_a1():
 
 @pytest.fixture
 def service_a2(service_a1):
-    return ServiceFactory(service=service_a1['service'], version='1.0.1')
+    return ServiceFactory(service=service_a1['name'], version='1.0.1')
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ def service_b1(service_a1):
 @pytest.fixture
 def service_b2(service_b1):
     return ServiceFactory(
-        service=service_b1['service'], version='1.0.1', dependencies=dependencies_from_services(service_b1))
+        service=service_b1['name'], version='1.0.1', dependencies=dependencies_from_services(service_b1))
 
 
 @pytest.fixture
@@ -57,13 +57,13 @@ def service_c1(service_a1, service_b1):
 
 @pytest.fixture
 def service_c2(service_a2, service_b2, service_c1):
-    return ServiceFactory(service=service_c1['service'], version='1.0.1',
+    return ServiceFactory(service=service_c1['name'], version='1.0.1',
                           dependencies=dependencies_from_services(service_a2, service_b2))
 
 
 @pytest.fixture
 def service_c3(service_a2, service_b2, service_c2):
-    return ServiceFactory(service=service_c2['service'], version='1.0.1',
+    return ServiceFactory(service=service_c2['name'], version='1.0.1',
                           dependencies=dependencies_from_services(service_a2, service_b2))
 
 
