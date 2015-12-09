@@ -501,6 +501,10 @@ class _ServiceHost(_Service):
         yield from self.pubsub_bus.create_pubsub_handler()
         async(self.pubsub_bus.register_for_subscription(self.host, self.port, self.node_id, self.clients))
 
+    @coroutine
+    def health(self):
+        stats = Aggregator.dump_stats()
+        return {'node_id': self.node_id, 'type': 'health_report', 'report': stats}
 
 class TCPService(_ServiceHost):
     def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None):

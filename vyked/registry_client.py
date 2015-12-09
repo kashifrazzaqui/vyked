@@ -108,6 +108,8 @@ class RegistryClient:
             self._pinger.pong_received(payload=self._node_ids)
         elif packet['type'] == 'instances':
             self._handle_get_instances(packet)
+        elif packet['type'] == 'health_report':
+            self.load_balancer.handle_health_report(packet)
 
     def get_all_addresses(self, name, version):
         return self._available_services.get(
@@ -120,10 +122,10 @@ class RegistryClient:
                     return host, port, node, service_type
         return None
 
-    def get_random_service(self, service_name, service_type):
-        return self.load_balancer.get_instance(service_name, service_type)
+    def get_random_service(self, service_name, service_type, endpoint):
+        return self.load_balancer.get_instance(service_name, service_type, endpoint)
 
-    def resolve(self, service: str, version: str, entity: str, service_type: str):
+    def resolve(self, service: str, version: str, entity: str, service_type: str, endpoint: str):
         service_name = self._get_full_service_name(service, version)
         if entity is not None:
             entity_map = self._assigned_services.get(service_name)
@@ -133,12 +135,12 @@ class RegistryClient:
             if entity in entity_map:
                 return entity_map[entity]
             else:
-                host, port, node_id, service_type = self.get_random_service(service_name, service_type)
+                host, port, node_id, service_type = self.get_random_service(service_name, service_type, endpoint)
                 if node_id is not None:
                     entity_map[entity] = host, port, node_id, service_type
                 return host, port, node_id, service_type
         else:
-            return self.get_random_service(service_name, service_type)
+            return self.get_random_service(service_name, service_type, endpoint)
 
     @staticmethod
     def _get_full_service_name(service, version):
@@ -188,5 +190,5 @@ class RegistryClient:
         future = self._pending_requests.pop(packet['request_id'], None)
         future.set_result(packet['params']['instances'])
 
-    def _handle_new_instance(self, name, version, host, port, node_id, service_type):
+    def _handle_new_instance(self, name, version, host, port, node_id, service_type, weight, strategy):
         self.bus.new_instance(name, version, host, port, node_id, service_type)

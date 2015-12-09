@@ -174,6 +174,7 @@ class Registry:
             self._ssl_context.load_cert_chain(config['SSL_CERTIFICATE'], config['SSL_KEY'])
         except:
             self._ssl_context = None
+        self._patients = []
 
     def start(self):
         setup_logging("registry")
@@ -219,6 +220,9 @@ class Registry:
             self._handle_ping(packet, protocol)
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
+        elif request_type == 'health_report':
+            self.publish_health_report(packet)
+
 
     def deregister_service(self, host, port, node_id):
         service = self._repository.get_node(node_id)
@@ -249,6 +253,8 @@ class Registry:
             self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
         self._handle_pending_registrations()
         self._inform_consumers(service)
+        if params['strategy'] == 'dynamic_strategy':
+            self._patients.append(params['node_id'])
 
     def _inform_consumers(self, service: Service):
         consumers = self._repository.get_consumers(service.name, service.version)
@@ -380,6 +386,20 @@ class Registry:
         else:
             self._pong(packet, protocol)
 
+    def doctor(self):
+        for node_id in self._patients:
+            protocol = self._service_protocols[node_id]
+            health_check = ControlPacket.health_check()
+            protocol.send(health_check)
+        asyncio.get_event_loop().call_later(5, self.doctor)
+
+    def publish_health_report(self, packet):
+        node_id = packet['node_id']
+        service = self._repository.get_node(node_id)
+        for consumer_name, consumer_version in self._repository.get_consumers(service.name, service.version):
+            for host, port, node, service_type, _, _ in self._repository.get_instances(consumer_name, consumer_version):
+                protocol = self._client_protocols[node]
+                protocol.send(packet)
 
 if __name__ == '__main__':
     from setproctitle import setproctitle
@@ -389,4 +409,5 @@ if __name__ == '__main__':
     REGISTRY_PORT = 4500
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT, Repository())
     registry.periodic_uptime_logger()
+    registry.doctor()
     registry.start()

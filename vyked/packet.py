@@ -153,6 +153,10 @@ class ControlPacket(_Packet):
                 'type': 'new_instance',
                 'params': params}
 
+    @classmethod
+    def health_check(cls):
+        return {'pid': cls._next_pid(),
+                'type': 'health_check'}
 
 class MessagePacket(_Packet):
 

@@ -170,8 +170,8 @@ class TCPBus:
         asyncio.async(pinger.pong_received(count))
 
     def _get_node_id_for_packet(self, packet):
-        service, version, entity = packet['name'], packet['version'], packet['entity']
-        node = self._registry_client.resolve(service, version, entity, TCP)
+        service, version, entity, endpoint = packet['name'], packet['version'], packet['entity'], packet['endpoint']
+        node = self._registry_client.resolve(service, version, entity, TCP, endpoint)
         return node[2] if node else None
 
     def handle_ping_timeout(self, node_id):
@@ -190,6 +190,8 @@ class TCPBus:
             self._handle_pong(packet['node_id'], packet['count'])
         elif packet['type'] == 'publish':
             self._handle_publish(packet, protocol)
+        elif packet['type'] == 'health_check':
+            self.handle_health_check(protocol)
         else:
             if self.tcp_host.is_for_me(packet['name'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
@@ -227,6 +229,15 @@ class TCPBus:
         if self.http_host:
             yield from self.http_host.initiate()
 
+    def handle_health_check(self, protocol):
+        fun = getattr(self.tcp_host, 'health')
+        future = asyncio.async(fun())
+
+        def send_result(f):
+                result_packet = f.result()
+                protocol.send(result_packet)
+
+        future.add_done_callback(send_result)
 
 class PubSubBus:
     PUBSUB_DELAY = 5
