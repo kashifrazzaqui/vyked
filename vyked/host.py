@@ -9,7 +9,7 @@ from aiohttp.web import Application
 
 from .bus import TCPBus, PubSubBus
 from vyked.registry_client import RegistryClient
-from vyked.services import HTTPService, TCPService, WSService
+from vyked.services import HTTPService, TCPService
 from .protocol_factory import get_vyked_protocol
 from .utils.log import setup_logging
 from vyked.utils.decorators import deprecated
@@ -34,11 +34,11 @@ class Host:
     ronin = False  # If true, the Vyked service runs solo without a registry
 
     _host_id = None
-    _services = {'_tcp_service': None, '_http_service': None, '_ws_service': None}
+    _services = {'_tcp_service': None, '_http_service': None}
     _logger = logging.getLogger(__name__)
 
     @classmethod
-    def configure(cls, name, registry_host: str = "0.0.0.0", registry_port: int=4500,
+    def configure(cls, name, registry_host: str="0.0.0.0", registry_port: int=4500,
                   pubsub_host: str="0.0.0.0", pubsub_port: int=6379):
         """ A convenience method for providing registry and pubsub(redis) endpoints
 
@@ -58,13 +58,13 @@ class Host:
     @classmethod
     @deprecated
     def attach_service(cls, service):
-        """ Allows you to attach one TCP and one HTTP service and one WS (websocket) service
+        """ Allows you to attach one TCP and one HTTP service
 
         deprecated:: 2.1.73 use http and tcp specific methods
-        :param service: A vyked TCP, WS or HTTP service that needs to be hosted
+        :param service: A vyked TCP or HTTP service that needs to be hosted
         """
         invalid_service = True
-        _service_classes = {'_tcp_service': TCPService, '_http_service': HTTPService, '_ws_service': WSService}
+        _service_classes = {'_tcp_service': TCPService, '_http_service': HTTPService}
         for key, value in _service_classes.items():
             if isinstance(service, value):
                 cls._services[key] = service
@@ -95,18 +95,6 @@ class Host:
             cls._set_bus(tcp_service)
         else:
             warnings.warn('TCP service is already attached')
-
-    @classmethod
-    def attach_ws_service(cls, ws_service: WSService):
-        """ Attaches a service for hosting
-        :param ws_service: A WSService instance
-        """
-        if cls._services['_ws_service'] is None:
-            cls._services['_ws_service'] = ws_service
-            cls._set_bus(ws_service)
-        else:
-            warnings.warn('WS service is already attached')
-
 
     @classmethod
     def run(cls):
@@ -141,7 +129,8 @@ class Host:
         if cls._services['_tcp_service']:
             ssl_context = cls._services['_tcp_service'].ssl_context
             host_ip, host_port = cls._services['_tcp_service'].socket_address
-            task = asyncio.get_event_loop().create_server(partial(get_vyked_protocol, cls._services['_tcp_service'].tcp_bus),
+            task = asyncio.get_event_loop().create_server(partial(get_vyked_protocol,
+                                                                  cls._services['_tcp_service'].tcp_bus),
                                                           host_ip, host_port, ssl=ssl_context)
             result = asyncio.get_event_loop().run_until_complete(task)
             return result
@@ -180,15 +169,14 @@ class Host:
     def _start_server(cls):
         tcp_server = cls._create_tcp_server()
         http_server = cls._create_web_server(cls._services['_http_service'])
-        ws_server = cls._create_web_server(cls._services['_ws_service'])
-        server_dict = {'TCP': tcp_server, 'HTTP': http_server, 'WS': ws_server}
+        server_dict = {'TCP': tcp_server, 'HTTP': http_server}
         if not cls.ronin:
             for service in cls._services.values():
                 if service:
                     asyncio.get_event_loop().run_until_complete(service.tcp_bus.connect())
         for key, server in server_dict.items():
             if server:
-                cls._logger.info('Serving '+key+' on {}'.format(server.sockets[0].getsockname()))
+                cls._logger.info('Serving ' + key + ' on {}'.format(server.sockets[0].getsockname()))
         cls._logger.info("Event loop running forever, press CTRL+c to interrupt.")
         cls._logger.info("pid %s: send SIGINT or SIGTERM to exit." % os.getpid())
         try:
@@ -230,7 +218,7 @@ class Host:
         registry_client.conn_handler = tcp_bus
         pubsub_bus = PubSubBus(cls.pubsub_host, cls.pubsub_port, registry_client)
         registry_client.bus = tcp_bus
-        _service_classes = {'tcp_host': TCPService, 'http_host': HTTPService, 'ws_host': WSService}
+        _service_classes = {'tcp_host': TCPService, 'http_host': HTTPService}
         for key, value in _service_classes.items():
             if isinstance(service, value):
                 tcp_bus.hosts[key] = service
@@ -240,7 +228,6 @@ class Host:
     @classmethod
     def _setup_logging(cls):
         host = cls._services['_tcp_service'] if cls._services['_tcp_service'] else cls._services['_http_service']
-        host = host if host else cls._services['_ws_service']
         identifier = '{}_{}'.format(host.name, host.socket_address[1])
         setup_logging(identifier)
         Stats.service_name = host.name

@@ -212,7 +212,7 @@ def get_decorated_fun(method, path, required_params, timeout, is_ws=False):
         def f(self, *args, **kwargs):
             if isinstance(self, HTTPServiceClient):
                 return (yield from make_request(func, self, args, kwargs, method))
-            elif isinstance(self, WSService):
+            elif is_ws:
                 wrapped_func = func
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
@@ -341,7 +341,7 @@ def delete(path=None, required_params=None, timeout=API_TIMEOUT):
     return get_decorated_fun('delete', path, required_params, timeout)
 
 
-def ws(path=None, required_params=None, timeout=None):
+def websocket(path=None, required_params=None, timeout=None):
     return get_decorated_fun('get', path, required_params, timeout=timeout, is_ws=True)
 
 
@@ -603,28 +603,3 @@ class HTTPServiceClient(_Service):
         response = yield from self._http_bus.send_http_request(app_name, self.name, self.version, method, entity,
                                                                params)
         return response
-
-
-class WSService(_ServiceHost, metaclass=OrderedClassMembers):
-    def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None,
-                 allow_cross_domain=False):
-        super(WSService, self).__init__(service_name, service_version, host_ip, host_port)
-        self._ssl_context = ssl_context
-        self._allow_cross_domain = allow_cross_domain
-
-    @property
-    def ssl_context(self):
-        return self._ssl_context
-
-    @property
-    def cross_domain_allowed(self):
-        return self._allow_cross_domain
-
-    @get('/ping')
-    def pong(self, _):
-        return Response()
-
-    @get('/_stats')
-    def stats(self, _):
-        res_d = Aggregator.dump_stats()
-        return Response(status=200, content_type='application/json', body=json.dumps(res_d).encode())

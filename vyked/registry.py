@@ -296,7 +296,7 @@ class Registry:
                 coroutine = self._loop.create_connection(partial(get_vyked_protocol, self), host, port)
                 future = asyncio.async(coroutine)
                 future.add_done_callback(partial(self._handle_service_connection, node_id, host, port))
-        elif service_type == 'ws' or service_type == 'http':
+        elif service_type == 'http':
             pass
             # if not (host, port) in self._http_pingers:
             #     pinger = HTTPPinger(host, port, node_id, self)

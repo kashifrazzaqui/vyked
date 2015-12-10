@@ -64,7 +64,7 @@ class TCPBus:
         self._pingers = {}
         self._node_clients = {}
         self._service_clients = []
-        self.hosts = {'tcp_host': None, 'http_host': None, 'ws_host': None}
+        self.hosts = {'tcp_host': None, 'http_host': None}
         self._host_id = unique_hex()
         self._ronin = False
         self._registered = False
