@@ -105,7 +105,6 @@ class Repository:
                     if node_id == node:
                         thehost = host
                         instances.remove(instance)
-                        break
         for name, nodes in self._uptimes.items():
             for host, uptimes in nodes.items():
                 if host == thehost and uptimes['node_id'] == node_id:

@@ -109,7 +109,8 @@ class TCPBus:
         Sends a request to a server from a ServiceClient
         auto dispatch method called from self.send()
         """
-        node_id = self._get_node_id_for_packet(packet)
+        node = self._get_node_id_for_packet(packet)
+        node_id = node[2]
         client_protocol = self._client_protocols.get(node_id)
 
         if node_id and client_protocol:
@@ -117,12 +118,16 @@ class TCPBus:
                 packet['to'] = node_id
                 client_protocol.send(packet)
             else:
-                self._logger.error('Client protocol is not connected for packet %s', packet)
-                raise ClientDisconnected()
+                self._client_protocols.pop(node_id)
+                self.new_instance(*((packet['service'], packet['version']) + node))
+                self._request_sender(packet)
         else:
             # No node found to send request
-            self._logger.error('Out of %s, Client Not found for packet %s', self._client_protocols.keys(), packet)
-            raise ClientNotFoundError()
+            if node_id:
+                self._request_sender(packet)
+            else:
+                self._logger.error('Out of %s, Client Not found for packet %s', self._client_protocols.keys(), packet)
+                raise ClientNotFoundError()
 
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
 
@@ -158,7 +163,7 @@ class TCPBus:
     def _get_node_id_for_packet(self, packet):
         service, version, entity = packet['service'], packet['version'], packet['entity']
         node = self._registry_client.resolve(service, version, entity, TCP)
-        return node[2] if node else None
+        return node
 
     def handle_ping_timeout(self, node_id):
         self._logger.info("Service client connection timed out {}".format(node_id))
