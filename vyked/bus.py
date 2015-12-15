@@ -14,7 +14,7 @@ from .pubsub import PubSub
 from .packet import ControlPacket, MessagePacket
 from .protocol_factory import get_vyked_protocol
 from .utils.jsonencoder import VykedEncoder
-from .exceptions import ClientNotFoundError, ClientDisconnected
+from .exceptions import ClientNotFoundError
 
 HTTP = 'http'
 TCP = 'tcp'
@@ -119,7 +119,7 @@ class TCPBus:
                 client_protocol.send(packet)
             else:
                 self._client_protocols.pop(node_id)
-                self.new_instance(*((packet['service'], packet['version']) + node))
+                self.new_instance(packet['service'], packet['version'], *node)
                 self._request_sender(packet)
         else:
             # No node found to send request
