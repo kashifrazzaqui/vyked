@@ -134,8 +134,8 @@ class TCPBus:
     @asyncio.coroutine
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
 
-        _, protocol = yield from asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, service_client), host,
-                                                                  port, ssl=service_client._ssl_context)
+        _, protocol = yield from asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, service_client),
+                                                                            host, port, ssl=service_client._ssl_context)
         self._client_protocols[node_id] = protocol
 
     @staticmethod
