@@ -164,7 +164,7 @@ class RegistryClient:
         params = packet['params']
         vendor = self._get_full_service_name(params['service'], params['version'])
         node = params['node_id']
-        self._available_services = [x for x in self._available_services if x[2] != node]
+        self._available_services[vendor] = [x for x in self._available_services[vendor] if x[2] != node]
         entity_map = self._assigned_services.get(vendor)
         if entity_map is not None:
             stale_entities = []
