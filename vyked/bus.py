@@ -8,6 +8,7 @@ import uuid
 
 from again.utils import unique_hex
 import aiohttp
+from retrial.retrial import retry
 
 from .services import TCPServiceClient, HTTPServiceClient
 from .pubsub import PubSub
@@ -129,23 +130,12 @@ class TCPBus:
                 self._logger.error('Out of %s, Client Not found for packet %s', self._client_protocols.keys(), packet)
                 raise ClientNotFoundError()
 
+    @retry(should_retry_for_exception=_retry_for_exception, strategy=[0, 2, 4, 8, 16, 32], max_attempts=6)
+    @asyncio.coroutine
     def _connect_to_client(self, host, node_id, port, service_type, service_client):
 
-        future = asyncio.async(
-            asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, service_client), host, port,
-                                                       ssl=service_client._ssl_context))
-        future.add_done_callback(
-            partial(self._service_client_connection_callback, self._node_clients[node_id], node_id, service_type))
-        return future
-
-    def _service_client_connection_callback(self, sc, node_id, service_type, future):
-        _, protocol = future.result()
-        # TODO : handle pinging
-        # if service_type == TCP:
-        #     pinger = Pinger(self, asyncio.get_event_loop())
-        #     self._pingers[node_id] = pinger
-        #     pinger.register_tcp_service(protocol, node_id)
-        #     asyncio.async(pinger.start_ping())
+        _, protocol = yield from asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, service_client),
+                                                                            host, port, ssl=service_client._ssl_context)
         self._client_protocols[node_id] = protocol
 
     @staticmethod
