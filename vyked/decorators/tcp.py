@@ -131,7 +131,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         Stats.tcp_stats['total_requests'] += 1
 
         try:
-            result = yield from asyncio.wait_for(wrapped_func(self, **kwargs), 60*10)
+            result = yield from asyncio.wait_for(asyncio.shield(wrapped_func(self, **kwargs)), 60*10)
 
         except asyncio.TimeoutError as e:
             Stats.tcp_stats['timedout'] += 1
@@ -139,7 +139,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             status = 'timeout'
             success = False
             failed = True
-            logging.exception("HTTP request had a timeout for method %s", func.__name__)
+            logging.exception("TCP request had a timeout for method %s", func.__name__)
 
         except VykedServiceException as e:
             Stats.tcp_stats['total_responses'] += 1
