@@ -171,6 +171,8 @@ class TCPBus:
             self._handle_pong(packet['node_id'], packet['count'])
         elif packet['type'] == 'publish':
             self._handle_publish(packet, protocol)
+        elif packet['type'] == 'change_log_level':
+            self._handle_log_change(packet, protocol)
         else:
             if self.tcp_host.is_for_me(packet['service'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
@@ -211,6 +213,12 @@ class TCPBus:
                                            self.http_host.version, self.http_host.node_id, self.http_host.clients,
                                            'http')
 
+    def _handle_log_change(self, packet, protocol):
+        level = packet['level'].upper()
+        logging.getLogger().setLevel(level)
+        for handler in logging.getLogger().handlers:
+            handler.setLevel(level)
+        protocol.send('Done')
 
 class PubSubBus:
     PUBSUB_DELAY = 5
