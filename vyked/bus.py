@@ -171,6 +171,8 @@ class TCPBus:
             self._handle_pong(packet['node_id'], packet['count'])
         elif packet['type'] == 'publish':
             self._handle_publish(packet, protocol)
+        elif packet['type'] == 'change_log_level':
+            self._handle_log_change(packet, protocol)
         else:
             if self.tcp_host.is_for_me(packet['service'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
@@ -210,6 +212,22 @@ class TCPBus:
             self._registry_client.register(self.http_host.host, self.http_host.port, self.http_host.name,
                                            self.http_host.version, self.http_host.node_id, self.http_host.clients,
                                            'http')
+
+    def _handle_log_change(self, packet, protocol):
+        try:
+            level = getattr(logging, packet['level'].upper())
+        except KeyError as e:
+            self._logger.error(e)
+            protocol.send('Malformed packet')
+            return
+        except AttributeError as e:
+            self._logger.error(e)
+            protocol.send('Allowed logging levels: DEBUG, INFO, WARNING, ERROR, CRITICAL')
+            return
+        logging.getLogger().setLevel(level)
+        for handler in logging.getLogger().handlers:
+            handler.setLevel(level)
+        protocol.send('Logging level updated')
 
 
 class PubSubBus:

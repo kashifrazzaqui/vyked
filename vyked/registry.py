@@ -218,6 +218,8 @@ class Registry:
             self._pong(packet, protocol)
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
+        elif request_type == 'change_log_level':
+            self._handle_log_change(packet, protocol)
 
     def deregister_service(self, host, port, node_id):
         service = self._repository.get_node(node_id)
@@ -357,6 +359,22 @@ class Registry:
     def periodic_uptime_logger(self):
         self._repository.log_uptimes()
         asyncio.get_event_loop().call_later(300, self.periodic_uptime_logger)
+
+    def _handle_log_change(self, packet, protocol):
+        try:
+            level = getattr(logging, packet['level'].upper())
+        except KeyError as e:
+            self.logger.error(e)
+            protocol.send('Malformed packet')
+            return
+        except AttributeError as e:
+            self.logger.error(e)
+            protocol.send('Allowed logging levels: DEBUG, INFO, WARNING, ERROR, CRITICAL')
+            return
+        logging.getLogger().setLevel(level)
+        for handler in logging.getLogger().handlers:
+            handler.setLevel(level)
+        protocol.send('Logging level updated')
 
 
 if __name__ == '__main__':
