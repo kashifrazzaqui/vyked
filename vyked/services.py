@@ -1,9 +1,10 @@
 from asyncio import Future, get_event_loop
 import json
+import logging
 
 from again.utils import unique_hex
 
-from aiohttp.web import Response
+from aiohttp.web import Response, Request
 
 from .packet import MessagePacket
 from .exceptions import RequestException, ClientException
@@ -253,6 +254,21 @@ class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
     def stats(_):
         res_d = Aggregator.dump_stats()
         return Response(status=200, content_type='application/json', body=json.dumps(res_d).encode())
+
+    @staticmethod
+    def handle_log_change(request: Request):
+        try:
+            level = getattr(logging, request.match_info.get('level').upper())
+        except AttributeError as e:
+            logging.getLogger().error(e)
+            response = 'Allowed logging levels: DEBUG, INFO, WARNING, ERROR, CRITICAL'
+            return Response(status=200, body=response.encode())
+        logging.getLogger().setLevel(level)
+        for handler in logging.getLogger().handlers:
+            handler.setLevel(level)
+        response = 'Logging level updated'
+        return Response(status=200, body=response.encode())
+
 
 
 class HTTPServiceClient(_Service):
