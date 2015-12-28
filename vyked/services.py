@@ -270,7 +270,6 @@ class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
         return Response(status=200, body=response.encode())
 
 
-
 class HTTPServiceClient(_Service):
     def __init__(self, service_name, service_version):
         super(HTTPServiceClient, self).__init__(service_name, service_version)
