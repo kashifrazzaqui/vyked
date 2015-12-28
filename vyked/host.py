@@ -85,6 +85,7 @@ class Host:
             fn = getattr(cls._http_service, 'pong')
             app.router.add_route('GET', '/ping', fn)
             app.router.add_route('GET', '/_stats', getattr(cls._http_service, 'stats'))
+            app.router.add_route('GET', '/_change_log_level/{level}', getattr(cls._http_service, 'handle_log_change'))
             for each in cls._http_service.__ordered__:
                 fn = getattr(cls._http_service, each)
                 if callable(fn) and getattr(fn, 'is_http_method', False):
