@@ -151,13 +151,17 @@ class RegistryClient:
         for vendor in vendors:
             vendor_name = self._get_full_service_name(vendor['name'], vendor['version'])
             for address in vendor['addresses']:
-                self._available_services[vendor_name].append(
-                    (address['host'], address['port'], address['node_id'], address['type']))
+                vendor_entry = (address['host'], address['port'], address['node_id'], address['type'])
+                if vendor_entry not in self._available_services[vendor_name]:
+                    self._available_services[vendor_name].append(
+                        (address['host'], address['port'], address['node_id'], address['type']))
         self.logger.debug('Connection cache after registration is %s', self._available_services)
 
     def cache_instance(self, service, version, host, port, node, type):
         vendor = self._get_full_service_name(service, version)
-        self._available_services[vendor].append((host, port, node, type))
+        vendor_entry = (host, port, node, type)
+        if vendor_entry not in self._available_services[vendor]:
+            self._available_services[vendor].append((host, port, node, type))
         self.logger.debug('Connection cache on getting new instance is %s', self._available_services)
 
     def _handle_deregistration(self, packet):
