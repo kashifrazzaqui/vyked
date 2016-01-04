@@ -4,7 +4,6 @@ from functools import partial
 import json
 import logging
 import random
-import uuid
 
 from again.utils import unique_hex
 import aiohttp
