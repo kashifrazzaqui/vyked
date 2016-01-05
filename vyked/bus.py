@@ -271,13 +271,17 @@ class PubSubBus:
 
     def subscription_handler(self, endpoint, payload):
         elements = endpoint.split('/')
+        node_id = None
         if len(elements) > 3:
             service, version, endpoint, node_id = elements
         else:
             service, version, endpoint = elements
         client = [sc for sc in self._clients if (sc.name == service and sc.version == version)][0]
         func = getattr(client, endpoint)
-        asyncio.async(func(**json.loads(payload)))
+        if node_id:
+            asyncio.async(func(json.loads(payload)))
+        else:
+            asyncio.async(func(**json.loads(payload)))
 
     @staticmethod
     def _get_pubsub_key(service, version, endpoint, node_id=None):
