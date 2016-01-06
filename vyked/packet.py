@@ -16,16 +16,19 @@ class _Packet:
         return {'pid': cls._next_pid(), 'type': 'ack', 'request_id': request_id}
 
     @classmethod
-    def pong(cls, node_id):
-        return cls._get_ping_pong(node_id, 'pong')
+    def pong(cls, node_id, payload=None):
+        return cls._get_ping_pong(node_id, 'pong', payload=payload)
 
     @classmethod
-    def ping(cls, node_id):
-        return cls._get_ping_pong(node_id, 'ping')
+    def ping(cls, node_id, payload=None):
+        return cls._get_ping_pong(node_id, 'ping', payload=payload)
 
     @classmethod
-    def _get_ping_pong(cls, node_id, packet_type):
-        return {'pid': cls._next_pid(), 'type': packet_type, 'node_id': node_id}
+    def _get_ping_pong(cls, node_id, packet_type, payload=None):
+        return_dict = {'pid': cls._next_pid(), 'type': packet_type, 'node_id': node_id}
+        if payload:
+            return_dict['payload'] = payload
+        return return_dict
 
 
 class ControlPacket(_Packet):
