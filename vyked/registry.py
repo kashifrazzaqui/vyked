@@ -386,16 +386,8 @@ class Registry:
         :param packet: The 'ping' packet received
         :param protocol: The protocol on which the pong should be sent
         """
-        if 'payload' in packet:
-            is_valid_node = True
-            node_ids = list(packet['payload'].values())
-            for node_id in node_ids:
-                if self._repository.get_node(node_id) is None:
-                    is_valid_node = False
-                    break
-            if is_valid_node:
-                self._pong(packet, protocol)
-        else:
+        payload = packet.get('payload', {}).values()
+        if all(map(self._repository.get_node, payload)) or not payload:
             self._pong(packet, protocol)
 
 
@@ -409,3 +401,5 @@ if __name__ == '__main__':
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT, Repository())
     registry.periodic_uptime_logger()
     registry.start()
+
+{"payload": {"tcp": "49fb2fd8"}, "type": "ping", "node_id": "registry", "pid": "faf3a87c-3a72-4cdf-8697-e6822d9420e8"}
