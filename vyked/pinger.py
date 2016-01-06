@@ -6,7 +6,7 @@ from vyked.packet import ControlPacket
 import logging
 import functools
 
-PING_TIMEOUT = 10
+PING_TIMEOUT = 5
 PING_INTERVAL = 5
 
 
