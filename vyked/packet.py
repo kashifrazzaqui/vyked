@@ -17,15 +17,11 @@ class _Packet:
 
     @classmethod
     def pong(cls, node_id, payload=None):
-        if payload:
-            return cls._get_ping_pong(node_id, 'pong', payload=payload)
-        return cls._get_ping_pong(node_id, 'pong')
+        return cls._get_ping_pong(node_id, 'pong', payload=payload)
 
     @classmethod
     def ping(cls, node_id, payload=None):
-        if payload:
-            return cls._get_ping_pong(node_id, 'ping', payload=payload)
-        return cls._get_ping_pong(node_id, 'ping')
+        return cls._get_ping_pong(node_id, 'ping', payload=payload)
 
     @classmethod
     def _get_ping_pong(cls, node_id, packet_type, payload=None):
