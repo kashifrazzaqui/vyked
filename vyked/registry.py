@@ -401,5 +401,3 @@ if __name__ == '__main__':
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT, Repository())
     registry.periodic_uptime_logger()
     registry.start()
-
-{"payload": {"tcp": "49fb2fd8"}, "type": "ping", "node_id": "registry", "pid": "faf3a87c-3a72-4cdf-8697-e6822d9420e8"}
