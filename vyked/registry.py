@@ -313,6 +313,8 @@ class Registry:
         transport, protocol = future.result()
         self._service_protocols[node_id] = protocol
         pinger = TCPPinger(host, port, node_id, protocol, self)
+        if node_id in self._tcp_pingers:
+            self._tcp_pingers[node_id].stop()
         self._tcp_pingers[node_id] = pinger
         pinger.ping()
 

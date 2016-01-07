@@ -6,8 +6,8 @@ from vyked.packet import ControlPacket
 import logging
 import functools
 
-PING_TIMEOUT = 5
-PING_INTERVAL = 5
+PING_TIMEOUT = 3
+PING_INTERVAL = 2
 
 
 class Pinger:
@@ -15,12 +15,12 @@ class Pinger:
     Pinger to send ping packets to an endpoint and inform if the timeout has occurred
     """
 
-    def __init__(self, handler, interval, timeout, loop=asyncio.get_event_loop(), max_failures=5):
+    def __init__(self, handler, interval, timeout, loop=asyncio.get_event_loop(), max_failures=3):
         """
         Aysncio based pinger
         :param handler: Pinger uses it to send a ping and inform when timeout occurs.
                         Must implement send_ping() and on_timeout() methods
-        :param int interval: time interval between ping after a pong
+        :param int interval: time interval between ping after a pong's timeout
         :param loop: Optional event loop
         """
 
@@ -43,12 +43,9 @@ class Pinger:
 
     def pong_received(self, payload=None):
         """
-        Called when a pong is received. So the timer is cancelled
+        Called when a pong is received.
         """
-        if self._timer is not None:
-            self._timer.cancel()
-            self._failures = 0
-            asyncio.async(self.send_ping(payload=payload))
+        self._failures = 0
 
     def _start_timer(self, payload=None):
         self._timer = self._loop.call_later(self._timeout, functools.partial(self._on_timeout, payload=payload))
