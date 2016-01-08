@@ -224,7 +224,6 @@ class PubSubBus:
         self._pubsub_handler = None
         self._registry_client = registry_client
         self._clients = None
-        self._pending_publishes = {}
         self._ssl_context = ssl_context
 
     def create_pubsub_handler(self, host, port):
