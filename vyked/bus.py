@@ -8,10 +8,11 @@ import random
 from again.utils import unique_hex
 import aiohttp
 from retrial.retrial import retry
+from random import shuffle
 
 from .services import TCPServiceClient, HTTPServiceClient
 from .pubsub import PubSub
-from .packet import ControlPacket, MessagePacket
+from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
 from .utils.jsonencoder import VykedEncoder
 from .exceptions import ClientNotFoundError
@@ -265,8 +266,21 @@ class PubSubBus:
             else:
                 random_metadata = random.choice(value)
                 node_id = random_metadata[2]
-            endpoint_key = self._get_pubsub_key(service, version, endpoint, node_id=node_id)
-            asyncio.async(self._pubsub_handler.publish(endpoint_key, json.dumps(payload, cls=VykedEncoder)))
+            node_ids = [subscriber[2] for subscriber in value]
+            shuffle(node_ids)
+            node_ids.insert(0, node_ids.pop(node_ids.index(node_id)))
+            asyncio.async(self.retry_xpublish(payload, service, version, endpoint, node_ids))
+
+    def retry_xpublish(self, payload, service, version, endpoint, node_ids):
+        for node_id in node_ids:
+            if (yield from self.publish_to_redis(payload, service, version, endpoint, node_id))==1:
+                break
+
+    @asyncio.coroutine
+    def publish_to_redis(self, payload, service, version, endpoint, node_id):
+        endpoint_key = self._get_pubsub_key(service, version, endpoint, node_id=node_id)
+        result = yield from self._pubsub_handler.publish(endpoint_key, json.dumps(payload, cls=VykedEncoder))
+        return result
 
     def subscription_handler(self, endpoint, payload):
         elements = endpoint.split('/')

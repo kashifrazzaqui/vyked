@@ -100,15 +100,27 @@ class Repository:
         thehost = None
         for name, versions in self._registered_services.items():
             for version, instances in versions.items():
+                to_remove = []
                 for instance in instances:
                     host, port, node, service_type = instance
                     if node_id == node:
                         thehost = host
-                        instances.remove(instance)
+                        to_remove.append(instance)
                         try:
                             self.remove_pending_instance(name, version, node_id)
                         except ValueError:
                             pass
+                for instance in to_remove:
+                    instances.remove(instance)
+        for name, versions in self._subscribe_list.items():
+            for version, endpoints in versions.items():
+                for endpoint, subscribers in endpoints.items():
+                    to_remove = []
+                    for subscriber in subscribers:
+                        if node_id == subscriber[4]:
+                            to_remove.append(subscriber)
+                    for subscriber in to_remove:
+                        subscribers.remove(subscriber)
         for name, nodes in self._uptimes.items():
             for host, uptimes in nodes.items():
                 if host == thehost and uptimes['node_id'] == node_id:

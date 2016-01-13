@@ -42,11 +42,11 @@ class PubSub:
         """
         if self._conn is not None:
             try:
-                yield from self._conn.publish(endpoint, payload)
-                return True
+                receiving_clients = yield from self._conn.publish(endpoint, payload)
+                return receiving_clients
             except redis.Error as e:
                 self._logger.error('Publish failed with error %s', repr(e))
-        return False
+        return 0
 
     @asyncio.coroutine
     def subscribe(self, endpoints: list, handler):
