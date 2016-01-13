@@ -231,7 +231,7 @@ class Registry:
         elif request_type == 'pong':
             self._ping(packet)
         elif request_type == 'ping':
-            self._pong(packet, protocol)
+            self._handle_ping(packet, protocol)
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
         elif request_type == 'change_log_level':
@@ -325,6 +325,8 @@ class Registry:
         transport, protocol = future.result()
         self._service_protocols[node_id] = protocol
         pinger = TCPPinger(host, port, node_id, protocol, self)
+        if node_id in self._tcp_pingers:
+            self._tcp_pingers[node_id].stop()
         self._tcp_pingers[node_id] = pinger
         pinger.ping()
 
@@ -392,6 +394,15 @@ class Registry:
         for handler in logging.getLogger().handlers:
             handler.setLevel(level)
         protocol.send('Logging level updated')
+
+    def _handle_ping(self, packet, protocol):
+        """ Responds to pings from registry_client only if the node_ids present in the ping payload are registered
+        :param packet: The 'ping' packet received
+        :param protocol: The protocol on which the pong should be sent
+        """
+        payload = packet.get('payload', {}).values()
+        if all(map(self._repository.get_node, payload)) or not payload:
+            self._pong(packet, protocol)
 
 
 if __name__ == '__main__':
