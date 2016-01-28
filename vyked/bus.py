@@ -236,16 +236,14 @@ class PubSubBus:
         subs_list = []
         xsubs_list4registry = []
         xsubs_list4redis = []
-        for client in clients:
-            if isinstance(client, TCPServiceClient):
-                for each in dir(client):
-                    fn = getattr(client, each)
-                    if callable(fn) and getattr(fn, 'is_subscribe', False):
-                        subs_list.append(self._get_pubsub_key(client.name, client.version, fn.__name__))
-                    elif callable(fn) and getattr(fn, 'is_xsubscribe', False):
-                        xsubs_list4registry.append((client.name, client.version, fn.__name__, getattr(fn, 'strategy')))
-                        xsubs_list4redis.append(self._get_pubsub_key(client.name, client.version, fn.__name__,
-                                                                     node_id=node_id))
+        for client in filter(lambda x: isinstance(x, TCPServiceClient), clients):
+            for fn in filter(lambda x: callable(x), dir(client)):
+                if getattr(fn, 'is_subscribe', False):
+                    subs_list.append(self._get_pubsub_key(client.name, client.version, fn.__name__))
+                elif getattr(fn, 'is_xsubscribe', False):
+                    xsubs_list4registry.append((client.name, client.version, fn.__name__, getattr(fn, 'strategy')))
+                    xsubs_list4redis.append(self._get_pubsub_key(client.name, client.version, fn.__name__,
+                                                                 node_id=node_id))
         self._registry_client.x_subscribe(host, port, node_id, xsubs_list4registry)
         yield from self._pubsub_handler.subscribe(subs_list + xsubs_list4redis, handler=self.subscription_handler)
 
