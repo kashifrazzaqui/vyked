@@ -115,10 +115,7 @@ class Repository:
         for name, versions in self._subscribe_list.items():
             for version, endpoints in versions.items():
                 for endpoint, subscribers in endpoints.items():
-                    to_remove = []
-                    for subscriber in subscribers:
-                        if node_id == subscriber[4]:
-                            to_remove.append(subscriber)
+                    to_remove = list(filter(lambda x : node_id == x[4], subscribers))
                     for subscriber in to_remove:
                         subscribers.remove(subscriber)
         for name, nodes in self._uptimes.items():
