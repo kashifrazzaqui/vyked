@@ -237,7 +237,8 @@ class PubSubBus:
         xsubs_list4registry = []
         xsubs_list4redis = []
         for client in filter(lambda x: isinstance(x, TCPServiceClient), clients):
-            for fn in filter(lambda x: callable(x), dir(client)):
+            for each in dir(client):
+                fn = getattr(client, each)
                 if getattr(fn, 'is_subscribe', False):
                     subs_list.append(self._get_pubsub_key(client.name, client.version, fn.__name__))
                 elif getattr(fn, 'is_xsubscribe', False):
