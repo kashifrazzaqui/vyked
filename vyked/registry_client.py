@@ -40,6 +40,7 @@ class RegistryClient:
         self._assigned_services = defaultdict(lambda: defaultdict(list))
         self._ssl_context = ssl_context
         self.logger = logging.getLogger(__name__)
+        self._xsubscribe_packet = None
 
     @property
     def conn_handler(self):
@@ -74,7 +75,9 @@ class RegistryClient:
     def x_subscribe(self, host, port, node_id, endpoints):
         packet = ControlPacket.xsubscribe(self._service, self._version, host, port, node_id,
                                           endpoints)
-        self._protocol.send(packet)
+        if not self._xsubscribe_packet:
+            self._protocol.send(packet)
+        self._xsubscribe_packet = packet
 
     @retry(should_retry_for_result=_retry_for_result, should_retry_for_exception=_retry_for_exception,
            strategy=[0, 2, 4, 8, 16, 32])
@@ -83,6 +86,8 @@ class RegistryClient:
                                                                                   self._host, self._port,
                                                                                   ssl=self._ssl_context)
         self.conn_handler.handle_connected()
+        if self._xsubscribe_packet:
+            self._protocol.send(self._xsubscribe_packet)
         if self._pinger:
             self._pinger.stop()
         self._pinger = TCPPinger(self._host, self._port, 'registry', self._protocol, self)
