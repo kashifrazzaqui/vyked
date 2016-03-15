@@ -237,6 +237,8 @@ class Registry:
         #Code for graceful_shutdown
         elif request_type == 'blacklist_service':
             self._handle_blacklist(packet)
+        elif request_type == 'whitelist_service':
+            self._handle_whitelist(packet)
 
     def deregister_service(self, host, port, node_id):
         service = self._repository.get_node(node_id)
@@ -407,13 +409,18 @@ class Registry:
 
     def _handle_blacklist(self,packet):
         host_ip = packet['ip']
+        self._blacklisted_hosts.append(host_ip)
         for name, versions in self._repository._registered_services.items():
             for version, instances in versions.items():
                 for instance in instances:
                     host, port, node, service_type = instance
-                    if host_ip == host:
+                    if host_ip == host :
                         self.deregister_service(host,port,node)
-                        self._blacklisted_hosts.append(host_ip)
+
+    def _handle_whitelist(self,packet):
+        wtlist_ip =packet['ip']
+        self._blacklisted_hosts.remove(wtlist_ip)
+
 
 if __name__ == '__main__':
     # config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
