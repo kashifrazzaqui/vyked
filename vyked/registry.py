@@ -181,6 +181,7 @@ class Registry:
         self._tcp_pingers = {}
         self._http_pingers = {}
         self.logger = logging.getLogger()
+        self._blacklisted_hosts = []
         try:
             config = json_file_to_dict('./config.json')
             self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
@@ -228,11 +229,14 @@ class Registry:
         elif request_type == 'pong':
             self._ping(packet)
         elif request_type == 'ping':
-            self._handle_ping(packet, protocol)
+            self._handle_ping(packet, protocol,transport)
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
         elif request_type == 'change_log_level':
             self._handle_log_change(packet, protocol)
+        #Code for graceful_shutdown
+        elif request_type == 'blacklist_service':
+            self._handle_blacklist(packet)
 
     def deregister_service(self, host, port, node_id):
         service = self._repository.get_node(node_id)
@@ -392,15 +396,24 @@ class Registry:
             handler.setLevel(level)
         protocol.send('Logging level updated')
 
-    def _handle_ping(self, packet, protocol):
+    def _handle_ping(self, packet, protocol,transport):
         """ Responds to pings from registry_client only if the node_ids present in the ping payload are registered
         :param packet: The 'ping' packet received
         :param protocol: The protocol on which the pong should be sent
         """
         payload = packet.get('payload', {}).values()
-        if all(map(self._repository.get_node, payload)) or not payload:
+        if all(map(self._repository.get_node, payload)) or not payload or (transport.get_extra_info("peername")[0]) in self._blacklisted_hosts:
             self._pong(packet, protocol)
 
+    def _handle_blacklist(self,packet):
+        host_ip = packet['ip']
+        for name, versions in self._repository._registered_services.items():
+            for version, instances in versions.items():
+                for instance in instances:
+                    host, port, node, service_type = instance
+                    if host_ip == host:
+                        self.deregister_service(host,port,node)
+                        self._blacklisted_hosts.append(host_ip)
 
 if __name__ == '__main__':
     # config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
