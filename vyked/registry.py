@@ -410,23 +410,25 @@ class Registry:
 
     def _handle_blacklist(self, packet, protocol):
         host_ip = packet['ip']
+        host_port = packet['port']
+        """ If port is 0 then deregister all services on given IP """
         deregister_list = []
         self._blacklisted_hosts.append(host_ip)
         for name, versions in self._repository._registered_services.items():
             for version, instances in versions.items():
-                print(instances)
                 for host, port, node, service_type in instances:
-                    if host_ip == host:
+                    if (not host_port and host_ip == host) or (host_port and host_port == port and host_ip == host ):
                         deregister_list.append([host, port, node])
+                        print(host_port)
 
         for host, port, node in deregister_list:
             self.deregister_service(host, port, node)
-        protocol.send("Deregistered all Services on " + str(host_ip))
+        protocol.send("Deregistered Services on " + str(host_ip))
 
     def _handle_whitelist(self, packet, protocol):
         wtlist_ip = packet['ip']
         self._blacklisted_hosts.remove(wtlist_ip)
-        protocol.send("Whitelisted all Services on " + str(wtlist_ip))
+        protocol.send("Whitelisted Services on " + str(wtlist_ip))
 
 
 if __name__ == '__main__':
