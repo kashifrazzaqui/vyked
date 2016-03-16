@@ -30,7 +30,6 @@ def json_file_to_dict(_file: str) -> dict:
 
 
 class Repository:
-
     def __init__(self):
         self._registered_services = defaultdict(lambda: defaultdict(list))
         self._pending_services = defaultdict(list)
@@ -115,7 +114,7 @@ class Repository:
         for name, versions in self._subscribe_list.items():
             for version, endpoints in versions.items():
                 for endpoint, subscribers in endpoints.items():
-                    to_remove = list(filter(lambda x : node_id == x[4], subscribers))
+                    to_remove = list(filter(lambda x: node_id == x[4], subscribers))
                     for subscriber in to_remove:
                         subscribers.remove(subscriber)
         for name, nodes in self._uptimes.items():
@@ -170,7 +169,6 @@ class Repository:
 
 
 class Registry:
-
     def __init__(self, ip, port, repository: Repository):
         self._ip = ip
         self._port = port
@@ -229,16 +227,16 @@ class Registry:
         elif request_type == 'pong':
             self._ping(packet)
         elif request_type == 'ping':
-            self._handle_ping(packet, protocol,transport)
+            self._handle_ping(packet, protocol, transport)
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
         elif request_type == 'change_log_level':
             self._handle_log_change(packet, protocol)
-        #Code for graceful_shutdown
+        # API for graceful_shutdown
         elif request_type == 'blacklist_service':
-            self._handle_blacklist(packet)
+            self._handle_blacklist(packet, protocol)
         elif request_type == 'whitelist_service':
-            self._handle_whitelist(packet)
+            self._handle_whitelist(packet, protocol)
 
     def deregister_service(self, host, port, node_id):
         service = self._repository.get_node(node_id)
@@ -274,7 +272,7 @@ class Registry:
         for service_name, service_version in consumers:
             if not self._repository.is_pending(service_name, service_version):
                 instances = self._repository.get_instances(service_name, service_version)
-                for host, port, node, type in instances:
+                for host, port, node, Stype in instances:
                     protocol = self._client_protocols[node]
                     protocol.send(ControlPacket.new_instance(
                         service.name, service.version, service.host, service.port, service.node_id, service.type))
@@ -361,8 +359,10 @@ class Registry:
         self.deregister_service(host, port, node_id)
 
     def _ping(self, packet):
-        pinger = self._tcp_pingers[packet['node_id']]
-        pinger.pong_received()
+        node_id = packet['node_id']
+        if node_id in self._tcp_pingers:
+            pinger = self._tcp_pingers[node_id]
+            pinger.pong_received()
 
     def _pong(self, packet, protocol):
         protocol.send(ControlPacket.pong(packet['node_id']))
@@ -398,28 +398,35 @@ class Registry:
             handler.setLevel(level)
         protocol.send('Logging level updated')
 
-    def _handle_ping(self, packet, protocol,transport):
+    def _handle_ping(self, packet, protocol, transport):
         """ Responds to pings from registry_client only if the node_ids present in the ping payload are registered
         :param packet: The 'ping' packet received
         :param protocol: The protocol on which the pong should be sent
         """
         payload = packet.get('payload', {}).values()
-        if all(map(self._repository.get_node, payload)) or not payload or (transport.get_extra_info("peername")[0]) in self._blacklisted_hosts:
+        if all(map(self._repository.get_node, payload)) or not payload or \
+              (transport.get_extra_info("peername")[0]) in self._blacklisted_hosts:
             self._pong(packet, protocol)
 
-    def _handle_blacklist(self,packet):
+    def _handle_blacklist(self, packet, protocol):
         host_ip = packet['ip']
+        deregister_list = []
         self._blacklisted_hosts.append(host_ip)
         for name, versions in self._repository._registered_services.items():
             for version, instances in versions.items():
-                for instance in instances:
-                    host, port, node, service_type = instance
-                    if host_ip == host :
-                        self.deregister_service(host,port,node)
+                print(instances)
+                for host, port, node, service_type in instances:
+                    if host_ip == host:
+                        deregister_list.append([host, port, node])
 
-    def _handle_whitelist(self,packet):
-        wtlist_ip =packet['ip']
+        for host, port, node in deregister_list:
+            self.deregister_service(host, port, node)
+        protocol.send("Deregistered all Services on " + str(host_ip))
+
+    def _handle_whitelist(self, packet, protocol):
+        wtlist_ip = packet['ip']
         self._blacklisted_hosts.remove(wtlist_ip)
+        protocol.send("Whitelisted all Services on " + str(wtlist_ip))
 
 
 if __name__ == '__main__':
