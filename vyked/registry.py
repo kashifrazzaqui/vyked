@@ -430,7 +430,7 @@ class Registry:
         if not count:
             protocol.send("No Sevice currently running on " + str(host_ip) + ":" + str(host_port))
             if not len(self._blacklisted_hosts[host_ip]):
-                self._blacklisted_hosts[host_ip].pop(host_ip, None)
+                self._blacklisted_hosts.pop(host_ip, None)
             return
 
         for host, port, node in deregister_list:
