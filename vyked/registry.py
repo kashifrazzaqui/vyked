@@ -276,7 +276,7 @@ class Registry:
         for service_name, service_version in consumers:
             if not self._repository.is_pending(service_name, service_version):
                 instances = self._repository.get_instances(service_name, service_version)
-                for host, port, node, Stype in instances:
+                for host, port, node, stype in instances:
                     protocol = self._client_protocols[node]
                     protocol.send(ControlPacket.new_instance(
                         service.name, service.version, service.host, service.port, service.node_id, service.type))
@@ -436,13 +436,16 @@ class Registry:
         for host, port, node in deregister_list:
             self.deregister_service(host, port, node)
 
-        protocol.send("Deregistered Services on " + str(host_ip) + ":" + str(host_port))
+        protocol.send("Blacklisted Services on " + str(host_ip) + ":" + str(host_port))
 
     def _handle_whitelist(self, packet, protocol):
         wtlist_ip = packet['ip']
         wtlist_port = packet.get('port', 0)
         if wtlist_ip not in self._blacklisted_hosts:
-            protocol.send("Service currently not in blacklist ")
+            protocol.send(str(wtlist_ip) + " currently not in blacklist ")
+            return
+        elif (wtlist_ip in self._blacklisted_hosts) and (wtlist_port not in self._blacklisted_hosts[wtlist_ip]):
+            protocol.send(str(wtlist_ip) + ":" + str(wtlist_port) + " currently not in blacklist ")
             return
         if wtlist_port:
             self._blacklisted_hosts[wtlist_ip].remove(wtlist_port)
