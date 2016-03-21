@@ -30,6 +30,7 @@ def json_file_to_dict(_file: str) -> dict:
 
 
 class Repository:
+
     def __init__(self):
         self._registered_services = defaultdict(lambda: defaultdict(list))
         self._pending_services = defaultdict(list)
@@ -169,6 +170,7 @@ class Repository:
 
 
 class Registry:
+
     def __init__(self, ip, port, repository: Repository):
         self._ip = ip
         self._port = port
@@ -179,7 +181,7 @@ class Registry:
         self._tcp_pingers = {}
         self._http_pingers = {}
         self.logger = logging.getLogger()
-        self._blacklisted_hosts = []
+        self._blacklisted_hosts = {}
         try:
             config = json_file_to_dict('./config.json')
             self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
@@ -237,6 +239,8 @@ class Registry:
             self._handle_blacklist(packet, protocol)
         elif request_type == 'whitelist_service':
             self._handle_whitelist(packet, protocol)
+        elif request_type == 'show_blacklisted':
+            self._show_blacklisted(protocol)
 
     def deregister_service(self, host, port, node_id):
         service = self._repository.get_node(node_id)
@@ -410,26 +414,43 @@ class Registry:
 
     def _handle_blacklist(self, packet, protocol):
         host_ip = packet['ip']
-        host_port = packet['port']
+        host_port = packet.get('port', 0)
         """ If port is 0 then deregister all services on given IP """
+        if host_ip not in self._blacklisted_hosts:
+            self._blacklisted_hosts[host_ip] = []
         deregister_list = []
-        self._blacklisted_hosts.append(host_ip)
         for name, versions in self._repository._registered_services.items():
             for version, instances in versions.items():
                 for host, port, node, service_type in instances:
-                    if (not host_port and host_ip == host) or (host_port and host_port == port and host_ip == host ):
+                    if (not host_port and host_ip == host) or (host_port and host_port == port and host_ip == host):
                         deregister_list.append([host, port, node])
-                        print(host_port)
+                        self._blacklisted_hosts[host_ip].append(port)
+        count = 0
 
         for host, port, node in deregister_list:
             self.deregister_service(host, port, node)
-        protocol.send("Deregistered Services on " + str(host_ip))
+            count += 1
+        if count:
+            if host_port:
+                protocol.send("Deregistered Services on " + str(host_ip) + str(host_port))
+            else:
+                protocol.send("Deregistered Services on " + str(host_ip))
+        else:
+            protocol.send("Service already blacklisted")
 
     def _handle_whitelist(self, packet, protocol):
         wtlist_ip = packet['ip']
-        self._blacklisted_hosts.remove(wtlist_ip)
-        protocol.send("Whitelisted Services on " + str(wtlist_ip))
+        wtlist_port = packet.get('port', 0)
+        if wtlist_port:
+            self._blacklisted_hosts[wtlist_ip].remove(wtlist_port)
+            protocol.send("Whitelisted Services on " + str(wtlist_ip) + str(wtlist_port))
+        else:
+            del self._blacklisted_hosts[wtlist_ip]
+            protocol.send("Whitelisted Services on " + str(wtlist_ip))
 
+    def _show_blacklisted(self, protocol):
+        data = self._blacklisted_hosts
+        protocol.send(str(data))
 
 if __name__ == '__main__':
     # config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
