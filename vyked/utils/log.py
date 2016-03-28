@@ -85,7 +85,7 @@ DEFAULT_CONFIG_YAML = """
     handlers:
         stream:
             class: logging.StreamHandler
-            level: DEBUG
+            level: INFO
             formatter: ctf
             stream: ext://sys.stdout
 
@@ -114,7 +114,7 @@ DEFAULT_CONFIG_YAML = """
 
     root:
         handlers: [stream, service]
-        level: DEBUG
+        level: INFO
 
     loggers:
         registry:
