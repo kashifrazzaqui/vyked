@@ -97,7 +97,6 @@ class Repository:
         return None
 
     def remove_node(self, node_id):
-
         thehost = None
         theport = None
         for name, versions in self._registered_services.items():
@@ -122,8 +121,8 @@ class Repository:
                     for subscriber in to_remove:
                         subscribers.remove(subscriber)
         for name, nodes in self._uptimes.items():
-            for host , portup in nodes.items():
-                for port , uptimes in portup.items():
+            for host, portup in nodes.items():
+                for port, uptimes in portup.items():
                     if host == thehost and port == theport and uptimes['node_id'] == node_id:
                         uptimes['downtime'] = int(time.time())
                         self.log_uptimes()
@@ -135,15 +134,14 @@ class Repository:
 
     def log_uptimes(self):
         for name, nodes in self._uptimes.items():
-            for host,  portup in nodes.items():
-                for port , d in portup.items():
+            for host, portup in nodes.items():
+                for port, d in portup.items():
                     now = int(time.time())
                     live = d.get('downtime', 0) < d['uptime']
                     uptime = now - d['uptime'] if live else 0
                     logd = {'service_name': name.split('/')[0], 'hostname': host, 'status': live,
                             'uptime': int(uptime)}
                     logging.getLogger('stats').info(logd)
-
 
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
         entry = (service, version, host, port, node_id)
@@ -248,7 +246,7 @@ class Registry:
             self._handle_whitelist(packet, protocol)
         elif request_type == 'show_blacklisted':
             self._show_blacklisted(protocol)
-        
+
     def deregister_service(self, host, port, node_id):
         service = self._repository.get_node(node_id)
         self._tcp_pingers.pop(node_id, None)
@@ -415,7 +413,6 @@ class Registry:
         :param protocol: The protocol on which the pong should be sent
         """
         payload = packet.get('payload', {}).values()
-        print(payload)
         if all(map(self._repository.get_node, payload)) or not payload or \
               (transport.get_extra_info("peername")[0]) in self._blacklisted_hosts:
             self._pong(packet, protocol)
@@ -434,7 +431,6 @@ class Registry:
                     if (not host_port and host_ip == host) or (host_port and host_port == port and host_ip == host):
                         deregister_list.append([host, port, node])
                         self._blacklisted_hosts[host_ip].append(port)
-                        print(str(host) + str(port) + str(node))
                         count += 1
         if not count:
             protocol.send("No Sevice currently running on " + str(host_ip) + ":" + str(host_port))
