@@ -44,7 +44,7 @@ class Repository:
         service_entry = (service.host, service.port, service.node_id, service.type)
         self._registered_services[service.name][service.version].append(service_entry)
         self._pending_services[service_name].append(service.node_id)
-        self._uptimes[service_name][service.host] = {
+        self._uptimes[service_name][(service.host, service.port)] = {
             'uptime': int(time.time()),
             'node_id': service.node_id
         }
@@ -97,7 +97,9 @@ class Repository:
         return None
 
     def remove_node(self, node_id):
+
         thehost = None
+        theport = None
         for name, versions in self._registered_services.items():
             for version, instances in versions.items():
                 to_remove = []
@@ -105,6 +107,7 @@ class Repository:
                     host, port, node, service_type = instance
                     if node_id == node:
                         thehost = host
+                        theport = port
                         to_remove.append(instance)
                         try:
                             self.remove_pending_instance(name, version, node_id)
@@ -119,8 +122,8 @@ class Repository:
                     for subscriber in to_remove:
                         subscribers.remove(subscriber)
         for name, nodes in self._uptimes.items():
-            for host, uptimes in nodes.items():
-                if host == thehost and uptimes['node_id'] == node_id:
+            for (host, port), uptimes in nodes.items():
+                if host == thehost and port == theport and uptimes['node_id'] == node_id:
                     uptimes['downtime'] = int(time.time())
                     self.log_uptimes()
         return None
@@ -130,7 +133,7 @@ class Repository:
 
     def log_uptimes(self):
         for name, nodes in self._uptimes.items():
-            for host, d in nodes.items():
+            for (host, port), d in nodes.items():
                 now = int(time.time())
                 live = d.get('downtime', 0) < d['uptime']
                 uptime = now - d['uptime'] if live else 0
@@ -408,6 +411,7 @@ class Registry:
         :param protocol: The protocol on which the pong should be sent
         """
         payload = packet.get('payload', {}).values()
+        print(payload)
         if all(map(self._repository.get_node, payload)) or not payload or \
               (transport.get_extra_info("peername")[0]) in self._blacklisted_hosts:
             self._pong(packet, protocol)
@@ -426,6 +430,7 @@ class Registry:
                     if (not host_port and host_ip == host) or (host_port and host_port == port and host_ip == host):
                         deregister_list.append([host, port, node])
                         self._blacklisted_hosts[host_ip].append(port)
+                        print(str(host) + str(port) + str(node))
                         count += 1
         if not count:
             protocol.send("No Sevice currently running on " + str(host_ip) + ":" + str(host_port))
