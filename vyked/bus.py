@@ -171,6 +171,8 @@ class TCPBus:
             self._handle_pong(packet['node_id'], packet['count'])
         elif packet['type'] == 'change_log_level':
             self._handle_log_change(packet, protocol)
+        elif packet['type'] == 'get_tasks':
+            protocol.send(len(list(asyncio.Task.all_tasks())))
         else:
             if self.tcp_host.is_for_me(packet['service'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
