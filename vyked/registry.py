@@ -425,8 +425,9 @@ class Registry:
                 for host, port, node, service_type in instances:
                     if (not host_port and host_ip == host) or (host_port and host_port == port and host_ip == host):
                         deregister_list.append([host, port, node])
-                        self._blacklisted_hosts[host_ip].append(port)
-                        count += 1
+                        if port not in self._blacklisted_hosts[host_ip]:
+                            self._blacklisted_hosts[host_ip].append(port)
+                            count += 1
         if not count:
             protocol.send("No Sevice currently running on " + str(host_ip) + ":" + str(host_port))
             if not len(self._blacklisted_hosts[host_ip]):
@@ -444,15 +445,16 @@ class Registry:
         if wtlist_ip not in self._blacklisted_hosts:
             protocol.send(str(wtlist_ip) + " currently not in blacklist ")
             return
-        elif (wtlist_ip in self._blacklisted_hosts) and (wtlist_port not in self._blacklisted_hosts[wtlist_ip]):
-            protocol.send(str(wtlist_ip) + ":" + str(wtlist_port) + " currently not in blacklist ")
-            return
-        if wtlist_port:
-            self._blacklisted_hosts[wtlist_ip].remove(wtlist_port)
-            protocol.send("Whitelisted Services on " + str(wtlist_ip) + str(wtlist_port))
         else:
-            self._blacklisted_hosts.pop(wtlist_ip, None)
-            protocol.send("Whitelisted Services on " + str(wtlist_ip))
+            if (wtlist_port not in self._blacklisted_hosts[wtlist_ip]) and wtlist_port:
+                protocol.send(str(wtlist_ip) + ":" + str(wtlist_port) + " currently not in blacklist ")
+                return
+            elif wtlist_port in self._blacklisted_hosts[wtlist_ip]:
+                self._blacklisted_hosts[wtlist_ip].remove(wtlist_port)
+                protocol.send("Whitelisted Services on " + str(wtlist_ip) + str(wtlist_port))
+            else:
+                self._blacklisted_hosts.pop(wtlist_ip, None)
+                protocol.send("Whitelisted Services on " + str(wtlist_ip))
 
     def _show_blacklisted(self, protocol):
         data = self._blacklisted_hosts
