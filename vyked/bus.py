@@ -272,7 +272,7 @@ class PubSubBus:
 
     def retry_xpublish(self, payload, service, version, endpoint, node_ids):
         for node_id in node_ids:
-            if (yield from self.publish_to_redis(payload, service, version, endpoint, node_id))==1:
+            if (yield from self.publish_to_redis(payload, service, version, endpoint, node_id)) == 1:
                 break
 
     @asyncio.coroutine
@@ -307,7 +307,7 @@ class PubSubBus:
     def task_queue_handler(self, queue_name, payload):
         for method in dir(self._service):
             fn = getattr(self._service, method)
-            if getattr(fn, 'is_task_queue', False) and getattr(fn, 'queue_name', None)==queue_name:
+            if getattr(fn, 'is_task_queue', False) and getattr(fn, 'queue_name', None) == queue_name:
                 asyncio.async(fn(payload))
 
     def register_for_task_queues(self, service):

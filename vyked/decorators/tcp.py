@@ -202,7 +202,7 @@ def task_queue(func=None, queue_name=None):
     return wrapper
 
 
-def enqueue(func=None , queue_name=None):
+def enqueue(func=None, queue_name=None):
     if func is None:
         return partial(enqueue, queue_name=queue_name)
 
