@@ -274,7 +274,7 @@ class PubSubBus:
 
     def retry_xpublish(self, payload, service, version, endpoint, node_ids):
         for node_id in node_ids:
-            if (yield from self.publish_to_redis(payload, service, version, endpoint, node_id))==1:
+            if (yield from self.publish_to_redis(payload, service, version, endpoint, node_id)) == 1:
                 break
 
     @asyncio.coroutine
@@ -282,6 +282,9 @@ class PubSubBus:
         endpoint_key = self._get_pubsub_key(service, version, endpoint, node_id=node_id)
         result = yield from self._pubsub_handler.publish(endpoint_key, json.dumps(payload, cls=VykedEncoder))
         return result
+
+    def enqueue(self, endpoint, payload):
+        asyncio.async(self._pubsub_handler.add_to_queue(str(endpoint), json.dumps(payload, cls=VykedEncoder)))
 
     def subscription_handler(self, endpoint, payload):
         elements = endpoint.split('/')
@@ -302,3 +305,20 @@ class PubSubBus:
         if node_id:
             return '/'.join((service, str(version), endpoint, node_id))
         return '/'.join((service, str(version), endpoint))
+
+    def task_queue_handler(self, queue_name, payload):
+        for method in dir(self._service):
+            fn = getattr(self._service, method)
+            if getattr(fn, 'is_task_queue', False) and getattr(fn, 'queue_name', None) == queue_name:
+                asyncio.async(fn(payload))
+
+    def register_for_task_queues(self, service):
+        self._service = service
+        endpoints = []
+        for method in dir(service):
+            fn = getattr(service, method)
+            if getattr(fn, 'is_task_queue', False):
+                if fn.queue_name not in endpoints:
+                    endpoints.append(fn.queue_name)
+        if len(endpoints):
+            yield from self._pubsub_handler.task_getter(endpoints, self.task_queue_handler)
