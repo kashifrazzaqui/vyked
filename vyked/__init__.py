@@ -6,7 +6,7 @@ __all__ = ['Host', 'TCPServiceClient', 'TCPService', 'HTTPService', 'HTTPService
 from .host import Host  # noqa
 from .services import (TCPService, HTTPService, HTTPServiceClient, TCPServiceClient)  # noqa
 from .decorators.http import (get, post, head, put, patch, delete, options, trace)  # noqa
-from .decorators.tcp import (api, request, subscribe, publish, xsubscribe, deprecated,enqueue,task_queue)  # noqa
+from .decorators.tcp import (api, request, subscribe, publish, xsubscribe, deprecated, enqueue, task_queue)  # noqa
 from .registry import Registry  # noqa
 from .utils import log  # noqa
 from .exceptions import RequestException, VykedServiceError, VykedServiceException  # noqa

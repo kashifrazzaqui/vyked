@@ -282,7 +282,7 @@ class PubSubBus:
         return result
 
     def enqueue(self, endpoint, payload):
-        asyncio.ensure_future(self._pubsub_handler.add_to_queue(str(endpoint), json.dumps(payload, cls=VykedEncoder)))
+        asyncio.async(self._pubsub_handler.add_to_queue(str(endpoint), json.dumps(payload, cls=VykedEncoder)))
 
     def subscription_handler(self, endpoint, payload):
         elements = endpoint.split('/')
