@@ -110,6 +110,7 @@ class Host:
         cls._register_services()
         cls._create_pubsub_handler()
         cls._subscribe()
+        cls._task_queues()
         if tcp_server:
             cls._logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
         if http_server:
@@ -150,6 +151,13 @@ class Host:
                     cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.host, cls._tcp_service.port,
                                                                           cls._tcp_service.node_id,
                                                                           cls._tcp_service.clients))
+
+    @classmethod
+    def _task_queues(cls):
+        if not cls.ronin:
+            if cls._tcp_service:
+                asyncio.async(cls._tcp_service.pubsub_bus.register_for_task_queues(cls._tcp_service))
+
 
     @classmethod
     def _set_bus(cls, service):
