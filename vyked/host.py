@@ -83,7 +83,7 @@ class Host:
             ssl_context = cls._http_service.ssl_context
             app = Application(loop=asyncio.get_event_loop())
             fn = getattr(cls._http_service, 'pong')
-            app.router.add_route('GET', '/ping', fn)
+            app.router.add_route('GET', '/ping/{node}', fn)
             app.router.add_route('GET', '/_stats', getattr(cls._http_service, 'stats'))
             app.router.add_route('GET', '/_change_log_level/{level}', getattr(cls._http_service, 'handle_log_change'))
             for each in cls._http_service.__ordered__:
