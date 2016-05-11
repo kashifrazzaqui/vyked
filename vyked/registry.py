@@ -11,7 +11,7 @@ from again.utils import natural_sort
 
 from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
-from .pinger import TCPPinger
+from .pinger import TCPPinger, HTTPPinger
 from .utils.log import setup_logging
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
@@ -241,11 +241,13 @@ class Registry:
             self._handle_whitelist(packet, protocol)
         elif request_type == 'show_blacklisted':
             self._show_blacklisted(protocol)
+        elif request_type == 'show_current_state':
+            self._show_current_state(protocol)
 
     def deregister_service(self, host, port, node_id):
         service = self._repository.get_node(node_id)
         self._tcp_pingers.pop(node_id, None)
-        self._http_pingers.pop((host, port), None)
+        self._http_pingers.pop(node_id, None)
         if service:
             for_log = {"caller_name": service.name + '/' + service.version, "caller_address": service.host,
                        "request_type": 'deregister'}
@@ -321,10 +323,10 @@ class Registry:
                 future.add_done_callback(partial(self._handle_service_connection, node_id, host, port))
         elif service_type == 'http':
             pass
-            # if not (host, port) in self._http_pingers:
-            #    pinger = HTTPPinger(host, port, node_id, self)
-            #    self._http_pingers[(host, port)] = pinger
-            #    pinger.ping()
+            if not (host, port) in self._http_pingers:
+               pinger = HTTPPinger(host, port, node_id, self)
+               self._http_pingers[node_id] = pinger
+               pinger.ping(node_id)
 
     def _handle_service_connection(self, node_id, host, port, future):
         transport, protocol = future.result()
@@ -459,6 +461,11 @@ class Registry:
     def _show_blacklisted(self, protocol):
         data = self._blacklisted_hosts
         protocol.send(str(data))
+
+    def _show_current_state(self, protocol):
+        status_dict = {'Registered Services': self._repository._registered_services, 'Pending Services': self._repository._pending_services,
+                       'XSubscription List': self._repository._subscribe_list}
+        protocol.send(json.dumps(status_dict))
 
 if __name__ == '__main__':
     # config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
