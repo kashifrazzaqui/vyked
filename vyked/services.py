@@ -245,6 +245,9 @@ class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
     @property
     def preflight_response(self):
         return self._preflight_response
+    @staticmethod
+    def pong2(_):
+        return Response()
 
     def pong(self, request: Request):
         node_id = request.match_info.get('node')
