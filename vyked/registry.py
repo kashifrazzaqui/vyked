@@ -49,9 +49,10 @@ class Repository:
             'node_id': service.node_id
         }
 
+        instance_name = self._get_full_instance_name(service.name, service.version, service.node_id)
         if len(service.dependencies):
-            if self._service_dependencies.get(service_name) is None:
-                self._service_dependencies[service_name] = service.dependencies
+            if self._service_dependencies.get(instance_name) is None:
+                self._service_dependencies[instance_name] = service.dependencies
 
     def is_pending(self, service, version):
         return self._get_full_service_name(service, version) in self._pending_services
@@ -85,8 +86,8 @@ class Repository:
                     consumers.add(self._split_key(service))
         return consumers
 
-    def get_vendors(self, service, version):
-        return self._service_dependencies.get(self._get_full_service_name(service, version), [])
+    def get_vendors(self, service_name, version, node_id):
+        return self._service_dependencies.get(self._get_full_instance_name(service_name, version, node_id), [])
 
     def get_node(self, node_id):
         for name, versions in self._registered_services.items():
@@ -163,6 +164,10 @@ class Repository:
     @staticmethod
     def _get_full_service_name(service: str, version):
         return '{}/{}'.format(service, version)
+
+    @staticmethod
+    def _get_full_instance_name(service: str, version, node_id):
+        return '{}/{}/{}'.format(service, version, node_id)
 
     @staticmethod
     def _split_key(key: str):
@@ -253,13 +258,15 @@ class Registry:
                        "request_type": 'deregister'}
             self.logger.debug(for_log)
             self._repository.remove_node(node_id)
+            instance_name = self._repository._get_full_instance_name(service.name, service.version, node_id)
+            self._repository._service_dependencies.pop(instance_name, None)
             if service is not None:
                 self._service_protocols.pop(node_id, None)
                 self._client_protocols.pop(node_id, None)
                 self._notify_consumers(service.name, service.version, node_id)
                 if not len(self._repository.get_instances(service.name, service.version)):
                     consumers = self._repository.get_consumers(service.name, service.version)
-                    for consumer_name, consumer_version in consumers:
+                    for consumer_name, consumer_version, _ in consumers:
                         for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
                             self._repository.add_pending_service(consumer_name, consumer_version, node_id)
 
@@ -275,7 +282,7 @@ class Registry:
 
     def _inform_consumers(self, service: Service):
         consumers = self._repository.get_consumers(service.name, service.version)
-        for service_name, service_version in consumers:
+        for service_name, service_version, _ in consumers:
             if not self._repository.is_pending(service_name, service_version):
                 instances = self._repository.get_instances(service_name, service_version)
                 for host, port, node, stype in instances:
@@ -286,21 +293,21 @@ class Registry:
     def _send_activated_packet(self, service, version, node):
         protocol = self._client_protocols.get(node, None)
         if protocol:
-            packet = self._make_activated_packet(service, version)
+            packet = self._make_activated_packet(service, version, node)
             protocol.send(packet)
 
     def _handle_pending_registrations(self):
         for service, version in self._repository.get_pending_services():
-            vendors = self._repository.get_vendors(service, version)
-            should_activate = True
-            for vendor in vendors:
-                instances = self._repository.get_versioned_instances(vendor['service'], vendor['version'])
-                tcp_instances = [instance for instance in instances if instance[3] == 'tcp']
-                if not len(tcp_instances):
-                    should_activate = False
-                    break
             pending_nodes = list(self._repository.get_pending_instances(service, version))
             for node in pending_nodes:
+                vendors = self._repository.get_vendors(service, version, node)
+                should_activate = True
+                for vendor in vendors:
+                    instances = self._repository.get_versioned_instances(vendor['service'], vendor['version'])
+                    tcp_instances = [instance for instance in instances if instance[3] == 'tcp']
+                    if not len(tcp_instances):
+                        should_activate = False
+                        break
                 if should_activate:
                     self._send_activated_packet(service, version, node)
                     self._repository.remove_pending_instance(service, version, node)
@@ -308,8 +315,8 @@ class Registry:
                 else:
                     self.logger.info('%s can\'t register because it depends on %s', (service, version), vendor)
 
-    def _make_activated_packet(self, service, version):
-        vendors = self._repository.get_vendors(service, version)
+    def _make_activated_packet(self, service, version, node):
+        vendors = self._repository.get_vendors(service, version, node)
         instances = {
             (v['service'], v['version']): self._repository.get_versioned_instances(v['service'], v['version'])
             for v in vendors}
@@ -339,7 +346,7 @@ class Registry:
 
     def _notify_consumers(self, service, version, node_id):
         packet = ControlPacket.deregister(service, version, node_id)
-        for consumer_name, consumer_version in self._repository.get_consumers(service, version):
+        for consumer_name, consumer_version, _ in self._repository.get_consumers(service, version):
             for host, port, node, service_type in self._repository.get_instances(consumer_name, consumer_version):
                 protocol = self._client_protocols[node]
                 protocol.send(packet)
@@ -463,8 +470,10 @@ class Registry:
         protocol.send(str(data))
 
     def _show_current_state(self, protocol):
-        status_dict = {'Registered Services': self._repository._registered_services, 'Pending Services': self._repository._pending_services,
-                       'XSubscription List': self._repository._subscribe_list}
+        status_dict = {'Registered Services': self._repository._registered_services,
+                       'Pending Services': self._repository._pending_services,
+                       'XSubscription List': self._repository._subscribe_list,
+                       'Service Dependencies': self._repository._service_dependencies}
         protocol.send(json.dumps(status_dict))
 
 if __name__ == '__main__':
