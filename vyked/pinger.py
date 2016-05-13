@@ -116,7 +116,7 @@ class HTTPPinger:
             res = yield from request('get', self._url + payload)
             if res.status == 200:
                 self.pong_received(payload=payload)
-                res.close()
+            yield from res.release()
         except Exception:
             self.logger.error('Error while pinging')
 
