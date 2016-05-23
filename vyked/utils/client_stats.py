@@ -1,11 +1,10 @@
 import logging
 import asyncio
 import socket
-from setproctitle import setproctitle
+import setproctitle
 
 class ClientStats():
-    def _init_(cls):
-        cls._client_dict = dict()
+    cls._client_dict = dict()
 
     @classmethod
     def update(cls, service_name, host):
@@ -18,7 +17,6 @@ class ClientStats():
         hostname = socket.gethostname()
         service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
 
-        logd = cls._stats.to_dict()
         logs = []
 
         for key, value in cls._client_dict.items():
@@ -36,4 +34,4 @@ class ClientStats():
         for logd in logs:
             _logger.info(dict(logd))
 
-        asyncio.get_event_loop().call_later(300, cls.periodic_aggregated_stats_logger)
+        asyncio.get_event_loop().call_later(300, cls.periodic_aggregator)
