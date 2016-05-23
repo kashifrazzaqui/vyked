@@ -12,7 +12,7 @@ from vyked.services import HTTPService, TCPService
 from .protocol_factory import get_vyked_protocol
 from .utils.log import setup_logging
 from vyked.utils.stats import Stats, Aggregator
-
+from .utils.client_stats import ClientStats
 
 class Host:
     registry_host = None
@@ -190,3 +190,6 @@ class Host:
         Stats.service_name = host.name
         Stats.periodic_stats_logger()
         Aggregator.periodic_aggregated_stats_logger()
+        ClientStats.periodic_aggregator()
+
+
