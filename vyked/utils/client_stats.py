@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import socket
+from setproctitle import setproctitle
 
 class ClientStats():
     def _init_(cls):
