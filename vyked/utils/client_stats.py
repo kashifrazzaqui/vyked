@@ -4,7 +4,7 @@ import socket
 import setproctitle
 
 class ClientStats():
-    cls._client_dict = dict()
+    _client_dict = dict()
 
     @classmethod
     def update(cls, service_name, host):
