@@ -3,6 +3,7 @@ import asyncio
 import socket
 import setproctitle
 
+
 class ClientStats():
     _client_dict = dict()
 
@@ -21,11 +22,11 @@ class ClientStats():
 
         for key, value in cls._client_dict.items():
             d = dict({
-                "service_name" : service_name,
-                "hostname" : hostname,
-                "client_service" : key[0],
-                "client_host" : key[1],
-                "interaction_count" : value
+                "service_name": service_name,
+                "hostname": hostname,
+                "client_service": key[0],
+                "client_host": key[1],
+                "interaction_count": value
             }
             )
             logs.append(d)
