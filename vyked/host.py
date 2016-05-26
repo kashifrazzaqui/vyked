@@ -191,5 +191,3 @@ class Host:
         Stats.periodic_stats_logger()
         Aggregator.periodic_aggregated_stats_logger()
         ClientStats.periodic_aggregator()
-
-
