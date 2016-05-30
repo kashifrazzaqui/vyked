@@ -25,10 +25,12 @@ class Stats:
         for key, value in cls.http_stats.items():
             logd[key] += value
             logd['http_' + key] = value
+            cls.http_stats[key] = 0
 
         for key, value in cls.tcp_stats.items():
             logd[key] += value
             logd['tcp_' + key] = value
+            cls.tcp_stats[key] = 0
 
         _logger = logging.getLogger('stats')
         _logger.info(dict(logd))
