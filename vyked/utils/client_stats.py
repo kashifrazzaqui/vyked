@@ -37,5 +37,4 @@ class ClientStats():
         for logd in logs:
             _logger.info(dict(logd))
 
-
         asyncio.get_event_loop().call_later(300, cls.periodic_aggregator)
