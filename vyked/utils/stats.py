@@ -103,7 +103,7 @@ class Aggregator:
     @classmethod
     def periodic_aggregated_stats_logger(cls):
         hostname = socket.gethostname()
-        service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+        service_name = '_'.join(setproctitle.getproctitle().split('_')[1:-1])
 
         logd = cls._stats.to_dict()
         logs = []

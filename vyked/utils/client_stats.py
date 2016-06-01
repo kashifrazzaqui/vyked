@@ -16,7 +16,7 @@ class ClientStats():
     @classmethod
     def periodic_aggregator(cls):
         hostname = socket.gethostbyname(socket.gethostname())
-        service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+        service_name = '_'.join(setproctitle.getproctitle().split('_')[1:-1])
 
         logs = []
 
