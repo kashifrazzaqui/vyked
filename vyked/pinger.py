@@ -102,7 +102,7 @@ class HTTPPinger:
         self._pinger = Pinger(self, PING_INTERVAL, PING_TIMEOUT)
         self._node_id = node_id
         self._handler = handler
-        self._url = 'http://{}:{}/ping'.format(host, port)
+        self._url = 'http://{}:{}/ping/'.format(host, port)
         self.logger = logging.getLogger(__name__)
 
     def ping(self, payload=None):
@@ -113,12 +113,12 @@ class HTTPPinger:
 
     def ping_coroutine(self, payload=None):
         try:
-            res = yield from request('get', self._url)
+            res = yield from request('get', self._url + payload)
             if res.status == 200:
                 self.pong_received(payload=payload)
-                res.close()
+            yield from res.release()
         except Exception:
-            self.logger.exception('Error while ping')
+            self.logger.error('Error while pinging')
 
     def stop(self):
         self._pinger.stop()

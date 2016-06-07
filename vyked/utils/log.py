@@ -17,6 +17,14 @@ BLUE = '\033[94m'
 BOLD = '\033[1m'
 END = '\033[0m'
 
+http_pings_logs_disabled = True
+
+
+def http_ping_filter(record):
+    if "GET /ping/" in record.getMessage():
+       return 0
+    return 1
+
 
 class CustomTimeLoggingFormatter(logging.Formatter):
 
@@ -141,6 +149,10 @@ def setup_logging(_):
     logger.addHandler = patch_add_handler(logger)
 
     logging.config.dictConfig(config_dict)
+
+    if http_pings_logs_disabled:
+        for handler in logging.root.handlers:
+            handler.addFilter(http_ping_filter)
 
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):

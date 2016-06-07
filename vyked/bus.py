@@ -16,6 +16,7 @@ from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
 from .utils.jsonencoder import VykedEncoder
 from .exceptions import ClientNotFoundError
+from .utils.client_stats import ClientStats
 
 HTTP = 'http'
 TCP = 'tcp'
@@ -112,12 +113,15 @@ class TCPBus:
         """
         node = self._get_node_id_for_packet(packet)
         node_id = node[2]
-        client_protocol = self._client_protocols.get(node_id)
+        client_protocol = self._client_protocols.get(node_id)[0]
+        client_host = self._client_protocols.get(node_id)[1]
 
         if node_id and client_protocol:
             if client_protocol.is_connected():
                 packet['to'] = node_id
                 client_protocol.send(packet)
+                ClientStats.update(packet['service'], client_host)
+
             else:
                 self._client_protocols.pop(node_id)
                 self.new_instance(packet['service'], packet['version'], *node)
@@ -136,7 +140,7 @@ class TCPBus:
 
         _, protocol = yield from asyncio.get_event_loop().create_connection(partial(get_vyked_protocol, service_client),
                                                                             host, port, ssl=service_client._ssl_context)
-        self._client_protocols[node_id] = protocol
+        self._client_protocols[node_id] = (protocol, host)
 
     @staticmethod
     def _create_json_service_name(app, service, version):

@@ -12,7 +12,7 @@ from vyked.services import HTTPService, TCPService
 from .protocol_factory import get_vyked_protocol
 from .utils.log import setup_logging
 from vyked.utils.stats import Stats, Aggregator
-
+from .utils.client_stats import ClientStats
 
 class Host:
     registry_host = None
@@ -83,7 +83,9 @@ class Host:
             ssl_context = cls._http_service.ssl_context
             app = Application(loop=asyncio.get_event_loop())
             fn = getattr(cls._http_service, 'pong')
-            app.router.add_route('GET', '/ping', fn)
+            fn2 = getattr(cls._http_service, 'pong2')
+            app.router.add_route('GET', '/ping/{node}', fn)
+            app.router.add_route('GET', '/ping', fn2)
             app.router.add_route('GET', '/_stats', getattr(cls._http_service, 'stats'))
             app.router.add_route('GET', '/_change_log_level/{level}', getattr(cls._http_service, 'handle_log_change'))
             for each in cls._http_service.__ordered__:
@@ -151,6 +153,12 @@ class Host:
                     cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.host, cls._tcp_service.port,
                                                                           cls._tcp_service.node_id,
                                                                           cls._tcp_service.clients))
+            elif cls._http_service:
+                asyncio.async(
+                    cls._http_service.pubsub_bus.register_for_subscription(cls._http_service.host,
+                                                                           cls._http_service.port,
+                                                                           cls._http_service.node_id,
+                                                                           cls._http_service.clients))
 
     @classmethod
     def _task_queues(cls):
@@ -192,3 +200,4 @@ class Host:
         Stats.service_name = host.name
         Stats.periodic_stats_logger()
         Aggregator.periodic_aggregated_stats_logger()
+        ClientStats.periodic_aggregator()
