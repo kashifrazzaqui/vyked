@@ -156,7 +156,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             _logger.exception('Unhandled exception %s for method %s ', e.__class__.__name__, func.__name__)
             _stats_logger = logging.getLogger('stats')
             d = {"exception_type": e.__class__.__name__, "method_name": func.__name__, "message": str(e),
-                 "service_name": self._service_name, "hostname": self.host()}
+                 "service_name": self._service_name, "hostname": self.host}
             _stats_logger.info(dict(d))
 
         else:
