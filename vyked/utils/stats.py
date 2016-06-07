@@ -10,7 +10,7 @@ class Stats:
     rusage_denom = 1024.
 
     hostname = socket.gethostbyname(socket.gethostname())
-    service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+    service_name = '_'.join(setproctitle.getproctitle().split('_')[1:-1])
     # hostd = {'hostname': '', 'service_name': ''}
     http_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0, 'total_errors': 0}
     tcp_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0, 'total_errors': 0}
