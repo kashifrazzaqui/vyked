@@ -311,18 +311,25 @@ class PubSubBus:
         return '/'.join((service, str(version), endpoint))
 
     def task_queue_handler(self, queue_name, payload):
-        for method in dir(self._service):
-            fn = getattr(self._service, method)
-            if getattr(fn, 'is_task_queue', False) and getattr(fn, 'queue_name', None) == queue_name:
-                asyncio.async(fn(payload))
+        for client in filter(lambda x: isinstance(x, TCPServiceClient), clients):
+            for each in dir(client):
+                fn = getattr(client, each)
+                fn_queue_name = getattr(fn, 'queue_name', None)
+                if fn_queue_name == 'default':
+                    fn_queue_name = client.name + '/' + fn.__name__
+                if getattr(fn, 'is_task_queue', False) and fn_queue_name == queue_name:
+                    asyncio.async(fn(json.loads(payload))
 
-    def register_for_task_queues(self, service):
-        self._service = service
+    def register_for_task_queues(self, clients):
         endpoints = []
-        for method in dir(service):
-            fn = getattr(service, method)
-            if getattr(fn, 'is_task_queue', False):
-                if fn.queue_name not in endpoints:
-                    endpoints.append(fn.queue_name)
+        for client in filter(lambda x: isinstance(x, TCPServiceClient), clients):
+            for each in dir(client):
+                fn = getattr(client, each)
+                if getattr(fn, 'is_task_queue', False):
+                    queue_name = fn.queue_name
+                    if queue_name == 'default':
+                        queue_name = client.name + '/' + fn.__name__
+                    if queue_name not in endpoints:
+                        endpoints.append(queue_name)
         if len(endpoints):
             yield from self._pubsub_handler.task_getter(endpoints, self.task_queue_handler)
