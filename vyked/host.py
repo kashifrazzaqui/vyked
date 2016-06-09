@@ -152,13 +152,13 @@ class Host:
                 asyncio.async(
                     cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.host, cls._tcp_service.port,
                                                                           cls._tcp_service.node_id,
-                                                                          cls._tcp_service.clients))
+                                                                          cls._tcp_service.clients, cls._tcp_service))
             elif cls._http_service:
                 asyncio.async(
                     cls._http_service.pubsub_bus.register_for_subscription(cls._http_service.host,
                                                                            cls._http_service.port,
                                                                            cls._http_service.node_id,
-                                                                           cls._http_service.clients))
+                                                                           cls._http_service.clients, cls._http_service))
 
     @classmethod
     def _task_queues(cls):

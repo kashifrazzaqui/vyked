@@ -121,8 +121,7 @@ class ControlPacket(_Packet):
     @classmethod
     def subscribers(cls, service, version, endpoint, request_id, subscribers):
         params = {'service': service, 'version': version, 'endpoint': endpoint}
-        subscribers = [{'service': _service, 'version': _version, 'host': host, 'port': port, 'node_id': node_id,
-                        'strategy': strategy} for _service, _version, host, port, node_id, strategy in subscribers]
+        subscribers = [{'service': _service, 'version': _version} for _service, _version in subscribers]
         params['subscribers'] = subscribers
         packet = {'pid': cls._next_pid(),
                   'request_id': request_id,

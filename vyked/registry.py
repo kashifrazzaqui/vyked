@@ -115,12 +115,6 @@ class Repository:
                             pass
                 for instance in to_remove:
                     instances.remove(instance)
-        for name, versions in self._subscribe_list.items():
-            for version, endpoints in versions.items():
-                for endpoint, subscribers in endpoints.items():
-                    to_remove = list(filter(lambda x: node_id == x[4], subscribers))
-                    for subscriber in to_remove:
-                        subscribers.remove(subscriber)
         for name, nodes in self._uptimes.items():
             for host, portup in nodes.items():
                 for port, uptimes in portup.items():
@@ -145,10 +139,21 @@ class Repository:
                     logging.getLogger('stats').info(logd)
 
     def xsubscribe(self, service, version, host, port, node_id, endpoints):
-        entry = (service, version, host, port, node_id)
+        entry = (service, version)
+        # Remove all entries of service, version from subscribe list
+        for name, versions in self._subscribe_list.items():
+            for version, endpoints2 in versions.items():
+                for endpoint, subscribers in endpoints2.items():
+                    to_remove = list(filter(lambda x: service == x[0] and version == x[1], 
+                        subscribers))
+                    for subscriber in to_remove:
+                        subscribers.remove(subscriber)
+
+        # Add entries of service, version into subscribe list - thus keeping 
+        # only the latest information
         for endpoint in endpoints:
             self._subscribe_list[endpoint['service']][endpoint['version']][endpoint['endpoint']].append(
-                entry + (endpoint['strategy'],))
+                entry)
 
     def get_subscribers(self, service, version, endpoint):
         return self._subscribe_list[service][version][endpoint]
