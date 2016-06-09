@@ -32,7 +32,7 @@ class Host:
     def _set_process_name(cls):
         from setproctitle import setproctitle
 
-        setproctitle('{}_{}'.format(cls.name, cls._host_id))
+        setproctitle('{}_{}_{}'.format('vyked', cls.name, cls._host_id))
 
     @classmethod
     def _stop(cls, signame: str):
