@@ -314,11 +314,12 @@ class PubSubBus:
         for client in filter(lambda x: isinstance(x, TCPServiceClient), self._clients):
             for each in dir(client):
                 fn = getattr(client, each)
-                fn_queue_name = getattr(fn, 'queue_name', None)
-                if not fn_queue_name:
-                    fn_queue_name = client.name + '/' + fn.__name__
-                if getattr(fn, 'is_task_queue', False) and fn_queue_name == queue_name:
-                    asyncio.async(fn(json.loads(payload))
+                if getattr(fn, 'is_task_queue', False):
+                    fn_queue_name = getattr(fn, 'queue_name', None)
+                    if not fn_queue_name:
+                        fn_queue_name = client.name + '/' + fn.__name__
+                    if getattr(fn, 'is_task_queue', False) and fn_queue_name == queue_name:
+                        asyncio.async(fn(json.loads(payload)))
 
     def register_for_task_queues(self, clients):
         self._clients = clients
