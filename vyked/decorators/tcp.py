@@ -187,7 +187,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
     return wrapper
 
 
-def task_queue(func=None, queue_name="default"):
+def task_queue(func=None, queue_name=None):
     if func is None:
         return partial(task_queue, queue_name=queue_name)
 

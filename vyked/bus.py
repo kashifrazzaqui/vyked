@@ -315,7 +315,7 @@ class PubSubBus:
             for each in dir(client):
                 fn = getattr(client, each)
                 fn_queue_name = getattr(fn, 'queue_name', None)
-                if fn_queue_name == 'default':
+                if not fn_queue_name:
                     fn_queue_name = client.name + '/' + fn.__name__
                 if getattr(fn, 'is_task_queue', False) and fn_queue_name == queue_name:
                     asyncio.async(fn(json.loads(payload))
@@ -327,7 +327,7 @@ class PubSubBus:
                 fn = getattr(client, each)
                 if getattr(fn, 'is_task_queue', False):
                     queue_name = fn.queue_name
-                    if queue_name == 'default':
+                    if not queue_name:
                         queue_name = client.name + '/' + fn.__name__
                     if queue_name not in endpoints:
                         endpoints.append(queue_name)
