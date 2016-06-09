@@ -311,7 +311,7 @@ class PubSubBus:
         return '/'.join((service, str(version), endpoint))
 
     def task_queue_handler(self, queue_name, payload):
-        for client in filter(lambda x: isinstance(x, TCPServiceClient), clients):
+        for client in filter(lambda x: isinstance(x, TCPServiceClient), self._clients):
             for each in dir(client):
                 fn = getattr(client, each)
                 fn_queue_name = getattr(fn, 'queue_name', None)
@@ -321,6 +321,7 @@ class PubSubBus:
                     asyncio.async(fn(json.loads(payload))
 
     def register_for_task_queues(self, clients):
+        self._clients = clients
         endpoints = []
         for client in filter(lambda x: isinstance(x, TCPServiceClient), clients):
             for each in dir(client):
