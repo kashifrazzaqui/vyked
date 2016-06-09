@@ -187,7 +187,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
     return wrapper
 
 
-def task_queue(func=None, queue_name=None):
+def task_queue(func=None, queue_name="default"):
     if func is None:
         return partial(task_queue, queue_name=queue_name)
 
@@ -210,6 +210,8 @@ def enqueue(func=None, queue_name=None):
     def wrapper(self, *args, **kwargs):  # outgoing
         payload = func(self, *args, **kwargs)
         payload.pop('self', None)
+        if not queue_name:
+            queue_name = self.service_name + "/" + func.__name__
         self._enqueue(queue_name, payload)
         return None
     return wrapper

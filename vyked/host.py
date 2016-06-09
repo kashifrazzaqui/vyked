@@ -164,8 +164,9 @@ class Host:
     def _task_queues(cls):
         if not cls.ronin:
             if cls._tcp_service:
-                asyncio.async(cls._tcp_service.pubsub_bus.register_for_task_queues(cls._tcp_service))
-
+                asyncio.async(cls._tcp_service.pubsub_bus.register_for_task_queues(cls._tcp_service.clients))
+            elif cls._http_service:
+                asyncio.async(cls._http_service.pubsub_bus.register_for_task_queues(cls._http_service.clients))
 
     @classmethod
     def _set_bus(cls, service):
