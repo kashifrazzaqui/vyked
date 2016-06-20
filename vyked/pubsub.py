@@ -69,3 +69,20 @@ class PubSub:
 
     def _get_conn(self):
         return (yield from redis.Connection.create(self._redis_host, self._redis_port, auto_reconnect=True))
+
+    @asyncio.coroutine
+    def task_getter(self, endpoints, handler):
+        connection = yield from self._get_conn()
+        while True:
+            response = yield from connection.brpop(endpoints)
+            queue_name, payload = response.list_name, response.value
+            handler(queue_name, payload)
+
+    @asyncio.coroutine
+    def add_to_queue(self, endpoint: str, payload: str):
+        if self._conn is not None:
+            try:
+                yield from self._conn.lpush(endpoint, [payload])
+            except redis.Error as e:
+                self._logger.error('Add to queue failed with error %s', repr(e))
+        return 0

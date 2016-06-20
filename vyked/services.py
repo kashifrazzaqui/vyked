@@ -200,6 +200,9 @@ class TCPService(_ServiceHost):
     def _xpublish(self, endpoint, payload, strategy):
         self._pubsub_bus.xpublish(self.name, self.version, endpoint, payload, strategy)
 
+    def _enqueue(self, endpoint, payload):
+        self._pubsub_bus.enqueue(endpoint, payload)
+
     @staticmethod
     def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object,
                               failed: bool, old_api=None, replacement_api=None):

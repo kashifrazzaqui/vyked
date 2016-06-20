@@ -189,3 +189,32 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
 
     wrapper.is_api = True
     return wrapper
+
+
+def task_queue(func=None, queue_name=None):
+    if func is None:
+        return partial(task_queue, queue_name=queue_name)
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        coroutine_func = func
+        if not asyncio.iscoroutine(func):
+            coroutine_func = asyncio.coroutine(func)
+        return (yield from coroutine_func(*args, **kwargs))
+    wrapper.queue_name = queue_name
+    wrapper.is_task_queue = True
+    return wrapper
+
+
+def enqueue(func=None, queue_name=None):
+    if func is None:
+        return partial(enqueue, queue_name=queue_name)
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):  # outgoing
+        payload = func(self, *args, **kwargs)
+        payload.pop('self', None)
+        if queue_name:
+            self._enqueue(queue_name, payload)
+        else:
+            self._enqueue(self.name + "/" + func.__name__, payload)
+        return None
+    return wrapper
