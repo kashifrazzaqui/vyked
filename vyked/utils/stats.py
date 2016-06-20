@@ -129,5 +129,5 @@ class Aggregator:
         _logger = logging.getLogger('stats')
         for logd in logs:
             _logger.info(dict(logd))
-        _stats = StatUnit(key='total')
+        cls._stats = StatUnit(key='total')
         asyncio.get_event_loop().call_later(300, cls.periodic_aggregated_stats_logger)
