@@ -4,7 +4,7 @@ Vyked
     :target: https://travis-ci.org/kashifrazzaqui/vyked
     
 
-Vyked is an asyncio based python framework for service oriented architectures.
+Vyked is an asyncio based python framework for service oriented architectures. It is tested and used in production successfully.
 
 Requirements
 ------------
