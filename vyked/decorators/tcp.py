@@ -114,6 +114,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
     def wrapper(*args, **kwargs):
         _logger = logging.getLogger(__name__)
         start_time = int(time.time() * 1000)
+        start_process_time = int(time.process_time() * 1000)
         self = args[0]
         rid = kwargs.pop('request_id')
         entity = kwargs.pop('entity')
@@ -159,6 +160,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             Stats.tcp_stats['total_responses'] += 1
 
         end_time = int(time.time() * 1000)
+        end_process_time = int(time.process_time() * 1000)
 
         hostname = socket.gethostname()
         service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
@@ -173,7 +175,8 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
 
         # call to update aggregator, designed to replace the stats module.
         Aggregator.update_stats(endpoint=func.__name__, status=status, success=success,
-                                server_type='tcp', time_taken=end_time - start_time)
+                                server_type='tcp', time_taken=end_time - start_time,
+                                process_time_taken=start_process_time - end_process_time)
 
         if not old_api:
             return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
