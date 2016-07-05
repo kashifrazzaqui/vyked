@@ -10,7 +10,7 @@ class Stats:
     rusage_denom = 1024.
 
     hostname = socket.gethostbyname(socket.gethostname())
-    service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+    service_name = '_'.join(setproctitle.getproctitle().split('_')[1:-1])
     # hostd = {'hostname': '', 'service_name': ''}
     http_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0, 'total_errors': 0}
     tcp_stats = {'total_requests': 0, 'total_responses': 0, 'timedout': 0, 'total_errors': 0}
@@ -25,10 +25,12 @@ class Stats:
         for key, value in cls.http_stats.items():
             logd[key] += value
             logd['http_' + key] = value
+            cls.http_stats[key] = 0
 
         for key, value in cls.tcp_stats.items():
             logd[key] += value
             logd['tcp_' + key] = value
+            cls.tcp_stats[key] = 0
 
         _logger = logging.getLogger('stats')
         _logger.info(dict(logd))
@@ -104,8 +106,8 @@ class Aggregator:
 
     @classmethod
     def periodic_aggregated_stats_logger(cls):
-        hostname = socket.gethostname()
-        service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
+        hostname = socket.gethostbyname(socket.gethostname())
+        service_name = '_'.join(setproctitle.getproctitle().split('_')[1:-1])
 
         logd = cls._stats.to_dict()
         logs = []
@@ -132,5 +134,5 @@ class Aggregator:
         _logger = logging.getLogger('stats')
         for logd in logs:
             _logger.info(dict(logd))
-
-        asyncio.get_event_loop().call_later(30, cls.periodic_aggregated_stats_logger)
+        cls._stats = StatUnit(key='total')
+        asyncio.get_event_loop().call_later(300, cls.periodic_aggregated_stats_logger)
