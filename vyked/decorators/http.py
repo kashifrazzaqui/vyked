@@ -39,10 +39,11 @@ def get_decorated_fun(method, path, required_params):
                         res_d = {'error': 'Required params {} not found'.format(','.join(missing_params))}
                         Stats.http_stats['total_responses'] += 1
                         Aggregator.update_stats(endpoint=func.__name__, status=400, success=False,
-                                                server_type='http', time_taken=0)
+                                                server_type='http', time_taken=0, process_time_taken=0)
                         return Response(status=400, content_type='application/json', body=json.dumps(res_d).encode())
 
                 t1 = time.time()
+                tp1 = time.process_time()
                 wrapped_func = func
                 success = True
                 _logger = logging.getLogger()
@@ -77,6 +78,7 @@ def get_decorated_fun(method, path, required_params):
                     
                 else:
                     t2 = time.time()
+                    tp2 = time.process_time()
                     hostname = socket.gethostname()
                     service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
                     status = result.status
@@ -84,6 +86,7 @@ def get_decorated_fun(method, path, required_params):
                     logd = {
                         'status': result.status,
                         'time_taken': int((t2 - t1) * 1000),
+                        'process_time_taken': int((tp2-tp1) * 1000),
                         'type': 'http',
                         'hostname': hostname, 'service_name': service_name
                     }
@@ -93,8 +96,10 @@ def get_decorated_fun(method, path, required_params):
 
                 finally:
                     t2 = time.time()
+                    tp2 = time.process_time()
                     Aggregator.update_stats(endpoint=func.__name__, status=status, success=success,
-                                            server_type='http', time_taken=int((t2 - t1) * 1000))
+                                            server_type='http', time_taken=int((t2 - t1) * 1000),
+                                            process_time_taken=int((tp2 - tp1) * 1000))
 
         f.is_http_method = True
         f.method = method

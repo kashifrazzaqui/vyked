@@ -36,17 +36,9 @@ class _Service:
     def properties(self):
         return self.name, self.version
 
-    @staticmethod
-    def time_future(future: Future, timeout: int):
-        def timer_callback(f):
-            if not f.done() and not f.cancelled():
-                f.set_exception(TimeoutError())
-
-        get_event_loop().call_later(timeout, timer_callback, future)
-
 
 class TCPServiceClient(_Service):
-    REQUEST_TIMEOUT_SECS = 600
+    REQUEST_TIMEOUT_SECS = 60
 
     def __init__(self, service_name, service_version, ssl_context=None):
         super(TCPServiceClient, self).__init__(service_name, service_version)
@@ -63,7 +55,6 @@ class TCPServiceClient(_Service):
                                        entity)
         future = Future()
         request_id = params['request_id']
-        self._pending_requests[request_id] = future
         try:
             self.tcp_bus.send(packet)
         except ClientException:
@@ -72,7 +63,13 @@ class TCPServiceClient(_Service):
                 exception = ClientException(error)
                 exception.error = error
                 future.set_exception(exception)
-        _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
+        except Exception as e:
+            logging.getLogger().info(e)
+        else:
+            self._pending_requests[request_id] = future
+            future.request_id = request_id
+
+        self.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
 
     def receive(self, packet: dict, protocol, transport):
@@ -114,6 +111,17 @@ class TCPServiceClient(_Service):
         endpoint = packet['endpoint']
         func = getattr(self, endpoint)
         func(**packet['payload'])
+
+    def time_future(self, future: Future, timeout: int):
+        def timer_callback(self, f):
+            if not f.done() and not f.cancelled():
+                f.set_exception(TimeoutError())
+                try:
+                    self._pending_requests.pop(f.request_id)
+                except Exception as e:
+                    logging.getLogger().info(e)
+
+        get_event_loop().call_later(timeout, timer_callback, self, future)
 
 
 class _ServiceHost(_Service):

@@ -177,6 +177,8 @@ class TCPBus:
             self._handle_log_change(packet, protocol)
         elif packet['type'] == 'get_tasks':
             protocol.send(len(list(asyncio.Task.all_tasks())))
+        elif packet['type'] == 'get_queues':
+            protocol.send(str([(x._service_name, len(x._pending_requests.keys())) for x in self._service_clients]))
         else:
             if self.tcp_host.is_for_me(packet['service'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')

@@ -116,7 +116,7 @@ class RegistryClient:
 
     def get_all_addresses(self, name, version):
         return self._available_services.get(
-            self._get_full_service_name(name, version))
+            self._get_full_service_name(name, version), [])
 
     def get_for_node(self, node_id):
         for services in self._available_services.values():
@@ -157,7 +157,7 @@ class RegistryClient:
     def cache_vendors(self, vendors):
         for vendor in vendors:
             vendor_name = self._get_full_service_name(vendor['name'], vendor['version'])
-            for address in vendor['addresses']:
+            for address in vendor.get('addresses', []):
                 vendor_entry = (address['host'], address['port'], address['node_id'], address['type'])
                 if vendor_entry not in self._available_services[vendor_name]:
                     self._available_services[vendor_name].append(

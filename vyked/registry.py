@@ -293,7 +293,7 @@ class Registry:
     def _inform_consumers(self, service: Service):
         consumers = self._repository.get_consumers(service.name, service.version)
         for service_name, service_version, _ in consumers:
-            if not self._repository.is_pending(service_name, service_version):
+            # if not self._repository.is_pending(service_name, service_version):
                 instances = self._repository.get_instances(service_name, service_version)
                 for host, port, node, stype in instances:
                     protocol = self._client_protocols[node]
@@ -318,8 +318,8 @@ class Registry:
                     if not len(tcp_instances):
                         should_activate = False
                         break
+                self._send_activated_packet(service, version, node)
                 if should_activate:
-                    self._send_activated_packet(service, version, node)
                     self._repository.remove_pending_instance(service, version, node)
                     self.logger.info('%s activated', (service, version))
                 else:

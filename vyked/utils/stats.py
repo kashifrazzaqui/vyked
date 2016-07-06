@@ -44,24 +44,27 @@ class StatUnit:
     def __init__(self, key=None):
         self.key = key
         self.average = 0
+        self.process_time_average = 0
         self.values = list()
         self.count = 0
         self.success_count = 0
         self.sub = dict()
 
-    def update(self, val, success):
+    def update(self, val, process_time_taken, success):
         self.values.append(val)
         if len(self.values) > self.MAXSIZE:
             self.values.pop(0)
 
-        self.average = sum(self.values) / len(self.values)
         self.count += 1
         if success:
+            self.average = (self.average * self.success_count + val)/(self.success_count+1)
+            self.process_time_average = (self.process_time_average * self.success_count + process_time_taken)/(self.success_count+1)
             self.success_count += 1
 
     def to_dict(self):
 
-        d = dict({'count': self.count, 'average': self.average, 'success_count': self.success_count, 'sub': dict()})
+        d = dict({'count': self.count, 'average': self.average, 'success_count': self.success_count, 'sub': dict(),
+            'process_time_average': self.process_time_average})
         for k, v in self.sub.items():
             d['sub'][k] = v.to_dict()
         return d
@@ -74,7 +77,7 @@ class Aggregator:
     _stats = StatUnit(key='total')
 
     @classmethod
-    def recursive_update(cls, d, new_val, keys, success):
+    def recursive_update(cls, d, new_val, keys, success, process_time_taken=0):
         if len(keys) == 0:
             return
 
@@ -87,14 +90,15 @@ class Aggregator:
             d[key] = value
 
         finally:
-            value.update(new_val, success)
-            cls.recursive_update(value.sub, new_val, keys, success)
+            value.update(new_val, process_time_taken, success)
+            cls.recursive_update(value.sub, new_val, keys, success, process_time_taken)
 
     @classmethod
-    def update_stats(cls, endpoint, status, time_taken, server_type, success=True):
+    def update_stats(cls, endpoint, status, time_taken, server_type, success=True, process_time_taken=0):
 
-        cls._stats.update(val=time_taken, success=success)
-        cls.recursive_update(cls._stats.sub, time_taken, keys=[status, endpoint, server_type], success=success)
+        cls._stats.update(val=time_taken, process_time_taken=process_time_taken,success=success)
+        cls.recursive_update(cls._stats.sub, time_taken, keys=[status, endpoint, server_type], success=success,
+            process_time_taken=process_time_taken)
 
     @classmethod
     def dump_stats(cls):
@@ -119,6 +123,7 @@ class Aggregator:
                     'hostname': hostname,
                     'service_name': service_name,
                     'average_response_time': v['average'],
+                    'average_process_time': v['process_time_average'],
                     'total_request_count': v['count'],
                     'success_count': v['success_count']
                 })
