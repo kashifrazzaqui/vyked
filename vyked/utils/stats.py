@@ -63,7 +63,7 @@ class StatUnit:
 
     def to_dict(self):
 
-        d = dict({'count': self.count, 'average': self.average, 'success_count': self.success_count, 'sub': dict(),
+        d = dict({'count': self.count, 'average': int(self.average), 'success_count': self.success_count, 'sub': dict(),
             'process_time_average': self.process_time_average})
         for k, v in self.sub.items():
             d['sub'][k] = v.to_dict()

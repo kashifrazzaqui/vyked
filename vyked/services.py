@@ -1,6 +1,7 @@
 from asyncio import Future, get_event_loop
 import json
 import logging
+import time
 
 from again.utils import unique_hex
 
@@ -10,6 +11,7 @@ from .packet import MessagePacket
 from .exceptions import RequestException, ClientException
 from .utils.ordered_class_member import OrderedClassMembers
 from .utils.stats import Aggregator
+from .utils.client_stats import ClientStats
 
 
 class _Service:
@@ -66,8 +68,9 @@ class TCPServiceClient(_Service):
         except Exception as e:
             logging.getLogger().info(e)
         else:
-            self._pending_requests[request_id] = future
             future.request_id = request_id
+            future.send_time = time.time()
+            self._pending_requests[request_id] = future
 
         self.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
@@ -106,6 +109,8 @@ class TCPServiceClient(_Service):
                     future.set_exception(exception)
         else:
             print('Invalid response to request:', packet)
+        ClientStats.update(packet['from'], packet['host'], packet['endpoint'],
+            time_taken=int((time.time() - future.send_time)*1000))
 
     def _process_publication(self, packet):
         endpoint = packet['endpoint']
@@ -213,7 +218,8 @@ class TCPService(_ServiceHost):
 
     @staticmethod
     def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object,
-                              failed: bool, old_api=None, replacement_api=None):
+                              failed: bool, old_api=None, replacement_api=None, host='0.0.0.0', service_name='',
+                              method=''):
         if error:
             payload = {'request_id': request_id, 'error': error, 'failed': failed}
         else:
@@ -223,7 +229,10 @@ class TCPService(_ServiceHost):
             if replacement_api:
                 payload['replacement_api'] = replacement_api
         packet = {'pid': unique_hex(),
+                  'from': service_name,
+                  'endpoint': method,
                   'to': from_id,
+                  'host': host,
                   'entity': entity,
                   'type': _Service._RES_PKT_STR,
                   'payload': payload}
