@@ -184,11 +184,13 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
 
         if not old_api:
             return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
-                                              error=error, failed=failed, host=self.host, method=func.__name__)
+                                              error=error, failed=failed, host=self.host, method=func.__name__,
+                                              service_name=self.name)
         else:
             return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
                                               error=error, failed=failed, old_api=old_api,
-                                              replacement_api=replacement_api, host=self.host, method=func.__name__)
+                                              replacement_api=replacement_api, host=self.host, method=func.__name__,
+                                              service_name=self.name)
 
     wrapper.is_api = True
     return wrapper
