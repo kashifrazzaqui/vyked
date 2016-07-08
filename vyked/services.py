@@ -94,7 +94,9 @@ class TCPServiceClient(_Service):
         request_id = payload['request_id']
         has_result = 'result' in payload
         has_error = 'error' in payload
-        future = self._pending_requests.pop(request_id)
+        future = self._pending_requests.pop(request_id, None)
+        if not future:
+            return
         if has_result:
             if not future.done() and not future.cancelled():
                 future.set_result(payload['result'])
