@@ -180,7 +180,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         # call to update aggregator, designed to replace the stats module.
         Aggregator.update_stats(endpoint=func.__name__, status=status, success=success,
                                 server_type='tcp', time_taken=end_time - start_time,
-                                process_time_taken=start_process_time - end_process_time)
+                                process_time_taken=end_process_time - start_process_time)
 
         if not old_api:
             return self._make_response_packet(request_id=rid, from_id=from_id, entity=entity, result=result,
