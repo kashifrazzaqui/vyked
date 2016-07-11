@@ -234,7 +234,7 @@ class Registry:
             for_log["request_type"] = request_type
             self.logger.debug(for_log)
         if request_type == 'register':
-            self.register_service(packet, protocol)
+            self.register_service(packet, protocol, transport)
         elif request_type == 'get_instances':
             self.get_service_instances(packet, protocol)
         elif request_type == 'xsubscribe':
@@ -280,8 +280,10 @@ class Registry:
                         for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
                             self._repository.add_pending_service(consumer_name, consumer_version, node_id)
 
-    def register_service(self, packet: dict, registry_protocol):
+    def register_service(self, packet: dict, registry_protocol, transport=None):
         params = packet['params']
+        if params['host'] == '0.0.0.0' and transport:
+            params['host'] = transport.get_extra_info("peername")[0]
         service = Service(params['service'], params['version'], params['dependencies'], params['host'], params['port'],
                           params['node_id'], params['type'])
         self._repository.register_service(service)
