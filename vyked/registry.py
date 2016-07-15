@@ -115,13 +115,16 @@ class Repository:
                             pass
                 for instance in to_remove:
                     instances.remove(instance)
+        remove_from_uptimes = []
         for name, nodes in self._uptimes.items():
             for host, portup in nodes.items():
                 for port, uptimes in portup.items():
                     if host == thehost and port == theport and uptimes['node_id'] == node_id:
                         uptimes['downtime'] = int(time.time())
-                        self.log_uptimes()
-
+                        remove_from_uptimes.append((name, host, port))
+        for name, host, port in remove_from_uptimes:
+            self._uptimes[name][host].pop(port)
+        self.log_uptimes()
         return None
 
     def get_uptimes(self):
@@ -486,7 +489,7 @@ class Registry:
                        'Pending Services': self._repository._pending_services,
                        'XSubscription List': self._repository._subscribe_list,
                        'Service Dependencies': self._repository._service_dependencies}
-        protocol.send(json.dumps(status_dict))
+        protocol.send(status_dict)
 
 if __name__ == '__main__':
     # config_logs(enable_ping_logs=False, log_level=logging.DEBUG)
