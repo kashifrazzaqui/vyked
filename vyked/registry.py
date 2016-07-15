@@ -475,7 +475,7 @@ class Registry:
                 return
             elif wtlist_port in self._blacklisted_hosts[wtlist_ip]:
                 self._blacklisted_hosts[wtlist_ip].remove(wtlist_port)
-                protocol.send("Whitelisted Services on " + str(wtlist_ip) + str(wtlist_port))
+                protocol.send("Whitelisted Services on " + str(wtlist_ip) + ":" + str(wtlist_port))
             else:
                 self._blacklisted_hosts.pop(wtlist_ip, None)
                 protocol.send("Whitelisted Services on " + str(wtlist_ip))
