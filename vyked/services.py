@@ -67,6 +67,8 @@ class TCPServiceClient(_Service):
                 future.set_exception(exception)
         except Exception as e:
             logging.getLogger().info(e)
+            future.set_exception(e)
+            raise e
         else:
             future.request_id = request_id
             future.send_time = time.time()
