@@ -76,7 +76,7 @@ class TCPBus:
         futures = []
         for sc in self._service_clients:
             for host, port, node_id, service_type in self._registry_client.get_all_addresses(*sc.properties):
-                if service_type == 'tcp':
+                if service_type == 'tcp' and node_id not in self._node_clients.keys():
                     self._node_clients[node_id] = sc
                     future = self._connect_to_client(host, node_id, port, service_type, sc)
                     futures.append(future)
@@ -97,7 +97,7 @@ class TCPBus:
 
     def new_instance(self, service, version, host, port, node_id, type):
         sc = next(sc for sc in self._service_clients if sc.name == service and sc.version == version)
-        if type == 'tcp':
+        if type == 'tcp' and node_id not in self._node_clients.keys():
             self._node_clients[node_id] = sc
             asyncio.async(self._connect_to_client(host, node_id, port, type, sc))
 
