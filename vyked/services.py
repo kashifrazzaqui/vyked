@@ -2,6 +2,7 @@ from asyncio import Future, get_event_loop
 import json
 import logging
 import time
+import socket
 
 from again.utils import unique_hex
 
@@ -222,7 +223,8 @@ class TCPService(_ServiceHost):
 
     @staticmethod
     def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object,
-                              failed: bool, old_api=None, replacement_api=None, host='0.0.0.0', service_name='',
+                              failed: bool, old_api=None, replacement_api=None, 
+                              host=socket.gethostbyname(socket.gethostname()), service_name='',
                               method=''):
         if error:
             payload = {'request_id': request_id, 'error': error, 'failed': failed}
