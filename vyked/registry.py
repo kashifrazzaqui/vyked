@@ -297,13 +297,13 @@ class Registry:
 
     def _inform_consumers(self, service: Service):
         consumers = self._repository.get_consumers(service.name, service.version)
-        for service_name, service_version, _ in consumers:
+        for service_name, service_version, node in consumers:
             # if not self._repository.is_pending(service_name, service_version):
-                instances = self._repository.get_instances(service_name, service_version)
-                for host, port, node, stype in instances:
-                    protocol = self._client_protocols[node]
-                    protocol.send(ControlPacket.new_instance(
-                        service.name, service.version, service.host, service.port, service.node_id, service.type))
+                # instances = self._repository.get_instances(service_name, service_version)
+                # for host, port, node, stype in instances:
+            protocol = self._client_protocols[node]
+            protocol.send(ControlPacket.new_instance(
+                service.name, service.version, service.host, service.port, service.node_id, service.type))
 
     def _send_activated_packet(self, service, version, node):
         protocol = self._client_protocols.get(node, None)
