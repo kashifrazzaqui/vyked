@@ -247,6 +247,7 @@ class PubSubBus:
         xsubs_list4registry = []
         xsubs_list4redis = []
         for client in filter(lambda x: isinstance(x, TCPServiceClient), clients):
+            client._pubsub_bus = self
             for each in dir(client):
                 fn = getattr(client, each)
                 if getattr(fn, 'is_subscribe', False):
@@ -301,28 +302,33 @@ class PubSubBus:
             return '/'.join((service, str(version), endpoint, node_id))
         return '/'.join((service, str(version), endpoint))
 
-    def task_queue_handler(self, queue_name, payload):
-        service, version, endpoint, _, _ = queue_name.split('/')
-        client = [sc for sc in self._clients if (sc.name == service and sc.version == version)][0]
-        func = getattr(client, endpoint, None)
+    def task_queue_handler(self, queue_name, payload, blocking=False):
+        if '/' in queue_name:
+            service, version, endpoint, _, _ = queue_name.split('/')
+            client = [sc for sc in self._clients if (sc.name == service and sc.version == version)][0]
+            func = getattr(client, endpoint, None)
+        else:
+            for each in dir(self._service):
+                fn = getattr(self._service, each)
+                if getattr(fn, 'queue_name', '') == queue_name and getattr(fn, 'is_task_queue', False):
+                    func = fn
+                    break
         if func:
-            asyncio.async(func(json.loads(payload)))
+            if blocking:
+                yield from func(**json.loads(payload))
+            else:
+                asyncio.async(func(json.loads(payload)))
 
     def message_queue_popper(self, endpoints):
         if endpoints:
             yield from self._pubsub_handler.task_getter(endpoints, self.task_queue_handler)
 
-    def register_for_task_queues(self, clients):
-        self._clients = clients
+    def register_for_task_queues(self, service):
         endpoints = []
-        for client in filter(lambda x: isinstance(x, TCPServiceClient), clients):
-            for each in dir(client):
-                fn = getattr(client, each)
-                if getattr(fn, 'is_task_queue', False):
-                    queue_name = fn.queue_name
-                    if not queue_name:
-                        queue_name = client.name + '/' + fn.__name__
-                    if queue_name not in endpoints:
-                        endpoints.append(queue_name)
+        for each in dir(service):
+            fn = getattr(service, each)
+            if getattr(fn, 'is_task_queue', False):
+                if fn.queue_name not in endpoints:
+                    endpoints.append(fn.queue_name)
         if len(endpoints):
-            yield from self._pubsub_handler.task_getter(endpoints, self.task_queue_handler)
+            yield from self._pubsub_handler.task_getter(endpoints, self.task_queue_handler, blocking=True)

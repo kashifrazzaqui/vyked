@@ -217,9 +217,6 @@ def enqueue(func=None, queue_name=None):
     def wrapper(self, *args, **kwargs):  # outgoing
         payload = func(self, *args, **kwargs)
         payload.pop('self', None)
-        if queue_name:
-            self._enqueue(queue_name, payload)
-        else:
-            self._enqueue(self.name + "/" + func.__name__, payload)
+        self._enqueue(queue_name, payload)
         return None
     return wrapper

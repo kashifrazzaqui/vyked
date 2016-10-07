@@ -133,6 +133,9 @@ class TCPServiceClient(_Service):
 
         get_event_loop().call_later(timeout, timer_callback, self, future)
 
+    def _enqueue(self, endpoint, payload):
+        self._pubsub_bus.enqueue(endpoint, payload)
+
 
 class _ServiceHost(_Service):
     def __init__(self, service_name, service_version, host_ip, host_port):
@@ -217,9 +220,6 @@ class TCPService(_ServiceHost):
 
     def _xpublish(self, endpoint, payload, strategy):
         self._pubsub_bus.xpublish(self.name, self.version, endpoint, payload, strategy)
-
-    def _enqueue(self, endpoint, payload):
-        self._pubsub_bus.enqueue(endpoint, payload)
 
     @staticmethod
     def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object,

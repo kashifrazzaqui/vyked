@@ -71,12 +71,21 @@ class PubSub:
         return (yield from redis.Connection.create(self._redis_host, self._redis_port, auto_reconnect=True))
 
     @asyncio.coroutine
-    def task_getter(self, endpoints, handler):
+    def task_getter(self, endpoints, handler, blocking=False):
         connection = yield from self._get_conn()
         while True:
             response = yield from connection.brpop(endpoints)
             queue_name, payload = response.list_name, response.value
-            handler(queue_name, payload)
+            if blocking:
+                try:
+                    yield from handler(queue_name, payload, blocking)
+                except:
+                    pass
+            else:
+                try:
+                    asyncio.async(handler(queue_name, payload))
+                except:
+                    pass
 
     @asyncio.coroutine
     def add_to_queue(self, endpoint: str, payload: str):
