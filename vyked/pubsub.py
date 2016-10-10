@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import json
 
 import asyncio_redis as redis
 
@@ -64,7 +65,9 @@ class PubSub:
         yield from subscriber.subscribe(endpoints)
         while True:
             payload = yield from subscriber.next_published()
-            handler(payload.channel, payload.value)
+            payload_value = json.loads(payload.value)
+            payload_value.pop('_blocking', None)
+            handler(payload.channel, json.dumps(payload_value))
         return False
 
     def _get_conn(self):
@@ -76,7 +79,10 @@ class PubSub:
         while True:
             response = yield from connection.brpop(endpoints)
             queue_name, payload = response.list_name, response.value
-            if blocking:
+            payload = json.loads(payload)
+            blocking_sub = payload.pop('_blocking', False)
+            payload = json.dumps(payload)
+            if blocking or blocking_sub:
                 try:
                     yield from handler(queue_name, payload, blocking)
                 except:

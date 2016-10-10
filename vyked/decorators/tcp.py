@@ -10,16 +10,17 @@ import setproctitle
 import time
 
 
-def publish(func):
+def publish(func=None, blocking=False):
     """
     publish the return value of this function as a message from this endpoint
     """
-
+    if func is None:
+        return partial(publish, blocking=blocking)
     @wraps(func)
     def wrapper(self, *args, **kwargs):  # outgoing
         payload = func(self, *args, **kwargs)
         payload.pop('self', None)
-        self._publish(func.__name__, payload)
+        self._publish(func.__name__, payload, blocking=blocking)
         return None
 
     wrapper.is_publish = True
@@ -37,7 +38,7 @@ def subscribe(func):
     return wrapper
 
 
-def xsubscribe(func=None, strategy='DESIGNATION'):
+def xsubscribe(func=None, strategy='DESIGNATION', blocking=False):
     """
     Used to listen for publications from a specific endpoint of a service. If multiple instances
     subscribe to an endpoint, only one of them receives the event. And the publish event is retried till
@@ -48,11 +49,12 @@ def xsubscribe(func=None, strategy='DESIGNATION'):
     which registered for that endpoint.
     """
     if func is None:
-        return partial(xsubscribe, strategy=strategy)
+        return partial(xsubscribe, strategy=strategy, blocking=blocking)
     else:
         wrapper = _get_subscribe_decorator(func)
         wrapper.is_xsubscribe = True
         wrapper.strategy = strategy
+        wrapper.blocking = blocking
         return wrapper
 
 

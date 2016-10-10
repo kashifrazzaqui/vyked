@@ -316,6 +316,8 @@ class PubSubBus:
         if func:
             if blocking:
                 yield from func(**json.loads(payload))
+            elif getattr(func, 'blocking', False):
+                yield from func(json.loads(payload))
             else:
                 asyncio.async(func(json.loads(payload)))
 

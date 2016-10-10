@@ -215,7 +215,9 @@ class TCPService(_ServiceHost):
     def ssl_context(self):
         return self._ssl_context
 
-    def _publish(self, endpoint, payload):
+    def _publish(self, endpoint, payload, blocking=False):
+        if blocking:
+            payload['_blocking'] = blocking
         self._pubsub_bus.publish(self.name, self.version, endpoint, payload)
 
     def _xpublish(self, endpoint, payload, strategy):
