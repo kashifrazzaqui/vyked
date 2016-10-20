@@ -58,7 +58,9 @@ class Repository:
         return self._get_full_service_name(service, version) in self._pending_services
 
     def add_pending_service(self, service, version, node_id):
-        self._pending_services[self._get_full_service_name(service, version)].append(node_id)
+        full_service_name = self._get_full_service_name(service, version)
+        if node_id not in self._pending_services[full_service_name]:
+            self._pending_services[full_service_name].append(node_id)
 
     def get_pending_services(self):
         return [self._split_key(k) for k in self._pending_services.keys()]
