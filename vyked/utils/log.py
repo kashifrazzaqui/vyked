@@ -103,6 +103,12 @@ DEFAULT_CONFIG_YAML = """
             formatter: cjf
             filename: logs/vyked_stats.log
 
+        exceptions:
+            class: logging.FileHandler
+            level: INFO
+            formatter: cjf
+            filename: logs/vyked_exceptions.log
+
         service:
             class: logging.FileHandler
             level: INFO
@@ -131,6 +137,10 @@ DEFAULT_CONFIG_YAML = """
 
         stats:
             handlers: [stats]
+            level: INFO
+
+        exceptions:
+            handlers: [exceptions]
             level: INFO
 
     """

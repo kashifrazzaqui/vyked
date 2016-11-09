@@ -9,6 +9,7 @@ import setproctitle
 import socket
 import json
 import time
+import traceback
 
 
 def make_request(func, self, args, kwargs, method):
@@ -74,6 +75,9 @@ def get_decorated_fun(method, path, required_params):
                     d = {"exception_type": e.__class__.__name__, "method_name": func.__name__, "message": str(e),
                          "service_name": self._service_name, "hostname": socket.gethostbyname(socket.gethostname())}
                     _stats_logger.info(dict(d))
+                    _exception_logger = logging.getLogger('exceptions')
+                    d["message"] = traceback.format_exc()
+                    _exception_logger.info(dict(d))
                     raise e
                     
                 else:

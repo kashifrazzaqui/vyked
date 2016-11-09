@@ -8,6 +8,7 @@ import logging
 import socket
 import setproctitle
 import time
+import traceback
 
 
 def publish(func=None, blocking=False):
@@ -161,6 +162,9 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             d = {"exception_type": e.__class__.__name__, "method_name": func.__name__, "message": str(e),
                  "service_name": self._service_name, "hostname": socket.gethostbyname(socket.gethostname())}
             _stats_logger.info(dict(d))
+            _exception_logger = logging.getLogger('exceptions')
+            d["message"] = traceback.format_exc()
+            _exception_logger.info(dict(d))
 
         else:
             Stats.tcp_stats['total_responses'] += 1
