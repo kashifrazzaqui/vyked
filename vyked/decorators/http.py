@@ -43,6 +43,14 @@ def get_decorated_fun(method, path, required_params):
                                                 server_type='http', time_taken=0, process_time_taken=0)
                         return Response(status=400, content_type='application/json', body=json.dumps(res_d).encode())
 
+                # Support for multi request body encodings
+                req = args[0]
+                try:
+                    yield from req.json()
+                except:
+                    pass
+                else:
+                    req.post = req.json
                 t1 = time.time()
                 tp1 = time.process_time()
                 wrapped_func = func
