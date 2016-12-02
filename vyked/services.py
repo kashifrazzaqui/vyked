@@ -436,6 +436,8 @@ class _ServiceHost(_Service):
         self._ip = host_ip
         self._port = host_port
         self._clients = []
+        self.weight = 1
+        self.strategy = 'random_strategy'
 
     def is_for_me(self, service, version):
         return service == self.name and version == self.version
@@ -499,6 +501,10 @@ class _ServiceHost(_Service):
         yield from self.pubsub_bus.create_pubsub_handler()
         async(self.pubsub_bus.register_for_subscription(self.host, self.port, self.node_id, self.clients))
 
+    @coroutine
+    def health(self):
+        stats = Aggregator.dump_stats()
+        return {'node_id': self.node_id, 'type': 'health_report', 'report': stats}
 
 class TCPService(_ServiceHost):
     def __init__(self, service_name, service_version, host_ip=None, host_port=None, ssl_context=None):

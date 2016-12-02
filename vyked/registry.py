@@ -14,7 +14,8 @@ from .protocol_factory import get_vyked_protocol
 from .pinger import TCPPinger
 from .utils.log import setup_logging
 
-Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
+Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type', 'weight',
+                                 'strategy'])
 
 
 def tree():
@@ -40,7 +41,7 @@ class Repository:
 
     def register_service(self, service: Service):
         service_name = self._get_full_service_name(service.name, service.version)
-        service_entry = (service.host, service.port, service.node_id, service.type)
+        service_entry = (service.host, service.port, service.node_id, service.type, service.weight, service.strategy)
         self._registered_services[service.name][service.version].append(service_entry)
         self._pending_services[service_name].append(service.node_id)
         self._uptimes[service_name][service.host] = {
@@ -90,9 +91,9 @@ class Repository:
     def get_node(self, node_id):
         for name, versions in self._registered_services.items():
             for version, instances in versions.items():
-                for host, port, node, service_type in instances:
+                for host, port, node, service_type, weight, strategy in instances:
                     if node_id == node:
-                        return Service(name, version, [], host, port, node, service_type)
+                        return Service(name, version, [], host, port, node, service_type, weight, strategy)
         return None
 
     def remove_node(self, node_id):
@@ -100,7 +101,7 @@ class Repository:
         for name, versions in self._registered_services.items():
             for version, instances in versions.items():
                 for instance in instances:
-                    host, port, node, service_type = instance
+                    host, port, node, service_type, _, _ = instance
                     if node_id == node:
                         thehost = host
                         instances.remove(instance)
@@ -173,6 +174,7 @@ class Registry:
             self._ssl_context.load_cert_chain(config['SSL_CERTIFICATE'], config['SSL_KEY'])
         except:
             self._ssl_context = None
+        self._patients = []
 
     def start(self):
         setup_logging("registry")
@@ -218,6 +220,9 @@ class Registry:
             self._handle_ping(packet, protocol)
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
+        elif request_type == 'health_report':
+            self.publish_health_report(packet)
+
 
     def deregister_service(self, host, port, node_id):
         service = self._repository.get_node(node_id)
@@ -241,23 +246,26 @@ class Registry:
     def register_service(self, packet: dict, registry_protocol):
         params = packet['params']
         service = Service(params['name'], params['version'], params['dependencies'], params['host'], params['port'],
-                          params['node_id'], params['type'])
+                          params['node_id'], params['type'], params['weight'], params['strategy'])
         self._repository.register_service(service)
         self._client_protocols[params['node_id']] = registry_protocol
         if params['node_id'] not in self._service_protocols.keys():
             self._connect_to_service(params['host'], params['port'], params['node_id'], params['type'])
         self._handle_pending_registrations()
         self._inform_consumers(service)
+        if params['strategy'] == 'dynamic_strategy':
+            self._patients.append(params['node_id'])
 
     def _inform_consumers(self, service: Service):
         consumers = self._repository.get_consumers(service.name, service.version)
         for service_name, service_version in consumers:
             if not self._repository.is_pending(service_name, service_version):
                 instances = self._repository.get_instances(service_name, service_version)
-                for host, port, node, type in instances:
+                for host, port, node, type, _, _ in instances:
                     protocol = self._client_protocols[node]
-                    protocol.send(ControlPacket.new_instance(
-                        service.name, service.version, service.host, service.port, service.node_id, service.type))
+                    protocol.send(ControlPacket.new_instance(service.name, service.version, service.host, service.port,
+                                                             service.node_id, service.type, service.weight,
+                                                             service.strategy))
 
     def _send_activated_packet(self, name, version, node):
         protocol = self._client_protocols.get(node, None)
@@ -286,7 +294,8 @@ class Registry:
     def _make_activated_packet(self, name, version):
         dependencies = self._repository.get_dependencies(name, version)
         instances = {
-            (dependency['name'], dependency['version']): self._repository.get_versioned_instances(dependency['name'], dependency['version'])
+            (dependency['name'], dependency['version']): self._repository.get_versioned_instances(dependency['name'],
+                                                                                                  dependency['version'])
             for dependency in dependencies}
         return ControlPacket.activated(instances)
 
@@ -313,7 +322,7 @@ class Registry:
     def _notify_consumers(self, name, version, node_id):
         packet = ControlPacket.deregister(name, version, node_id)
         for consumer_name, consumer_version in self._repository.get_consumers(name, version):
-            for host, port, node, service_type in self._repository.get_instances(consumer_name, consumer_version):
+            for host, port, node, service_type, _, _ in self._repository.get_instances(consumer_name, consumer_version):
                 protocol = self._client_protocols[node]
                 protocol.send(packet)
 
@@ -334,7 +343,7 @@ class Registry:
 
     def on_timeout(self, host, port, node_id):
         service = self._repository.get_node(node_id)
-        self.logger.debug('%s timed out', service)
+        self.logger.info('%s timed out', service)
         self.deregister_service(host, port, node_id)
 
     def _ping(self, packet):
@@ -377,6 +386,20 @@ class Registry:
         else:
             self._pong(packet, protocol)
 
+    def doctor(self):
+        for node_id in self._patients:
+            protocol = self._service_protocols[node_id]
+            health_check = ControlPacket.health_check()
+            protocol.send(health_check)
+        asyncio.get_event_loop().call_later(5, self.doctor)
+
+    def publish_health_report(self, packet):
+        node_id = packet['node_id']
+        service = self._repository.get_node(node_id)
+        for consumer_name, consumer_version in self._repository.get_consumers(service.name, service.version):
+            for host, port, node, service_type, _, _ in self._repository.get_instances(consumer_name, consumer_version):
+                protocol = self._client_protocols[node]
+                protocol.send(packet)
 
 if __name__ == '__main__':
     from setproctitle import setproctitle
@@ -386,4 +409,5 @@ if __name__ == '__main__':
     REGISTRY_PORT = 4500
     registry = Registry(REGISTRY_HOST, REGISTRY_PORT, Repository())
     registry.periodic_uptime_logger()
+    registry.doctor()
     registry.start()
