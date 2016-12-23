@@ -13,4 +13,4 @@ from .exceptions import RequestException, VykedServiceError, VykedServiceExcepti
 from .utils.log import setup_logging  # noqa
 from .wrappers import Response, Request  # noqa
 
-__version__ = '2.2.3'
+__version__ = '2.2.4'
