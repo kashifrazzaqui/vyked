@@ -7,6 +7,8 @@ import asyncio
 import datetime
 import yaml
 import sys
+import os
+from git import Repo
 
 from functools import partial, wraps
 from pythonjsonlogger import jsonlogger
@@ -20,10 +22,28 @@ END = '\033[0m'
 http_pings_logs_disabled = True
 
 
+def get_current_working_repo():
+    try:
+        repo = Repo(os.getcwd())
+        branch = repo.active_branch
+        branch_name = branch.name
+    except:
+        branch_name = None
+    
+    return branch_name
+
 def http_ping_filter(record):
     if "GET /ping/" in record.getMessage():
        return 0
     return 1
+
+class GitBranchFilter(logging.Filter):
+    def __init__(self, branchname=None):
+        self._branchname = branchname
+
+    def filter(self, record):
+        record.branchname = self._branchname
+        return True
 
 
 class CustomTimeLoggingFormatter(logging.Formatter):
@@ -159,11 +179,12 @@ def setup_logging(_):
     logger.addHandler = patch_add_handler(logger)
 
     logging.config.dictConfig(config_dict)
+    branch_name = get_current_working_repo()
 
-    if http_pings_logs_disabled:
-        for handler in logging.root.handlers:
+    for handler in logging.root.handlers:
+        if http_pings_logs_disabled:
             handler.addFilter(http_ping_filter)
-
+        handler.addFilter(GitBranchFilter(branch_name))
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):
     """
