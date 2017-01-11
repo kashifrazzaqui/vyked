@@ -19,8 +19,8 @@ BLUE = '\033[94m'
 BOLD = '\033[1m'
 END = '\033[0m'
 
+_BRANCH_NAME = None
 http_pings_logs_disabled = True
-
 
 def get_current_working_repo():
     try:
@@ -37,23 +37,17 @@ def http_ping_filter(record):
        return 0
     return 1
 
-class GitBranchFilter(logging.Filter):
-    def __init__(self, branchname=None):
-        self._branchname = branchname
-
-    def filter(self, record):
-        record.branchname = self._branchname
-        return True
-
-
 class CustomTimeLoggingFormatter(logging.Formatter):
 
-    def formatTime(self, record, datefmt=None):  # noqa
+    def formatRecordAndSetTime(self, record, datefmt=None):  # noqa
         """
         Overrides formatTime method to use datetime module instead of time module
         to display time in microseconds. Time module by default does not resolve
         time to microseconds.
         """
+        
+        record.branchname = _BRANCH_NAME
+
         if datefmt:
             s = datetime.datetime.now().strftime(datefmt)
         else:
@@ -70,6 +64,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
     def add_fields(self, log_record, record, message_dict):
         message_dict.update(self.extrad)
+        record.branchname = _BRANCH_NAME
         super().add_fields(log_record, record, message_dict)
 
 
@@ -165,7 +160,6 @@ DEFAULT_CONFIG_YAML = """
 
     """
 
-
 def setup_logging(_):
     try:
         with open('config_log.json', 'r') as f:
@@ -177,14 +171,15 @@ def setup_logging(_):
     logger = logging.getLogger()
     logger.handlers = []
     logger.addHandler = patch_add_handler(logger)
+    
+    global _BRANCH_NAME
+    _BRANCH_NAME = get_current_working_repo()
 
     logging.config.dictConfig(config_dict)
-    branch_name = get_current_working_repo()
 
-    for handler in logging.root.handlers:
-        if http_pings_logs_disabled:
+    if http_pings_logs_disabled:
+        for handler in logging.root.handlers:
             handler.addFilter(http_ping_filter)
-        handler.addFilter(GitBranchFilter(branch_name))
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):
     """
