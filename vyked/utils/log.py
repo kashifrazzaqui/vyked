@@ -39,7 +39,7 @@ def http_ping_filter(record):
 
 class CustomTimeLoggingFormatter(logging.Formatter):
 
-    def formatRecordAndSetTime(self, record, datefmt=None):  # noqa
+    def formatTime(self, record, datefmt=None):  # noqa
         """
         Overrides formatTime method to use datetime module instead of time module
         to display time in microseconds. Time module by default does not resolve
