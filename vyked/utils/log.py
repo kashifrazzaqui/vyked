@@ -175,6 +175,11 @@ def setup_logging(_):
     global _BRANCH_NAME
     _BRANCH_NAME = get_current_working_repo()
 
+    if 'handlers' in config_dict:
+        for handler in config_dict['handlers']:
+            if 'branch_name' in config_dict['handlers'][handler] and config_dict['handlers'][handler]['branch_name'] == True:
+                config_dict['handlers'][handler]['release'] = _BRANCH_NAME 
+
     logging.config.dictConfig(config_dict)
 
     if http_pings_logs_disabled:
