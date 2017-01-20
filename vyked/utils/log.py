@@ -23,14 +23,20 @@ _BRANCH_NAME = None
 http_pings_logs_disabled = True
 
 def get_current_working_repo():
+    branch_name = None
+    current_tag = None
+
     try:
         repo = Repo(os.getcwd())
         branch = repo.active_branch
         branch_name = branch.name
+        tags = repo.tags
+        if tags and isinstance(tags, list):
+            current_tag = tags[-1].name
     except:
-        branch_name = None
+        pass
     
-    return branch_name
+    return (branch_name, current_tag)
 
 def http_ping_filter(record):
     if "GET /ping/" in record.getMessage():
@@ -173,13 +179,16 @@ def setup_logging(_):
     logger.addHandler = patch_add_handler(logger)
     
     global _BRANCH_NAME
-    _BRANCH_NAME = get_current_working_repo()
+    (branch_name, current_tag) = get_current_working_repo()
+    _BRANCH_NAME = branch_name
 
     if 'handlers' in config_dict:
         for handler in config_dict['handlers']:
             if 'branch_name' in config_dict['handlers'][handler] and config_dict['handlers'][handler]['branch_name'] == True:
-                config_dict['handlers'][handler]['release'] = _BRANCH_NAME 
-
+                config_dict['handlers'][handler]['release'] = current_tag if current_tag else None
+                if 'tags' in config_dict['handlers'][handler] and isinstance(config_dict['handlers'][handler]['tags'], dict):
+                    config_dict['handlers'][handler]['tags']['branch'] = branch_name if branch_name else None
+                    
     logging.config.dictConfig(config_dict)
 
     if http_pings_logs_disabled:
