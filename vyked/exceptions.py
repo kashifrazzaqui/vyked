@@ -36,3 +36,7 @@ class ClientNotFoundError(ClientException):
 
 class ClientDisconnected(ClientException):
     pass
+
+
+class RecursionDepthExceeded(Exception):
+    pass
