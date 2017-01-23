@@ -71,7 +71,7 @@ def get_decorated_fun(method, path, required_params):
                 except VykedServiceException as e:
                     Stats.http_stats['total_responses'] += 1
                     status = 'handled_exception'
-                    _logger.error('Handled exception %s for method %s ', e.__class__.__name__, func.__name__)
+                    _logger.info('Handled exception %s for method %s ', e.__class__.__name__, func.__name__)
                     raise e
 
                 except Exception as e:
