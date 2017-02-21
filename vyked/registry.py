@@ -147,7 +147,7 @@ class Repository:
         entry = (service, version)
         # Remove all entries of service, version from subscribe list
         for name, versions in self._subscribe_list.items():
-            for version, endpoints2 in versions.items():
+            for p_version, endpoints2 in versions.items():
                 for endpoint, subscribers in endpoints2.items():
                     to_remove = list(filter(lambda x: service == x[0] and version == x[1], 
                         subscribers))
