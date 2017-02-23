@@ -21,7 +21,7 @@ def make_request(func, self, args, kwargs, method):
     return response
 
 
-def get_decorated_fun(method, path, required_params):
+def get_decorated_fun(method, path, required_params, timeout):
     def decorator(func):
         @wraps(func)
         def f(self, *args, **kwargs):
@@ -56,11 +56,18 @@ def get_decorated_fun(method, path, required_params):
                 wrapped_func = func
                 success = True
                 _logger = logging.getLogger()
+                api_timeout = 60
+
+                if isinstance(timeout, int) and timeout > 0 and timeout <= 600:
+                    api_timeout = timeout
+                elif timeout:
+                    _logger.error("timeout should be int and the range should be (0, 600)")
+                    _logger.info("Using Default Timeout 60s")
 
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
                 try:
-                    result = yield from wait_for(shield(wrapped_func(self, *args, **kwargs)), 60*10)
+                    result = yield from wait_for(shield(wrapped_func(self, *args, **kwargs)), api_timeout)
 
                 except TimeoutError as e:
                     Stats.http_stats['timedout'] += 1
@@ -123,33 +130,33 @@ def get_decorated_fun(method, path, required_params):
     return decorator
 
 
-def get(path=None, required_params=None):
-    return get_decorated_fun('get', path, required_params)
+def get(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('get', path, required_params, timeout)
 
 
-def head(path=None, required_params=None):
-    return get_decorated_fun('head', path, required_params)
+def head(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('head', path, required_params, timeout)
 
 
-def options(path=None, required_params=None):
-    return get_decorated_fun('options', path, required_params)
+def options(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('options', path, required_params, timeout)
 
 
-def patch(path=None, required_params=None):
-    return get_decorated_fun('patch', path, required_params)
+def patch(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('patch', path, required_params, timeout)
 
 
-def post(path=None, required_params=None):
-    return get_decorated_fun('post', path, required_params)
+def post(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('post', path, required_params, timeout)
 
 
-def put(path=None, required_params=None):
-    return get_decorated_fun('put', path, required_params)
+def put(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('put', path, required_params, timeout)
 
 
-def trace(path=None, required_params=None):
-    return get_decorated_fun('put', path, required_params)
+def trace(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('put', path, required_params, timeout)
 
 
-def delete(path=None, required_params=None):
-    return get_decorated_fun('delete', path, required_params)
+def delete(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('delete', path, required_params, timeout)

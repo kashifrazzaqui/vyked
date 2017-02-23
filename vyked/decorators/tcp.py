@@ -91,7 +91,7 @@ def request(func):
     return wrapper
 
 
-def api(func):  # incoming
+def api(func=None, timeout=None):  # incoming
     """
     provide a request/response api
     receives any requests here and return value is the response
@@ -100,8 +100,11 @@ def api(func):  # incoming
         - entity (partition/routing key)
         followed by kwargs
     """
-    wrapper = _get_api_decorator(func)
-    return wrapper
+    if func is None:
+        return partial(api, timeout=timeout)
+    else:
+        wrapper = _get_api_decorator(func=func, timeout=timeout)
+        return wrapper
 
 
 def deprecated(func=None, replacement_api=None):
@@ -112,7 +115,7 @@ def deprecated(func=None, replacement_api=None):
         return wrapper
 
 
-def _get_api_decorator(func=None, old_api=None, replacement_api=None):
+def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=None):
     @asyncio.coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -127,16 +130,23 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         result = None
         error = None
         failed = False
+        api_timeout = 60
 
         status = 'succesful'
         success = True
         if not asyncio.iscoroutine(func):
             wrapped_func = asyncio.coroutine(func)
 
+        if isinstance(timeout, int) and timeout > 0 and timeout <= 600:
+            api_timeout = timeout
+        elif timeout:
+            _logger.error("timeout should be int and the range should be (0, 600)")
+            _logger.info("Using Default Timeout 60s")
+
         Stats.tcp_stats['total_requests'] += 1
 
         try:
-            result = yield from asyncio.wait_for(asyncio.shield(wrapped_func(self, **kwargs)), 60*10)
+            result = yield from asyncio.wait_for(asyncio.shield(wrapped_func(self, **kwargs)), api_timeout)
 
         except asyncio.TimeoutError as e:
             Stats.tcp_stats['timedout'] += 1
