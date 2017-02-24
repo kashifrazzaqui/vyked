@@ -4,6 +4,7 @@ from vyked import HTTPServiceClient, HTTPService
 from ..exceptions import VykedServiceException
 from aiohttp.web import Response
 from ..utils.stats import Stats, Aggregator
+from ..utils.common_utils import json_file_to_dict, valid_timeout
 import logging
 import setproctitle
 import socket
@@ -11,6 +12,7 @@ import json
 import time
 import traceback
 
+config = json_file_to_dict('config.json')
 
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
@@ -58,8 +60,10 @@ def get_decorated_fun(method, path, required_params, timeout):
                 _logger = logging.getLogger()
                 api_timeout = 60
 
-                if isinstance(timeout, int) and timeout > 0 and timeout <= 600:
+                if valid_timeout(timeout):
                     api_timeout = timeout
+                elif isinstance(config, dict) and 'http_timeout' in config and valid_timeout(config['http_timeout']):
+                    api_timeout = config['http_timeout']
                 elif timeout:
                     _logger.error("timeout should be int and the range should be (0, 600)")
                     _logger.info("Using Default Timeout 60s")

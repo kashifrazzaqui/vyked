@@ -2,6 +2,7 @@ from functools import wraps, partial
 from again.utils import unique_hex
 from ..utils.stats import Stats, Aggregator
 from ..exceptions import VykedServiceException
+from ..utils.common_utils import json_file_to_dict, valid_timeout
 
 import asyncio
 import logging
@@ -11,6 +12,7 @@ import time
 import traceback
 import json
 
+config = json_file_to_dict('config.json')
 
 def publish(func=None, blocking=False):
     """
@@ -137,8 +139,10 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=No
         if not asyncio.iscoroutine(func):
             wrapped_func = asyncio.coroutine(func)
 
-        if isinstance(timeout, int) and timeout > 0 and timeout <= 600:
+        if valid_timeout(timeout):
             api_timeout = timeout
+        elif isinstance(config, dict) and 'tcp_timeout' in config and valid_timeout(config['tcp_timeout']):
+            api_timeout = config['tcp_timeout']
         elif timeout:
             _logger.error("timeout should be int and the range should be (0, 600)")
             _logger.info("Using Default Timeout 60s")
