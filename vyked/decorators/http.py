@@ -15,8 +15,8 @@ import traceback
 config = json_file_to_dict('config.json')
 _http_timeout = 60
 
-if isinstance(config, dict) and 'http_timeout' in config and valid_timeout(config['http_timeout']):
-    _http_timeout = config['http_timeout']
+if isinstance(config, dict) and 'HTTP_TIMEOUT' in config and valid_timeout(config['HTTP_TIMEOUT']):
+    _http_timeout = config['HTTP_TIMEOUT']
 
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
