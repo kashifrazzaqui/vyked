@@ -176,7 +176,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=No
             _method_param = json.dumps(kwargs)
             d = {"exception_type": e.__class__.__name__, "method_name": func.__name__, "message": str(e),
                  "method_param": _method_param, "service_name": self._service_name,
-                 "hostname": socket.gethostbyname(socket.gethostname())}
+                 "hostname": socket.gethostbyname(socket.gethostname()), 'method_timeout': api_timeout}
             _stats_logger.info(dict(d))
             _exception_logger = logging.getLogger('exceptions')
             d["message"] = traceback.format_exc()
@@ -194,7 +194,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=No
         logd = {
             'endpoint': func.__name__,
             'time_taken': end_time - start_time,
-            'hostname': hostname, 'service_name': service_name
+            'hostname': hostname, 'service_name': service_name, 'method_timeout': api_timeout
         }
         logging.getLogger('stats').debug(logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
