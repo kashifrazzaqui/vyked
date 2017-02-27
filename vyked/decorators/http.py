@@ -13,6 +13,10 @@ import time
 import traceback
 
 config = json_file_to_dict('config.json')
+_http_timeout = 60
+
+if isinstance(config, dict) and 'http_timeout' in config and valid_timeout(config['http_timeout']):
+    _http_timeout = config['http_timeout']
 
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
@@ -58,15 +62,10 @@ def get_decorated_fun(method, path, required_params, timeout):
                 wrapped_func = func
                 success = True
                 _logger = logging.getLogger()
-                api_timeout = 60
+                api_timeout = _http_timeout
 
                 if valid_timeout(timeout):
                     api_timeout = timeout
-                elif isinstance(config, dict) and 'http_timeout' in config and valid_timeout(config['http_timeout']):
-                    api_timeout = config['http_timeout']
-                elif timeout:
-                    _logger.error("timeout should be int and the range should be (0, 600)")
-                    _logger.info("Using Default Timeout 60s")
 
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)

@@ -13,6 +13,10 @@ import traceback
 import json
 
 config = json_file_to_dict('config.json')
+_tcp_timeout = 60
+
+if isinstance(config, dict) and 'tcp_timeout' in config and valid_timeout(config['tcp_timeout']):
+    _tcp_timeout = config['tcp_timeout']
 
 def publish(func=None, blocking=False):
     """
@@ -132,7 +136,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=No
         result = None
         error = None
         failed = False
-        api_timeout = 60
+        api_timeout = _tcp_timeout
 
         status = 'succesful'
         success = True
@@ -141,11 +145,6 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=No
 
         if valid_timeout(timeout):
             api_timeout = timeout
-        elif isinstance(config, dict) and 'tcp_timeout' in config and valid_timeout(config['tcp_timeout']):
-            api_timeout = config['tcp_timeout']
-        elif timeout:
-            _logger.error("timeout should be int and the range should be (0, 600)")
-            _logger.info("Using Default Timeout 60s")
 
         Stats.tcp_stats['total_requests'] += 1
 
