@@ -1,5 +1,4 @@
 import json
-import logging
 
 def json_file_to_dict(_file: str) -> dict:
     """
