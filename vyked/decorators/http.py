@@ -69,6 +69,9 @@ def get_decorated_fun(method, path, required_params, timeout):
 
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
+
+                _logger.info('Timeout for %s is %s seconds', func.__name__, api_timeout)
+
                 try:
                     result = yield from wait_for(shield(wrapped_func(self, *args, **kwargs)), api_timeout)
 
@@ -91,8 +94,7 @@ def get_decorated_fun(method, path, required_params, timeout):
                     _logger.exception('Unhandled exception %s for method %s ', e.__class__.__name__, func.__name__)
                     _stats_logger = logging.getLogger('stats')
                     d = {"exception_type": e.__class__.__name__, "method_name": func.__name__, "message": str(e),
-                         "service_name": self._service_name, "hostname": socket.gethostbyname(socket.gethostname()),
-                         'method_timeout': api_timeout}
+                         "service_name": self._service_name, "hostname": socket.gethostbyname(socket.gethostname())}
                     _stats_logger.info(dict(d))
                     _exception_logger = logging.getLogger('exceptions')
                     d["message"] = traceback.format_exc()
@@ -111,7 +113,7 @@ def get_decorated_fun(method, path, required_params, timeout):
                         'time_taken': int((t2 - t1) * 1000),
                         'process_time_taken': int((tp2-tp1) * 1000),
                         'type': 'http',
-                        'hostname': hostname, 'service_name': service_name, 'method_timeout': api_timeout
+                        'hostname': hostname, 'service_name': service_name
                     }
                     logging.getLogger('stats').debug(logd)
                     Stats.http_stats['total_responses'] += 1

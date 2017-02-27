@@ -148,6 +148,8 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=No
 
         Stats.tcp_stats['total_requests'] += 1
 
+        _logger.info('Timeout for %s is %s seconds', func.__name__, api_timeout)
+
         try:
             result = yield from asyncio.wait_for(asyncio.shield(wrapped_func(self, **kwargs)), api_timeout)
 
@@ -176,7 +178,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=No
             _method_param = json.dumps(kwargs)
             d = {"exception_type": e.__class__.__name__, "method_name": func.__name__, "message": str(e),
                  "method_param": _method_param, "service_name": self._service_name,
-                 "hostname": socket.gethostbyname(socket.gethostname()), 'method_timeout': api_timeout}
+                 "hostname": socket.gethostbyname(socket.gethostname())}
             _stats_logger.info(dict(d))
             _exception_logger = logging.getLogger('exceptions')
             d["message"] = traceback.format_exc()
@@ -194,7 +196,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=No
         logd = {
             'endpoint': func.__name__,
             'time_taken': end_time - start_time,
-            'hostname': hostname, 'service_name': service_name, 'method_timeout': api_timeout
+            'hostname': hostname, 'service_name': service_name
         }
         logging.getLogger('stats').debug(logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
