@@ -2,6 +2,7 @@ from functools import wraps, partial
 from again.utils import unique_hex
 from ..utils.stats import Stats, Aggregator
 from ..exceptions import VykedServiceException
+from ..utils.common_utils import json_file_to_dict, valid_timeout
 
 import asyncio
 import logging
@@ -11,6 +12,11 @@ import time
 import traceback
 import json
 
+config = json_file_to_dict('config.json')
+_tcp_timeout = 60
+
+if isinstance(config, dict) and 'TCP_TIMEOUT' in config and valid_timeout(config['TCP_TIMEOUT']):
+    _tcp_timeout = config['TCP_TIMEOUT']
 
 def publish(func=None, blocking=False):
     """
@@ -91,7 +97,7 @@ def request(func):
     return wrapper
 
 
-def api(func):  # incoming
+def api(func=None, timeout=None):  # incoming
     """
     provide a request/response api
     receives any requests here and return value is the response
@@ -100,8 +106,11 @@ def api(func):  # incoming
         - entity (partition/routing key)
         followed by kwargs
     """
-    wrapper = _get_api_decorator(func)
-    return wrapper
+    if func is None:
+        return partial(api, timeout=timeout)
+    else:
+        wrapper = _get_api_decorator(func=func, timeout=timeout)
+        return wrapper
 
 
 def deprecated(func=None, replacement_api=None):
@@ -112,7 +121,7 @@ def deprecated(func=None, replacement_api=None):
         return wrapper
 
 
-def _get_api_decorator(func=None, old_api=None, replacement_api=None):
+def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=None):
     @asyncio.coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -127,16 +136,22 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         result = None
         error = None
         failed = False
+        api_timeout = _tcp_timeout
 
         status = 'succesful'
         success = True
         if not asyncio.iscoroutine(func):
             wrapped_func = asyncio.coroutine(func)
 
+        if valid_timeout(timeout):
+            api_timeout = timeout
+
         Stats.tcp_stats['total_requests'] += 1
 
+        _logger.info('Timeout for %s is %s seconds', func.__name__, api_timeout)
+
         try:
-            result = yield from asyncio.wait_for(asyncio.shield(wrapped_func(self, **kwargs)), 60*10)
+            result = yield from asyncio.wait_for(asyncio.shield(wrapped_func(self, **kwargs)), api_timeout)
 
         except asyncio.TimeoutError as e:
             Stats.tcp_stats['timedout'] += 1
