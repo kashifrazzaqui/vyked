@@ -115,7 +115,6 @@ class TCPBus:
         if retry_count == MAX_RETRY_COUNT:
             _msg = 'could not connect to service: {} while calling endpoint: {}'.format(packet['service'],
                                                                                         packet['endpoint'])
-            self._logger.error(_msg)
             raise RecursionDepthExceeded(_msg)
 
         node = self._get_node_id_for_packet(packet)
