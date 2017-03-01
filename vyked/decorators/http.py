@@ -80,6 +80,7 @@ def get_decorated_fun(method, path, required_params, timeout):
                     status = 'timeout'
                     success = False
                     _logger.exception("HTTP request had a timeout for method %s", func.__name__)
+                    raise e
 
                 except VykedServiceException as e:
                     Stats.http_stats['total_responses'] += 1
