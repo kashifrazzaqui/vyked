@@ -148,7 +148,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=No
 
         Stats.tcp_stats['total_requests'] += 1
 
-        _logger.info('Timeout for %s is %s seconds', func.__name__, api_timeout)
+        #_logger.info('Timeout for %s is %s seconds', func.__name__, api_timeout)
 
         try:
             result = yield from asyncio.wait_for(asyncio.shield(wrapped_func(self, **kwargs)), api_timeout)
