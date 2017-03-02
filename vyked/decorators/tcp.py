@@ -198,7 +198,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=No
         }
         logging.getLogger('stats').debug(logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
-        _logger.info('Timeout for %s is %s seconds', func.__name__, api_timeout)
+        _logger.debug('Timeout for %s is %s seconds', func.__name__, api_timeout)
 
         # call to update aggregator, designed to replace the stats module.
         Aggregator.update_stats(endpoint=func.__name__, status=status, success=success,

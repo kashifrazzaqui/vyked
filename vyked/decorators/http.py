@@ -115,7 +115,7 @@ def get_decorated_fun(method, path, required_params, timeout):
                         'hostname': hostname, 'service_name': service_name
                     }
                     logging.getLogger('stats').debug(logd)
-                    _logger.info('Timeout for %s is %s seconds', func.__name__, api_timeout)
+                    _logger.debug('Timeout for %s is %s seconds', func.__name__, api_timeout)
                     Stats.http_stats['total_responses'] += 1
                     return result
 
