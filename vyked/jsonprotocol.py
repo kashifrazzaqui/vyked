@@ -66,11 +66,13 @@ class JSONProtocol(asyncio.Protocol):
         try:
             pass
             try:
+                string_data = self._partial_data + string_data
+                self._partial_data = ''
                 for e in string_data.split('!<^>!'):
                     if e:
-                        if self._partial_data:
-                            e = self._partial_data + e
-                            self._partial_data = ''
+                        # if self._partial_data:
+                        #     e = self._partial_data + e
+                        #     self._partial_data = ''
                         try:
                             element = json.loads(e)
                             self.on_element(element)
