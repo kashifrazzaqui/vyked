@@ -76,6 +76,7 @@ class JSONProtocol(asyncio.Protocol):
                             self.on_element(element)
                         except Exception as exc:
                             self._partial_data = e
+                            self.logger.error('Packet splitting: %s', self._partial_data)
             except Exception as e:
                 self.logger.error('Could not parse data: %s', string_data)
             # self._obj_streamer.consume(string_data)
