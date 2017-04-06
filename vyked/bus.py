@@ -15,11 +15,12 @@ from .pubsub import PubSub
 from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
 from .utils.jsonencoder import VykedEncoder
-from .exceptions import ClientNotFoundError
+from .exceptions import ClientNotFoundError, RecursionDepthExceeded
 
 
 HTTP = 'http'
 TCP = 'tcp'
+MAX_RETRY_COUNT = 5
 
 
 def _retry_for_pub(result):
@@ -106,11 +107,16 @@ class TCPBus:
         func = getattr(self, '_' + packet['type'] + '_sender')
         func(packet)
 
-    def _request_sender(self, packet: dict):
+    def _request_sender(self, packet: dict, retry_count=0):
         """
         Sends a request to a server from a ServiceClient
         auto dispatch method called from self.send()
         """
+        if retry_count == MAX_RETRY_COUNT:
+            _msg = 'could not connect to service: {} while calling endpoint: {}'.format(packet['service'],
+                                                                                        packet['endpoint'])
+            raise RecursionDepthExceeded(_msg)
+
         node = self._get_node_id_for_packet(packet)
         node_id = node[2]
         try:
@@ -126,11 +132,12 @@ class TCPBus:
             else:
                 self._client_protocols.pop(node_id)
                 self.new_instance(packet['service'], packet['version'], *node)
-                self._request_sender(packet)
+                self._request_sender(packet, retry_count)
         else:
             # No node found to send request
             if node_id:
-                self._request_sender(packet)
+                retry_count += 1
+                self._request_sender(packet, retry_count)
             else:
                 self._logger.error('Out of %s, Client Not found for packet %s', self._client_protocols.keys(), packet)
                 raise ClientNotFoundError()

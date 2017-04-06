@@ -4,6 +4,7 @@ from vyked import HTTPServiceClient, HTTPService
 from ..exceptions import VykedServiceException
 from aiohttp.web import Response
 from ..utils.stats import Stats, Aggregator
+from ..utils.common_utils import json_file_to_dict, valid_timeout
 import logging
 import setproctitle
 import socket
@@ -11,6 +12,11 @@ import json
 import time
 import traceback
 
+config = json_file_to_dict('config.json')
+_http_timeout = 60
+
+if isinstance(config, dict) and 'HTTP_TIMEOUT' in config and valid_timeout(config['HTTP_TIMEOUT']):
+    _http_timeout = config['HTTP_TIMEOUT']
 
 def make_request(func, self, args, kwargs, method):
     params = func(self, *args, **kwargs)
@@ -21,7 +27,7 @@ def make_request(func, self, args, kwargs, method):
     return response
 
 
-def get_decorated_fun(method, path, required_params):
+def get_decorated_fun(method, path, required_params, timeout):
     def decorator(func):
         @wraps(func)
         def f(self, *args, **kwargs):
@@ -43,27 +49,41 @@ def get_decorated_fun(method, path, required_params):
                                                 server_type='http', time_taken=0, process_time_taken=0)
                         return Response(status=400, content_type='application/json', body=json.dumps(res_d).encode())
 
+                # Support for multi request body encodings
+                req = args[0]
+                try:
+                    yield from req.json()
+                except:
+                    pass
+                else:
+                    req.post = req.json
                 t1 = time.time()
                 tp1 = time.process_time()
                 wrapped_func = func
                 success = True
                 _logger = logging.getLogger()
+                api_timeout = _http_timeout
+
+                if valid_timeout(timeout):
+                    api_timeout = timeout
 
                 if not iscoroutine(func):
                     wrapped_func = coroutine(func)
+
                 try:
-                    result = yield from wait_for(shield(wrapped_func(self, *args, **kwargs)), 60*10)
+                    result = yield from wait_for(shield(wrapped_func(self, *args, **kwargs)), api_timeout)
 
                 except TimeoutError as e:
                     Stats.http_stats['timedout'] += 1
                     status = 'timeout'
                     success = False
                     _logger.exception("HTTP request had a timeout for method %s", func.__name__)
+                    raise e
 
                 except VykedServiceException as e:
                     Stats.http_stats['total_responses'] += 1
                     status = 'handled_exception'
-                    _logger.error('Handled exception %s for method %s ', e.__class__.__name__, func.__name__)
+                    _logger.info('Handled exception %s for method %s ', e.__class__.__name__, func.__name__)
                     raise e
 
                 except Exception as e:
@@ -95,6 +115,7 @@ def get_decorated_fun(method, path, required_params):
                         'hostname': hostname, 'service_name': service_name
                     }
                     logging.getLogger('stats').debug(logd)
+                    _logger.debug('Timeout for %s is %s seconds', func.__name__, api_timeout)
                     Stats.http_stats['total_responses'] += 1
                     return result
 
@@ -115,33 +136,33 @@ def get_decorated_fun(method, path, required_params):
     return decorator
 
 
-def get(path=None, required_params=None):
-    return get_decorated_fun('get', path, required_params)
+def get(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('get', path, required_params, timeout)
 
 
-def head(path=None, required_params=None):
-    return get_decorated_fun('head', path, required_params)
+def head(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('head', path, required_params, timeout)
 
 
-def options(path=None, required_params=None):
-    return get_decorated_fun('options', path, required_params)
+def options(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('options', path, required_params, timeout)
 
 
-def patch(path=None, required_params=None):
-    return get_decorated_fun('patch', path, required_params)
+def patch(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('patch', path, required_params, timeout)
 
 
-def post(path=None, required_params=None):
-    return get_decorated_fun('post', path, required_params)
+def post(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('post', path, required_params, timeout)
 
 
-def put(path=None, required_params=None):
-    return get_decorated_fun('put', path, required_params)
+def put(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('put', path, required_params, timeout)
 
 
-def trace(path=None, required_params=None):
-    return get_decorated_fun('put', path, required_params)
+def trace(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('put', path, required_params, timeout)
 
 
-def delete(path=None, required_params=None):
-    return get_decorated_fun('delete', path, required_params)
+def delete(path=None, required_params=None, timeout=None):
+    return get_decorated_fun('delete', path, required_params, timeout)

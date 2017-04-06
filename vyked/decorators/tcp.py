@@ -2,6 +2,7 @@ from functools import wraps, partial
 from again.utils import unique_hex
 from ..utils.stats import Stats, Aggregator
 from ..exceptions import VykedServiceException
+from ..utils.common_utils import json_file_to_dict, valid_timeout
 
 import asyncio
 import logging
@@ -9,7 +10,13 @@ import socket
 import setproctitle
 import time
 import traceback
+import json
 
+config = json_file_to_dict('config.json')
+_tcp_timeout = 60
+
+if isinstance(config, dict) and 'TCP_TIMEOUT' in config and valid_timeout(config['TCP_TIMEOUT']):
+    _tcp_timeout = config['TCP_TIMEOUT']
 
 def publish(func=None, blocking=False):
     """
@@ -90,7 +97,7 @@ def request(func):
     return wrapper
 
 
-def api(func):  # incoming
+def api(func=None, timeout=None):  # incoming
     """
     provide a request/response api
     receives any requests here and return value is the response
@@ -99,8 +106,11 @@ def api(func):  # incoming
         - entity (partition/routing key)
         followed by kwargs
     """
-    wrapper = _get_api_decorator(func)
-    return wrapper
+    if func is None:
+        return partial(api, timeout=timeout)
+    else:
+        wrapper = _get_api_decorator(func=func, timeout=timeout)
+        return wrapper
 
 
 def deprecated(func=None, replacement_api=None):
@@ -111,7 +121,7 @@ def deprecated(func=None, replacement_api=None):
         return wrapper
 
 
-def _get_api_decorator(func=None, old_api=None, replacement_api=None):
+def _get_api_decorator(func=None, old_api=None, replacement_api=None, timeout=None):
     @asyncio.coroutine
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -126,16 +136,20 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         result = None
         error = None
         failed = False
+        api_timeout = _tcp_timeout
 
         status = 'succesful'
         success = True
         if not asyncio.iscoroutine(func):
             wrapped_func = asyncio.coroutine(func)
 
+        if valid_timeout(timeout):
+            api_timeout = timeout
+
         Stats.tcp_stats['total_requests'] += 1
 
         try:
-            result = yield from asyncio.wait_for(asyncio.shield(wrapped_func(self, **kwargs)), 60*10)
+            result = yield from asyncio.wait_for(asyncio.shield(wrapped_func(self, **kwargs)), api_timeout)
 
         except asyncio.TimeoutError as e:
             Stats.tcp_stats['timedout'] += 1
@@ -149,7 +163,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             Stats.tcp_stats['total_responses'] += 1
             error = str(e)
             status = 'handled_error'
-            _logger.error('Handled exception %s for method %s ', e.__class__.__name__, func.__name__)
+            _logger.info('Handled exception %s for method %s ', e.__class__.__name__, func.__name__)
 
         except Exception as e:
             Stats.tcp_stats['total_errors'] += 1
@@ -159,8 +173,10 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
             failed = True
             _logger.exception('Unhandled exception %s for method %s ', e.__class__.__name__, func.__name__)
             _stats_logger = logging.getLogger('stats')
+            _method_param = json.dumps(kwargs)
             d = {"exception_type": e.__class__.__name__, "method_name": func.__name__, "message": str(e),
-                 "service_name": self._service_name, "hostname": socket.gethostbyname(socket.gethostname())}
+                 "method_param": _method_param, "service_name": self._service_name,
+                 "hostname": socket.gethostbyname(socket.gethostname())}
             _stats_logger.info(dict(d))
             _exception_logger = logging.getLogger('exceptions')
             d["message"] = traceback.format_exc()
@@ -182,6 +198,7 @@ def _get_api_decorator(func=None, old_api=None, replacement_api=None):
         }
         logging.getLogger('stats').debug(logd)
         _logger.debug('Time taken for %s is %d milliseconds', func.__name__, end_time - start_time)
+        _logger.debug('Timeout for %s is %s seconds', func.__name__, api_timeout)
 
         # call to update aggregator, designed to replace the stats module.
         Aggregator.update_stats(endpoint=func.__name__, status=status, success=success,

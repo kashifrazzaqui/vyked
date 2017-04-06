@@ -7,6 +7,8 @@ import asyncio
 import datetime
 import yaml
 import sys
+import os
+from git import Repo
 
 from functools import partial, wraps
 from pythonjsonlogger import jsonlogger
@@ -17,14 +19,29 @@ BLUE = '\033[94m'
 BOLD = '\033[1m'
 END = '\033[0m'
 
+_BRANCH_NAME = None
 http_pings_logs_disabled = True
 
+def get_current_working_repo():
+    branch_name = None
+    current_tag = None
+
+    try:
+        repo = Repo(os.getcwd())
+        branch = repo.active_branch
+        branch_name = branch.name
+        tags = repo.tags
+        if tags and isinstance(tags, list):
+            current_tag = tags[-1].name
+    except:
+        pass
+    
+    return (branch_name, current_tag)
 
 def http_ping_filter(record):
     if "GET /ping/" in record.getMessage():
        return 0
     return 1
-
 
 class CustomTimeLoggingFormatter(logging.Formatter):
 
@@ -34,6 +51,9 @@ class CustomTimeLoggingFormatter(logging.Formatter):
         to display time in microseconds. Time module by default does not resolve
         time to microseconds.
         """
+        
+        record.branchname = _BRANCH_NAME
+
         if datefmt:
             s = datetime.datetime.now().strftime(datefmt)
         else:
@@ -50,6 +70,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
     def add_fields(self, log_record, record, message_dict):
         message_dict.update(self.extrad)
+        record.branchname = _BRANCH_NAME
         super().add_fields(log_record, record, message_dict)
 
 
@@ -145,7 +166,6 @@ DEFAULT_CONFIG_YAML = """
 
     """
 
-
 def setup_logging(_):
     try:
         with open('config_log.json', 'r') as f:
@@ -157,13 +177,23 @@ def setup_logging(_):
     logger = logging.getLogger()
     logger.handlers = []
     logger.addHandler = patch_add_handler(logger)
+    
+    global _BRANCH_NAME
+    (branch_name, current_tag) = get_current_working_repo()
+    _BRANCH_NAME = branch_name
 
+    if 'handlers' in config_dict:
+        for handler in config_dict['handlers']:
+            if 'branch_name' in config_dict['handlers'][handler] and config_dict['handlers'][handler]['branch_name'] == True:
+                config_dict['handlers'][handler]['release'] = current_tag if current_tag else None
+                if 'tags' in config_dict['handlers'][handler] and isinstance(config_dict['handlers'][handler]['tags'], dict):
+                    config_dict['handlers'][handler]['tags']['branch'] = branch_name if branch_name else None
+                    
     logging.config.dictConfig(config_dict)
 
     if http_pings_logs_disabled:
         for handler in logging.root.handlers:
             handler.addFilter(http_ping_filter)
-
 
 def log(fn=None, logger=logging.getLogger(), debug_level=logging.DEBUG):
     """
