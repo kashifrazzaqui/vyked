@@ -13,6 +13,7 @@ from .packet import ControlPacket
 from .protocol_factory import get_vyked_protocol
 from .pinger import TCPPinger
 from .utils.log import setup_logging
+from copy import deepcopy
 
 Service = namedtuple('Service', ['name', 'version', 'dependencies', 'host', 'port', 'node_id', 'type'])
 
@@ -114,6 +115,15 @@ class Repository:
 
     def get_uptimes(self):
         return self._uptimes
+
+    def get_services(self):
+        registered_services = deepcopy(self._registered_services)
+        for pending_service in self._pending_services.keys():
+            service_name, version = self._split_key(pending_service)
+            for i in range(len(registered_services[service_name][version])):
+                if registered_services[service_name][version][i][2] in self._pending_services[pending_service]:
+                    registered_services[service_name][version][i] += ('is_pending',)
+        return registered_services
 
     def log_uptimes(self):
         for name, nodes in self._uptimes.items():
@@ -218,6 +228,8 @@ class Registry:
             self._handle_ping(packet, protocol)
         elif request_type == 'uptime_report':
             self._get_uptime_report(packet, protocol)
+        elif request_type == 'services_report':
+            self._get_services_report(packet, protocol)
 
     def deregister_service(self, host, port, node_id):
         service = self._repository.get_node(node_id)
@@ -358,6 +370,10 @@ class Registry:
     def periodic_uptime_logger(self):
         self._repository.log_uptimes()
         asyncio.get_event_loop().call_later(300, self.periodic_uptime_logger)
+
+    def _get_services_report(self, packet, protocol):
+        services = self._repository.get_services()
+        protocol.send(ControlPacket.services(services))
 
     def _handle_ping(self, packet, protocol):
         """ Responds to pings from registry_client only if the node_ids present in the ping payload are registered

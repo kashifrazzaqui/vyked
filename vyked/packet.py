@@ -141,6 +141,13 @@ class ControlPacket(_Packet):
         return packet
 
     @classmethod
+    def services(cls, services):
+        packet = {'pid': cls._next_pid(),
+                  'type': 'services_report',
+                  'params': dict(services)}
+        return packet
+
+    @classmethod
     def new_instance(cls, name, version, host, port, node_id, service_type):
         params = {'name': name, 'version': version, 'host': host, 'port': port, 'node_id': node_id,
                   'service_type': service_type}
