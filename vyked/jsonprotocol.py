@@ -67,15 +67,17 @@ class JSONProtocol(asyncio.Protocol):
             pass
             try:
                 string_data = self._partial_data + string_data
-                self._partial_data = ''
+                partial_data = ''
                 for e in string_data.split('!<^>!'):
                     if e:
                         try:
-                            element = json.loads(e)
+                            element = json.loads(partial_data + e)
+                            partial_data = ''
                             self.on_element(element)
                         except Exception as exc:
-                            self._partial_data = e
+                            partial_data += e
                             self.logger.debug('Packet splitting: %s', self._partial_data)
+                self._partial_data = partial_data
             except Exception as e:
                 self.logger.error('Could not parse data: %s', string_data)
             # self._obj_streamer.consume(string_data)
