@@ -3,7 +3,6 @@ from again.utils import unique_hex
 from ..utils.stats import Stats, Aggregator
 from ..exceptions import VykedServiceException
 from ..utils.common_utils import json_file_to_dict, valid_timeout
-
 import asyncio
 import logging
 import socket
@@ -17,6 +16,7 @@ _tcp_timeout = 60
 
 if isinstance(config, dict) and 'TCP_TIMEOUT' in config and valid_timeout(config['TCP_TIMEOUT']):
     _tcp_timeout = config['TCP_TIMEOUT']
+
 
 def publish(func=None, blocking=False):
     """

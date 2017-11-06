@@ -22,6 +22,7 @@ class PubSub:
         self._redis_port = redis_port
         self._conn = None
         self._logger = logging.getLogger(__name__)
+        self._is_blacklisted = False
 
     @asyncio.coroutine
     def connect(self):
@@ -63,7 +64,7 @@ class PubSub:
         connection = yield from self._get_conn()
         subscriber = yield from connection.start_subscribe()
         yield from subscriber.subscribe(endpoints)
-        while True:
+        while not self._is_blacklisted:
             payload = yield from subscriber.next_published()
             payload_value = json.loads(payload.value)
             payload_value.pop('_blocking', None)
@@ -76,7 +77,7 @@ class PubSub:
     @asyncio.coroutine
     def task_getter(self, endpoints, handler, blocking=False):
         connection = yield from self._get_conn()
-        while True:
+        while not self._is_blacklisted:
             response = yield from connection.brpop(endpoints)
             queue_name, payload = response.list_name, response.value
             payload = json.loads(payload)

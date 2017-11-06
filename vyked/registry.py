@@ -160,6 +160,9 @@ class Repository:
             self._subscribe_list[endpoint['service']][endpoint['version']][endpoint['endpoint']].append(
                 entry)
 
+    def unsubscribe(self):
+        pass
+
     def get_subscribers(self, service, version, endpoint):
         return self._subscribe_list[service][version][endpoint]
 
@@ -256,7 +259,7 @@ class Registry:
             self._handle_log_change(packet, protocol)
         # API for graceful_shutdown
         elif request_type == 'blacklist_service':
-            self._handle_blacklist(packet, protocol)
+            self._handle_blacklist(packet, protocol, transport)
         elif request_type == 'whitelist_service':
             self._handle_whitelist(packet, protocol)
         elif request_type == 'show_blacklisted':
@@ -284,6 +287,9 @@ class Registry:
                     for consumer_name, consumer_version, _ in consumers:
                         for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
                             self._repository.add_pending_service(consumer_name, consumer_version, node_id)
+
+    def unsubscribe_service(self, host, port, node_id):
+        pass
 
     def register_service(self, packet: dict, registry_protocol, transport=None):
         params = packet['params']
@@ -438,9 +444,11 @@ class Registry:
               (transport.get_extra_info("peername")[0]) in self._blacklisted_hosts:
             self._pong(packet, protocol)
 
-    def _handle_blacklist(self, packet, protocol):
+    def _handle_blacklist(self, packet, protocol, transport):
         host_ip = packet['ip']
         host_port = packet.get('port', 0)
+        if host_ip == '0.0.0.0' and transport:
+            host_ip = transport.get_extra_info("peername")[0]
         """ If port is 0 then deregister all services on given IP """
         if host_ip not in self._blacklisted_hosts:
             self._blacklisted_hosts[host_ip] = []
@@ -462,6 +470,9 @@ class Registry:
 
         for host, port, node in deregister_list:
             self.deregister_service(host, port, node)
+
+        """ For subscription can either  Remove service from subscribed list or can only let
+            registered services subscribe """
 
         protocol.send("Blacklisted Services on " + str(host_ip) + ":" + str(host_port))
 

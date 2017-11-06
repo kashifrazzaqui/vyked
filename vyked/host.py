@@ -135,12 +135,15 @@ class Host:
             asyncio.get_event_loop().close()
 
     @classmethod
+    def _create_pub_sub_handler(cls):
+        pubsub = yield from cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port)
+        cls._tcp_service.tcp_bus.pubsub = pubsub
+
+    @classmethod
     def _create_pubsub_handler(cls):
         if not cls.ronin:
             if cls._tcp_service:
-                asyncio.get_event_loop().run_until_complete(
-                    cls._tcp_service.pubsub_bus
-                    .create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
+                asyncio.get_event_loop().run_until_complete(cls._create_pub_sub_handler())
             if cls._http_service:
                 asyncio.get_event_loop().run_until_complete(
                     cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))

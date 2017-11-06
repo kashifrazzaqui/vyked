@@ -61,6 +61,11 @@ class ControlPacket(_Packet):
         return packet
 
     @classmethod
+    def blacklist(cls, host, port):
+        packet = {'pid': cls._next_pid(), 'type': 'blacklist_service', 'ip': host, 'port': port}
+        return packet
+
+    @classmethod
     def get_subscribers(cls, service, version, endpoint):
         params = {'service': service, 'version': version, 'endpoint': endpoint}
         packet = {'pid': cls._next_pid(),

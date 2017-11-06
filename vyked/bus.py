@@ -71,6 +71,7 @@ class TCPBus:
         self._host_id = unique_hex()
         self._ronin = False
         self._registered = False
+        self.pubsub = None
         self._logger = logging.getLogger(__name__)
 
     def _create_service_clients(self):
@@ -187,6 +188,8 @@ class TCPBus:
             protocol.send(len(list(asyncio.Task.all_tasks())))
         elif packet['type'] == 'get_queues':
             protocol.send(str([(x._service_name, len(x._pending_requests.keys())) for x in self._service_clients]))
+        elif packet['type'] == 'blacklist':
+            self._handle_blacklist(protocol)
         else:
             if self.tcp_host.is_for_me(packet['service'], packet['version']):
                 func = getattr(self, '_' + packet['type'] + '_receiver')
@@ -234,6 +237,15 @@ class TCPBus:
             handler.setLevel(level)
         protocol.send('Logging level updated')
 
+    def _handle_blacklist(self, protocol):
+        """ """
+        if self.tcp_host:
+            self._registry_client.blacklist_service(self.tcp_host.host, self.tcp_host.port)
+        if self.http_host:
+            self._registry_client.blacklist_service(self.http_host.host, self.http_host.port)
+        self.pubsub._is_blacklisted = True
+        protocol.send('Service Blacklisted Successfully')
+
 
 class PubSubBus:
 
@@ -246,6 +258,7 @@ class PubSubBus:
     def create_pubsub_handler(self, host, port):
         self._pubsub_handler = PubSub(host, port)
         yield from self._pubsub_handler.connect()
+        return self._pubsub_handler
 
     def register_for_subscription(self, host, port, node_id, clients, service):
         self._clients = clients

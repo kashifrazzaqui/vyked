@@ -64,6 +64,10 @@ class RegistryClient:
         self._pending_requests[packet['request_id']] = future
         return future
 
+    def blacklist_service(self, host, port):
+        packet = ControlPacket.blacklist(host, port)
+        self._protocol.send(packet)
+
     def get_subscribers(self, service, version, endpoint):
         packet = ControlPacket.get_subscribers(service, version, endpoint)
         # TODO : remove duplication in get_instances and get_subscribers
@@ -98,6 +102,9 @@ class RegistryClient:
         asyncio.async(self.connect())
 
     def receive(self, packet: dict, protocol, transport):
+        if not isinstance(packet, dict):
+            logging.getLogger('Received response').info(packet)
+            return
         if packet['type'] == 'registered':
             self.cache_vendors(packet['params']['vendors'])
             self.bus.registration_complete()
