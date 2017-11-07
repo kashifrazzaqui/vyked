@@ -160,9 +160,6 @@ class Repository:
             self._subscribe_list[endpoint['service']][endpoint['version']][endpoint['endpoint']].append(
                 entry)
 
-    def unsubscribe(self):
-        pass
-
     def get_subscribers(self, service, version, endpoint):
         return self._subscribe_list[service][version][endpoint]
 
@@ -287,9 +284,6 @@ class Registry:
                     for consumer_name, consumer_version, _ in consumers:
                         for _, _, node_id, _ in self._repository.get_instances(consumer_name, consumer_version):
                             self._repository.add_pending_service(consumer_name, consumer_version, node_id)
-
-    def unsubscribe_service(self, host, port, node_id):
-        pass
 
     def register_service(self, packet: dict, registry_protocol, transport=None):
         params = packet['params']
