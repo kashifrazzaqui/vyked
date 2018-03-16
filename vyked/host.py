@@ -79,7 +79,6 @@ class Host:
 
     @classmethod
     def _create_http_server(cls):
-        cls._logger.info("! am here ")
         if cls._http_service or (cls.convert_tcp_to_http and cls._tcp_service):
             host_ip, host_port = cls._http_service.socket_address
             ssl_context = cls._http_service.ssl_context
@@ -92,6 +91,7 @@ class Host:
             app.router.add_route('GET', '/_change_log_level/{level}', getattr(cls._http_service, 'handle_log_change'))
             for each in cls._http_service.__ordered__:
                 fn = getattr(cls._http_service, each)
+                cls._logger.info("function name  {}".format(fn.__qualname__))
                 if callable(fn) and getattr(fn, 'is_http_method', False):
                     for path in fn.paths:
                         app.router.add_route(fn.method, path, fn)
@@ -102,8 +102,8 @@ class Host:
                 for each in cls._tcp_service.__ordered__:
                     fn = getattr(cls._tcp_service, each)
                     if callable(fn):
-                            path = '/'+fn.__qualname__
-                            logging.info("tcp_to_http {}".format(path))
+                            path = "/tcp_to_http/{}".format(fn.__qualname__)
+                            cls._logger.info("converted tcp_to_http for host endpoint {}".format(path))
                             app.router.add_route('post', path, fn)
                             if cls._http_service and cls._http_service.cross_domain_allowed:
                                 app.router.add_route('options', path, cls._http_service.preflight_response)
