@@ -50,8 +50,9 @@ class Host:
         cls._set_bus(service)
 
     @classmethod
-    def run(cls):
+    def run(cls, convert_tcp_to_http=False):
         if cls._tcp_service or cls._http_service:
+            cls.convert_tcp_to_http = convert_tcp_to_http
             cls._set_host_id()
             cls._setup_logging()
 
@@ -78,7 +79,8 @@ class Host:
 
     @classmethod
     def _create_http_server(cls):
-        if cls._http_service:
+        cls._logger.info("! am here ")
+        if cls._http_service or (cls.convert_tcp_to_http and cls._tcp_service):
             host_ip, host_port = cls._http_service.socket_address
             ssl_context = cls._http_service.ssl_context
             app = Application(loop=asyncio.get_event_loop())
@@ -95,6 +97,16 @@ class Host:
                         app.router.add_route(fn.method, path, fn)
                         if cls._http_service.cross_domain_allowed:
                             app.router.add_route('options', path, cls._http_service.preflight_response)
+
+            if cls.convert_tcp_to_http:
+                for each in cls._tcp_service.__ordered__:
+                    fn = getattr(cls._tcp_service, each)
+                    if callable(fn):
+                            path = '/'+fn.__qualname__
+                            logging.info("tcp_to_http {}".format(path))
+                            app.router.add_route('post', path, fn)
+                            if cls._http_service and cls._http_service.cross_domain_allowed:
+                                app.router.add_route('options', path, cls._http_service.preflight_response)
             handler = app.make_handler(access_log=cls._logger)
             task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             return asyncio.get_event_loop().run_until_complete(task)
