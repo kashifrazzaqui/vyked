@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import json
 
 import asyncio_redis as redis
 
@@ -21,6 +22,7 @@ class PubSub:
         self._redis_port = redis_port
         self._conn = None
         self._logger = logging.getLogger(__name__)
+        self._is_blacklisted = False
 
     @asyncio.coroutine
     def connect(self):
@@ -42,11 +44,11 @@ class PubSub:
         """
         if self._conn is not None:
             try:
-                yield from self._conn.publish(endpoint, payload)
-                return True
+                receiving_clients = yield from self._conn.publish(endpoint, payload)
+                return receiving_clients
             except redis.Error as e:
                 self._logger.error('Publish failed with error %s', repr(e))
-        return False
+        return 0
 
     @asyncio.coroutine
     def subscribe(self, endpoints: list, handler):
@@ -62,10 +64,41 @@ class PubSub:
         connection = yield from self._get_conn()
         subscriber = yield from connection.start_subscribe()
         yield from subscriber.subscribe(endpoints)
-        while True:
+        while not self._is_blacklisted:
             payload = yield from subscriber.next_published()
-            handler(payload.channel, payload.value)
+            payload_value = json.loads(payload.value)
+            payload_value.pop('_blocking', None)
+            handler(payload.channel, json.dumps(payload_value))
         return False
 
     def _get_conn(self):
         return (yield from redis.Connection.create(self._redis_host, self._redis_port, auto_reconnect=True))
+
+    @asyncio.coroutine
+    def task_getter(self, endpoints, handler, blocking=False):
+        connection = yield from self._get_conn()
+        while not self._is_blacklisted:
+            response = yield from connection.brpop(endpoints)
+            queue_name, payload = response.list_name, response.value
+            payload = json.loads(payload)
+            blocking_sub = payload.pop('_blocking', False)
+            payload = json.dumps(payload)
+            if blocking or blocking_sub:
+                try:
+                    yield from handler(queue_name, payload, blocking)
+                except:
+                    pass
+            else:
+                try:
+                    asyncio.async(handler(queue_name, payload))
+                except:
+                    pass
+
+    @asyncio.coroutine
+    def add_to_queue(self, endpoint: str, payload: str):
+        if self._conn is not None:
+            try:
+                yield from self._conn.lpush(endpoint, [payload])
+            except redis.Error as e:
+                self._logger.error('Add to queue failed with error %s', repr(e))
+        return 0

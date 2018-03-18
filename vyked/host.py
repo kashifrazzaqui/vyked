@@ -3,16 +3,16 @@ import logging
 from functools import partial
 import signal
 import os
-
 from aiohttp.web import Application
-
-from .bus import TCPBus, PubSubBus
+from .bus import TCPBus, PubSubBus, HTTPBus
 from vyked.registry_client import RegistryClient
 from vyked.services import HTTPService, TCPService
 from .protocol_factory import get_vyked_protocol
 from .utils.log import setup_logging
 from vyked.utils.stats import Stats, Aggregator
-
+from .utils.client_stats import ClientStats
+from .config import CONFIG
+from .utils.common_utils import tcp_to_http_path_for_function
 
 class Host:
     registry_host = None
@@ -32,7 +32,7 @@ class Host:
     def _set_process_name(cls):
         from setproctitle import setproctitle
 
-        setproctitle('{}_{}'.format(cls.name, cls._host_id))
+        setproctitle('{}_{}_{}'.format('vyked', cls.name, cls._host_id))
 
     @classmethod
     def _stop(cls, signame: str):
@@ -78,13 +78,16 @@ class Host:
 
     @classmethod
     def _create_http_server(cls):
-        if cls._http_service:
+        if cls._http_service or CONFIG.CONVERT_TCP_TO_HTTP:
             host_ip, host_port = cls._http_service.socket_address
             ssl_context = cls._http_service.ssl_context
             app = Application(loop=asyncio.get_event_loop())
             fn = getattr(cls._http_service, 'pong')
-            app.router.add_route('GET', '/ping', fn)
+            fn2 = getattr(cls._http_service, 'pong2')
+            app.router.add_route('GET', '/ping/{node}', fn)
+            app.router.add_route('GET', '/ping', fn2)
             app.router.add_route('GET', '/_stats', getattr(cls._http_service, 'stats'))
+            app.router.add_route('GET', '/_change_log_level/{level}', getattr(cls._http_service, 'handle_log_change'))
             for each in cls._http_service.__ordered__:
                 fn = getattr(cls._http_service, each)
                 if callable(fn) and getattr(fn, 'is_http_method', False):
@@ -92,6 +95,16 @@ class Host:
                         app.router.add_route(fn.method, path, fn)
                         if cls._http_service.cross_domain_allowed:
                             app.router.add_route('options', path, cls._http_service.preflight_response)
+
+            if CONFIG.Convert_Tcp_To_Http:
+                for each in dir(cls._tcp_service):
+                    fn = getattr(cls._tcp_service, each)
+                    if callable(fn) and getattr( fn, 'is_http_method', False) :
+                            path = tcp_to_http_path_for_function(each)
+                            cls._logger.info("converted tcp_to_http for host endpoint {}".format(path))
+                            app.router.add_route('post', path, fn)
+                            if cls._http_service and cls._http_service.cross_domain_allowed:
+                                app.router.add_route('options', path, cls._http_service.preflight_response)
             handler = app.make_handler(access_log=cls._logger)
             task = asyncio.get_event_loop().create_server(handler, host_ip, host_port, ssl=ssl_context)
             return asyncio.get_event_loop().run_until_complete(task)
@@ -109,6 +122,7 @@ class Host:
         cls._register_services()
         cls._create_pubsub_handler()
         cls._subscribe()
+        cls._task_queues()
         if tcp_server:
             cls._logger.info('Serving TCP on {}'.format(tcp_server.sockets[0].getsockname()))
         if http_server:
@@ -131,12 +145,15 @@ class Host:
             asyncio.get_event_loop().close()
 
     @classmethod
+    def _create_pub_sub_handler(cls):
+        pubsub = yield from cls._tcp_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port)
+        cls._tcp_service.tcp_bus.pubsub = pubsub
+
+    @classmethod
     def _create_pubsub_handler(cls):
         if not cls.ronin:
             if cls._tcp_service:
-                asyncio.get_event_loop().run_until_complete(
-                    cls._tcp_service.pubsub_bus
-                    .create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
+                asyncio.get_event_loop().run_until_complete(cls._create_pub_sub_handler())
             if cls._http_service:
                 asyncio.get_event_loop().run_until_complete(
                     cls._http_service.pubsub_bus.create_pubsub_handler(cls.pubsub_host, cls.pubsub_port))
@@ -148,7 +165,21 @@ class Host:
                 asyncio.async(
                     cls._tcp_service.pubsub_bus.register_for_subscription(cls._tcp_service.host, cls._tcp_service.port,
                                                                           cls._tcp_service.node_id,
-                                                                          cls._tcp_service.clients))
+                                                                          cls._tcp_service.clients, cls._tcp_service))
+            elif cls._http_service:
+                asyncio.async(
+                    cls._http_service.pubsub_bus.register_for_subscription(cls._http_service.host,
+                                                                           cls._http_service.port,
+                                                                           cls._http_service.node_id,
+                                                                           cls._http_service.clients, cls._http_service))
+
+    @classmethod
+    def _task_queues(cls):
+        if not cls.ronin:
+            if cls._tcp_service:
+                asyncio.async(cls._tcp_service.pubsub_bus.register_for_task_queues(cls._tcp_service))
+            elif cls._http_service:
+                asyncio.async(cls._http_service.pubsub_bus.register_for_task_queues(cls._http_service))
 
     @classmethod
     def _set_bus(cls, service):
@@ -158,7 +189,6 @@ class Host:
         registry_client.conn_handler = tcp_bus
         # pubsub_bus = PubSubBus(registry_client, ssl_context=cls._tcp_service._ssl_context)
         pubsub_bus = PubSubBus(registry_client)  # , cls._tcp_service._ssl_context)
-
         registry_client.bus = tcp_bus
         if isinstance(service, TCPService):
             tcp_bus.tcp_host = service
@@ -183,3 +213,4 @@ class Host:
         Stats.service_name = host.name
         Stats.periodic_stats_logger()
         Aggregator.periodic_aggregated_stats_logger()
+        ClientStats.periodic_aggregator()

@@ -32,6 +32,7 @@ class RegistryClient:
         self._protocol = None
         self._service = None
         self._version = None
+        self._node_ids = {}
         self._pinger = None
         self._conn_handler = None
         self._pending_requests = {}
@@ -39,6 +40,7 @@ class RegistryClient:
         self._assigned_services = defaultdict(lambda: defaultdict(list))
         self._ssl_context = ssl_context
         self.logger = logging.getLogger(__name__)
+        self._xsubscribe_packet = None
 
     @property
     def conn_handler(self):
@@ -51,6 +53,7 @@ class RegistryClient:
     def register(self, ip, port, service, version, node_id, vendors, service_type):
         self._service = service
         self._version = version
+        self._node_ids[service_type] = node_id
         packet = ControlPacket.registration(ip, port, node_id, service, version, vendors, service_type)
         self._protocol.send(packet)
 
@@ -60,6 +63,10 @@ class RegistryClient:
         self._protocol.send(packet)
         self._pending_requests[packet['request_id']] = future
         return future
+
+    def blacklist_service(self, host, port):
+        packet = ControlPacket.blacklist(host, port)
+        self._protocol.send(packet)
 
     def get_subscribers(self, service, version, endpoint):
         packet = ControlPacket.get_subscribers(service, version, endpoint)
@@ -72,7 +79,9 @@ class RegistryClient:
     def x_subscribe(self, host, port, node_id, endpoints):
         packet = ControlPacket.xsubscribe(self._service, self._version, host, port, node_id,
                                           endpoints)
-        self._protocol.send(packet)
+        if not self._xsubscribe_packet:
+            self._protocol.send(packet)
+        self._xsubscribe_packet = packet
 
     @retry(should_retry_for_result=_retry_for_result, should_retry_for_exception=_retry_for_exception,
            strategy=[0, 2, 4, 8, 16, 32])
@@ -81,16 +90,21 @@ class RegistryClient:
                                                                                   self._host, self._port,
                                                                                   ssl=self._ssl_context)
         self.conn_handler.handle_connected()
+        if self._xsubscribe_packet:
+            self._protocol.send(self._xsubscribe_packet)
         if self._pinger:
             self._pinger.stop()
         self._pinger = TCPPinger(self._host, self._port, 'registry', self._protocol, self)
-        self._pinger.ping()
+        self._pinger.ping(payload=self._node_ids)
         return self._transport, self._protocol
 
     def on_timeout(self, host, port, node_id):
         asyncio.async(self.connect())
 
     def receive(self, packet: dict, protocol, transport):
+        if not isinstance(packet, dict):
+            logging.getLogger('Received response').info(packet)
+            return
         if packet['type'] == 'registered':
             self.cache_vendors(packet['params']['vendors'])
             self.bus.registration_complete()
@@ -103,13 +117,13 @@ class RegistryClient:
         elif packet['type'] == 'subscribers':
             self._handle_subscriber_packet(packet)
         elif packet['type'] == 'pong':
-            self._pinger.pong_received()
+            self._pinger.pong_received(payload=self._node_ids)
         elif packet['type'] == 'instances':
             self._handle_get_instances(packet)
 
     def get_all_addresses(self, name, version):
         return self._available_services.get(
-            self._get_full_service_name(name, version))
+            self._get_full_service_name(name, version), [])
 
     def get_for_node(self, node_id):
         for services in self._available_services.values():
@@ -150,14 +164,18 @@ class RegistryClient:
     def cache_vendors(self, vendors):
         for vendor in vendors:
             vendor_name = self._get_full_service_name(vendor['name'], vendor['version'])
-            for address in vendor['addresses']:
-                self._available_services[vendor_name].append(
-                    (address['host'], address['port'], address['node_id'], address['type']))
+            for address in vendor.get('addresses', []):
+                vendor_entry = (address['host'], address['port'], address['node_id'], address['type'])
+                if vendor_entry not in self._available_services[vendor_name]:
+                    self._available_services[vendor_name].append(
+                        (address['host'], address['port'], address['node_id'], address['type']))
         self.logger.debug('Connection cache after registration is %s', self._available_services)
 
     def cache_instance(self, service, version, host, port, node, type):
         vendor = self._get_full_service_name(service, version)
-        self._available_services[vendor].append((host, port, node, type))
+        vendor_entry = (host, port, node, type)
+        if vendor_entry not in self._available_services[vendor]:
+            self._available_services[vendor].append((host, port, node, type))
         self.logger.debug('Connection cache on getting new instance is %s', self._available_services)
 
     def _handle_deregistration(self, packet):

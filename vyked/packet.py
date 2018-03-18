@@ -16,16 +16,19 @@ class _Packet:
         return {'pid': cls._next_pid(), 'type': 'ack', 'request_id': request_id}
 
     @classmethod
-    def pong(cls, node_id):
-        return cls._get_ping_pong(node_id, 'pong')
+    def pong(cls, node_id, payload=None):
+        return cls._get_ping_pong(node_id, 'pong', payload=payload)
 
     @classmethod
-    def ping(cls, node_id):
-        return cls._get_ping_pong(node_id, 'ping')
+    def ping(cls, node_id, payload=None):
+        return cls._get_ping_pong(node_id, 'ping', payload=payload)
 
     @classmethod
-    def _get_ping_pong(cls, node_id, packet_type):
-        return {'pid': cls._next_pid(), 'type': packet_type, 'node_id': node_id}
+    def _get_ping_pong(cls, node_id, packet_type, payload=None):
+        return_dict = {'pid': cls._next_pid(), 'type': packet_type, 'node_id': node_id}
+        if payload:
+            return_dict['payload'] = payload
+        return return_dict
 
 
 class ControlPacket(_Packet):
@@ -55,6 +58,11 @@ class ControlPacket(_Packet):
                   'params': params,
                   'request_id': str(uuid4())}
 
+        return packet
+
+    @classmethod
+    def blacklist(cls, host, port):
+        packet = {'pid': cls._next_pid(), 'type': 'blacklist_service', 'ip': host, 'port': port}
         return packet
 
     @classmethod
@@ -118,8 +126,7 @@ class ControlPacket(_Packet):
     @classmethod
     def subscribers(cls, service, version, endpoint, request_id, subscribers):
         params = {'service': service, 'version': version, 'endpoint': endpoint}
-        subscribers = [{'service': _service, 'version': _version, 'host': host, 'port': port, 'node_id': node_id,
-                        'strategy': strategy} for _service, _version, host, port, node_id, strategy in subscribers]
+        subscribers = [{'service': _service, 'version': _version} for _service, _version in subscribers]
         params['subscribers'] = subscribers
         packet = {'pid': cls._next_pid(),
                   'request_id': request_id,

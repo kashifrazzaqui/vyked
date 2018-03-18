@@ -55,7 +55,7 @@ or :
 
 Service
 ^^^^^^^
-Vyked allows you to host HTTP and TCP services. 
+Vyked allows you to host HTTP and TCP services.
 
 TCP Services
 ************
@@ -64,7 +64,9 @@ Vyked TCP services provide an RPC-like api by decorating typical class methods w
 * Request-Response using @api to provide such an api and @request to consume it from a remote client
 * Publish-Subscribe using @publish to automatically publish an event and @subscribe to receive it at a remote client
 
+
 The following basic examples illustrate these decorators for both Services and remote Clients.
+
 
 Sample TCP service:
 
@@ -131,6 +133,12 @@ To start a service:
         Host.attach_service(tcp)
         Host.run()
 
+TCP Services : UPDATES
+************
+* All tcp calls can now be converted to http calls over the registry by setting in config  variable 'TCP_TO_HTTP' as true in config.json file,
+* NOTE: ulike tcp all the request and responses over the http will be in json so final response for a request will be always as dictionary not the python objects
+like ordered dict
+
 Client
 ^^^^^^^
 So far, the examples have only covered standalone services. But a service might interact with other services. 
@@ -188,3 +196,4 @@ Source code
 -----------
 The latest developer version is available in a github repository:
 https://github.com/kashifrazzaqui/vyked
+

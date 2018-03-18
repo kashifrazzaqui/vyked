@@ -1,14 +1,19 @@
 from asyncio import Future, get_event_loop
 import json
+import logging
+import time
+import socket
 
 from again.utils import unique_hex
 
-from aiohttp.web import Response
+from aiohttp.web import Response, Request
 
 from .packet import MessagePacket
 from .exceptions import RequestException, ClientException
 from .utils.ordered_class_member import OrderedClassMembers
 from .utils.stats import Aggregator
+from .utils.client_stats import ClientStats
+from .config import CONFIG
 
 
 class _Service:
@@ -35,14 +40,6 @@ class _Service:
     def properties(self):
         return self.name, self.version
 
-    @staticmethod
-    def time_future(future: Future, timeout: int):
-        def timer_callback(f):
-            if not f.done() and not f.cancelled():
-                f.set_exception(TimeoutError())
-
-        get_event_loop().call_later(timeout, timer_callback, future)
-
 
 class TCPServiceClient(_Service):
     REQUEST_TIMEOUT_SECS = 600
@@ -57,12 +54,15 @@ class TCPServiceClient(_Service):
     def ssl_context(self):
         return self._ssl_context
 
+    def _send_http_request(self, app_name, method, entity, params):
+        response = yield from self.tcp_bus._send_http_request(app_name, self.name, self.version, method, entity, params)
+        return response
+
     def _send_request(self, app_name, endpoint, entity, params):
         packet = MessagePacket.request(self.name, self.version, app_name, _Service._REQ_PKT_STR, endpoint, params,
                                        entity)
         future = Future()
         request_id = params['request_id']
-        self._pending_requests[request_id] = future
         try:
             self.tcp_bus.send(packet)
         except ClientException:
@@ -71,7 +71,16 @@ class TCPServiceClient(_Service):
                 exception = ClientException(error)
                 exception.error = error
                 future.set_exception(exception)
-        _Service.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
+        except Exception as e:
+            logging.getLogger().info(e)
+            future.set_exception(e)
+            raise e
+        else:
+            future.request_id = request_id
+            future.send_time = time.time()
+            self._pending_requests[request_id] = future
+
+        self.time_future(future, TCPServiceClient.REQUEST_TIMEOUT_SECS)
         return future
 
     def receive(self, packet: dict, protocol, transport):
@@ -93,7 +102,9 @@ class TCPServiceClient(_Service):
         request_id = payload['request_id']
         has_result = 'result' in payload
         has_error = 'error' in payload
-        future = self._pending_requests.pop(request_id)
+        future = self._pending_requests.pop(request_id, None)
+        if not future:
+            return
         if has_result:
             if not future.done() and not future.cancelled():
                 future.set_result(payload['result'])
@@ -108,11 +119,27 @@ class TCPServiceClient(_Service):
                     future.set_exception(exception)
         else:
             print('Invalid response to request:', packet)
+        ClientStats.update(packet['from'], packet['host'], packet['endpoint'],
+            time_taken=int((time.time() - future.send_time)*1000))
 
     def _process_publication(self, packet):
         endpoint = packet['endpoint']
         func = getattr(self, endpoint)
         func(**packet['payload'])
+
+    def time_future(self, future: Future, timeout: int):
+        def timer_callback(self, f):
+            if not f.done() and not f.cancelled():
+                f.set_exception(TimeoutError())
+                try:
+                    self._pending_requests.pop(f.request_id)
+                except Exception as e:
+                    logging.getLogger().info(e)
+
+        get_event_loop().call_later(timeout, timer_callback, self, future)
+
+    def _enqueue(self, endpoint, payload):
+        self._pubsub_bus.enqueue(endpoint, payload)
 
 
 class _ServiceHost(_Service):
@@ -193,7 +220,9 @@ class TCPService(_ServiceHost):
     def ssl_context(self):
         return self._ssl_context
 
-    def _publish(self, endpoint, payload):
+    def _publish(self, endpoint, payload, blocking=False):
+        if blocking:
+            payload['_blocking'] = blocking
         self._pubsub_bus.publish(self.name, self.version, endpoint, payload)
 
     def _xpublish(self, endpoint, payload, strategy):
@@ -201,7 +230,9 @@ class TCPService(_ServiceHost):
 
     @staticmethod
     def _make_response_packet(request_id: str, from_id: str, entity: str, result: object, error: object,
-                              failed: bool, old_api=None, replacement_api=None):
+                              failed: bool, old_api=None, replacement_api=None, 
+                              host=socket.gethostbyname(socket.gethostname()), service_name='',
+                              method=''):
         if error:
             payload = {'request_id': request_id, 'error': error, 'failed': failed}
         else:
@@ -211,7 +242,10 @@ class TCPService(_ServiceHost):
             if replacement_api:
                 payload['replacement_api'] = replacement_api
         packet = {'pid': unique_hex(),
+                  'from': service_name,
+                  'endpoint': method,
                   'to': from_id,
+                  'host': host,
                   'entity': entity,
                   'type': _Service._RES_PKT_STR,
                   'payload': payload}
@@ -246,13 +280,34 @@ class HTTPService(_ServiceHost, metaclass=OrderedClassMembers):
         return self._preflight_response
 
     @staticmethod
-    def pong(_):
+    def pong2(_):
         return Response()
+
+    def pong(self, request: Request):
+        node_id = request.match_info.get('node')
+        if node_id == self._node_id:
+            return Response()
+        else:
+            return Response(status=500)
 
     @staticmethod
     def stats(_):
         res_d = Aggregator.dump_stats()
         return Response(status=200, content_type='application/json', body=json.dumps(res_d).encode())
+
+    @staticmethod
+    def handle_log_change(request: Request):
+        try:
+            level = getattr(logging, request.match_info.get('level').upper())
+        except AttributeError as e:
+            logging.getLogger().error(e)
+            response = 'Allowed logging levels: DEBUG, INFO, WARNING, ERROR, CRITICAL'
+            return Response(status=200, body=response.encode())
+        logging.getLogger().setLevel(level)
+        for handler in logging.getLogger().handlers:
+            handler.setLevel(level)
+        response = 'Logging level updated'
+        return Response(status=200, body=response.encode())
 
 
 class HTTPServiceClient(_Service):
@@ -260,6 +315,6 @@ class HTTPServiceClient(_Service):
         super(HTTPServiceClient, self).__init__(service_name, service_version)
 
     def _send_http_request(self, app_name, method, entity, params):
-        response = yield from self._http_bus.send_http_request(app_name, self.name, self.version, method, entity,
+        response = yield from self._tcp_bus.send_http_request(app_name, self.name, self.version, method, entity,
                                                                params)
         return response
