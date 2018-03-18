@@ -10,7 +10,7 @@ Vyked is an asyncio based python framework for service oriented architectures.
 UPDATES : version 2.4.1
 --------------------------
 * All tcp calls can now be converted to http calls over the registry by setting in config  variable 'TCP_TO_HTTP' as true in config.json file,
-* NOTE: ulike tcp all the request and responses over the http will be in json so final response for a request will be always as dictionary not the python objects like ordered dict
+* NOTE: unlike tcp all the request and responses over the http will be in json, so final response for a request will be always as dictionary not the python objects like ordered dict
 
 Requirements
 ------------
