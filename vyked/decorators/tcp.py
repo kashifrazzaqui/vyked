@@ -95,7 +95,7 @@ def request(func):
         request_id = unique_hex()
         if CONFIG.Convert_Tcp_To_Http:
             post_params = {'data':json.dumps(params), 'path': tcp_to_http_path_for_function(func) }
-            response =   yield from self._send_http_request(app_name, method='post', entity=entity, params=post_params)
+            response =  self._send_http_request(app_name, method='post', entity=entity, params=post_params)
             return response
         else:
             params['request_id'] = request_id
