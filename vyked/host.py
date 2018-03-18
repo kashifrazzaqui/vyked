@@ -3,16 +3,16 @@ import logging
 from functools import partial
 import signal
 import os
-
 from aiohttp.web import Application
-
-from .bus import TCPBus, PubSubBus
+from .bus import TCPBus, PubSubBus, HTTPBus
 from vyked.registry_client import RegistryClient
 from vyked.services import HTTPService, TCPService
 from .protocol_factory import get_vyked_protocol
 from .utils.log import setup_logging
 from vyked.utils.stats import Stats, Aggregator
 from .utils.client_stats import ClientStats
+from .config import CONFIG
+from .utils.common_utils import tcp_to_http_path_for_function
 
 class Host:
     registry_host = None
@@ -50,9 +50,8 @@ class Host:
         cls._set_bus(service)
 
     @classmethod
-    def run(cls, convert_tcp_to_http=False):
+    def run(cls):
         if cls._tcp_service or cls._http_service:
-            cls.convert_tcp_to_http = convert_tcp_to_http
             cls._set_host_id()
             cls._setup_logging()
 
@@ -79,7 +78,7 @@ class Host:
 
     @classmethod
     def _create_http_server(cls):
-        if cls._http_service or (cls.convert_tcp_to_http and cls._tcp_service):
+        if cls._http_service or CONFIG.CONVERT_TCP_TO_HTTP:
             host_ip, host_port = cls._http_service.socket_address
             ssl_context = cls._http_service.ssl_context
             app = Application(loop=asyncio.get_event_loop())
@@ -91,18 +90,17 @@ class Host:
             app.router.add_route('GET', '/_change_log_level/{level}', getattr(cls._http_service, 'handle_log_change'))
             for each in cls._http_service.__ordered__:
                 fn = getattr(cls._http_service, each)
-                cls._logger.info("function name  {}".format(fn.__qualname__))
                 if callable(fn) and getattr(fn, 'is_http_method', False):
                     for path in fn.paths:
                         app.router.add_route(fn.method, path, fn)
                         if cls._http_service.cross_domain_allowed:
                             app.router.add_route('options', path, cls._http_service.preflight_response)
 
-            if cls.convert_tcp_to_http:
-                for each in cls._tcp_service.__ordered__:
+            if CONFIG.Convert_Tcp_To_Http:
+                for each in dir(cls._tcp_service):
                     fn = getattr(cls._tcp_service, each)
-                    if callable(fn):
-                            path = "/tcp_to_http/{}".format(fn.__qualname__)
+                    if callable(fn) and getattr( fn, 'is_http_method', False) :
+                            path = tcp_to_http_path_for_function(each)
                             cls._logger.info("converted tcp_to_http for host endpoint {}".format(path))
                             app.router.add_route('post', path, fn)
                             if cls._http_service and cls._http_service.cross_domain_allowed:
@@ -191,7 +189,6 @@ class Host:
         registry_client.conn_handler = tcp_bus
         # pubsub_bus = PubSubBus(registry_client, ssl_context=cls._tcp_service._ssl_context)
         pubsub_bus = PubSubBus(registry_client)  # , cls._tcp_service._ssl_context)
-
         registry_client.bus = tcp_bus
         if isinstance(service, TCPService):
             tcp_bus.tcp_host = service

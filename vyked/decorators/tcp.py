@@ -2,7 +2,11 @@ from functools import wraps, partial
 from again.utils import unique_hex
 from ..utils.stats import Stats, Aggregator
 from ..exceptions import VykedServiceException
-from ..utils.common_utils import json_file_to_dict, valid_timeout
+from ..utils.common_utils import json_file_to_dict, valid_timeout, tcp_to_http_path_for_function, object_to_dict
+from ..config import CONFIG
+from .http import get_decorated_fun_for_tcp_to_http
+from ..wrappers import Request, Response
+from ..host import Host
 import asyncio
 import logging
 import socket
@@ -10,6 +14,7 @@ import setproctitle
 import time
 import traceback
 import json
+import inspect
 
 config = json_file_to_dict('config.json')
 _tcp_timeout = 60
@@ -81,7 +86,6 @@ def request(func):
     """
     use to request an api call from a specific endpoint
     """
-
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         params = func(self, *args, **kwargs)
@@ -89,12 +93,31 @@ def request(func):
         entity = params.pop('entity', None)
         app_name = params.pop('app_name', None)
         request_id = unique_hex()
-        params['request_id'] = request_id
-        future = self._send_request(app_name, endpoint=func.__name__, entity=entity, params=params)
-        return future
-
+        if CONFIG.Convert_Tcp_To_Http:
+            post_params = {'data':json.dumps(params), 'path': tcp_to_http_path_for_function(func) }
+            response =   yield from self._send_http_request(app_name, method='post', entity=entity, params=post_params)
+            return response
+        else:
+            params['request_id'] = request_id
+            future = self._send_request(app_name, endpoint=func.__name__, entity=entity, params=params)
+            return future
     wrapper.is_request = True
     return wrapper
+
+def tcp_to_http_handler(func, obj):
+    def handler(obj, request: Request) -> Response:
+        payload = yield from request.json()
+        required_params = inspect.getfullargspec(func).args[1:]
+        missing_params = list(filter(lambda x: x not in payload, required_params))
+        if missing_params:
+            res_d = {'error': 'Required params {} not found'.format(','.join(missing_params))}
+            Aggregator.update_stats(endpoint=func.__name__, status=400, success=False,
+                                    server_type='http', time_taken=0, process_time_taken=0)
+            return Response(status=400, content_type='application/json', body=json.dumps(res_d).encode())
+        result = yield from func(Host._tcp_service, **payload)
+        return Response(status=200, body=json.dumps(object_to_dict(result)).encode(),
+                 headers= {'Content-Type': 'application/json'})
+    return handler
 
 
 def api(func=None, timeout=None):  # incoming
@@ -106,6 +129,10 @@ def api(func=None, timeout=None):  # incoming
         - entity (partition/routing key)
         followed by kwargs
     """
+    #logging.info("convert tcp to http {}".format(CONFIG.Convert_Tcp_To_Http))
+    if CONFIG.Convert_Tcp_To_Http:
+        transform_func = tcp_to_http_handler(func, Host._http_service)
+        return get_decorated_fun_for_tcp_to_http(transform_func,'post', tcp_to_http_path_for_function(func), None, timeout)
     if func is None:
         return partial(api, timeout=timeout)
     else:
@@ -243,3 +270,19 @@ def enqueue(func=None, queue_name=None):
         self._enqueue(queue_name, payload)
         return None
     return wrapper
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

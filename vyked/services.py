@@ -13,6 +13,7 @@ from .exceptions import RequestException, ClientException
 from .utils.ordered_class_member import OrderedClassMembers
 from .utils.stats import Aggregator
 from .utils.client_stats import ClientStats
+from .config import CONFIG
 
 
 class _Service:
@@ -52,6 +53,10 @@ class TCPServiceClient(_Service):
     @property
     def ssl_context(self):
         return self._ssl_context
+
+    def _send_http_request(self, app_name, method, entity, params):
+        response = yield from self.tcp_bus._send_http_request(app_name, self.name, self.version, method, entity, params)
+        return response
 
     def _send_request(self, app_name, endpoint, entity, params):
         packet = MessagePacket.request(self.name, self.version, app_name, _Service._REQ_PKT_STR, endpoint, params,
@@ -310,6 +315,6 @@ class HTTPServiceClient(_Service):
         super(HTTPServiceClient, self).__init__(service_name, service_version)
 
     def _send_http_request(self, app_name, method, entity, params):
-        response = yield from self._http_bus.send_http_request(app_name, self.name, self.version, method, entity,
+        response = yield from self._tcp_bus.send_http_request(app_name, self.name, self.version, method, entity,
                                                                params)
         return response

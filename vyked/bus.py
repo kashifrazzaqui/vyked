@@ -40,23 +40,18 @@ class HTTPBus:
         A convenience method that allows you to send a well formatted http request to another service
         """
         host, port, node_id, service_type = self._registry_client.resolve(service, version, entity, HTTP)
-
         url = 'http://{}:{}{}'.format(host, port, params.pop('path'))
 
         http_keys = ['data', 'headers', 'cookies', 'auth', 'allow_redirects', 'compress', 'chunked']
         kwargs = {k: params[k] for k in http_keys if k in params}
-
         query_params = params.pop('params', {})
-
         if app is not None:
             query_params['app'] = app
 
         query_params['version'] = version
         query_params['service'] = service
-
         response = yield from aiohttp.request(method, url, params=query_params, **kwargs)
         return response
-
 
 class TCPBus:
     def __init__(self, registry_client):
@@ -142,6 +137,26 @@ class TCPBus:
             else:
                 self._logger.error('Out of %s, Client Not found for packet %s', self._client_protocols.keys(), packet)
                 raise ClientNotFoundError()
+
+
+    def _send_http_request(self, app: str, service: str, version: str, method: str, entity: str, params: dict):
+            """
+            A convenience method that allows you to send a well formatted http request to another service
+            """
+            host, port, node_id, service_type = self._registry_client.resolve(service, version, entity, HTTP)
+            path = params.pop('path')
+            url = 'http://{}:{}{}'.format(host, port, path)
+            http_keys = ['data', 'headers', 'cookies', 'auth', 'allow_redirects', 'compress', 'chunked']
+            kwargs = {k: params[k] for k in http_keys if k in params}
+            query_params = params.pop('params', {})
+            if app is not None:
+                query_params['app'] = app
+            query_params['version'] = version
+            query_params['service'] = service
+            self._logger.info("TCP  TO HTTP CALL  FOR  {}, HOST {}, PORT {}, PARAMS {}".format(path,host, port, params))
+            response  =  yield from aiohttp.request(method, url, params=query_params, **kwargs)
+            response =   yield from response.json()
+            return response
 
     @retry(should_retry_for_exception=_retry_for_exception, strategy=[0, 2, 4, 8, 16, 32], max_attempts=6)
     @asyncio.coroutine
