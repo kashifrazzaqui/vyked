@@ -3,6 +3,7 @@ from again.utils import unique_hex
 from ..utils.stats import Stats, Aggregator
 from ..exceptions import VykedServiceException
 from ..utils.common_utils import json_file_to_dict, valid_timeout, tcp_to_http_path_for_function, object_to_dict
+from ..utils.jsonencoder import VykedEncoder
 from ..config import CONFIG
 from .http import get_decorated_fun_for_tcp_to_http
 from ..wrappers import Request, Response
@@ -113,9 +114,9 @@ def tcp_to_http_handler(func, obj):
             res_d = {'error': 'Required params {} not found'.format(','.join(missing_params))}
             Aggregator.update_stats(endpoint=func.__name__, status=400, success=False,
                                     server_type='http', time_taken=0, process_time_taken=0)
-            return Response(status=400, content_type='application/json', body=json.dumps(res_d).encode())
+            return Response(status=400, content_type='application/json', body=json.dumps(res_d , cls=VykedEncoder).encode())
         result = yield from func(Host._tcp_service, **payload)
-        return Response(status=200, body=json.dumps(object_to_dict(result)).encode(),
+        return Response(status=200, body=json.dumps(result, cls=VykedEncoder).encode(),
                  headers= {'Content-Type': 'application/json'})
     return handler
 
