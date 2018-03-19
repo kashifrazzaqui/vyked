@@ -4,6 +4,7 @@ from vyked import HTTPServiceClient, HTTPService, TCPService
 from ..exceptions import VykedServiceException
 from aiohttp.web import Response
 from ..utils.stats import Stats, Aggregator
+from ..utils.jsonencoder import VykedEncoder
 from ..utils.common_utils import json_file_to_dict, valid_timeout
 import logging
 import setproctitle
@@ -142,8 +143,18 @@ def get_decorated_fun_for_tcp_to_http(func, method, path, required_params, timeo
                 return (yield from make_request(func, self, args, kwargs, method))
             elif isinstance(self, HTTPService) or isinstance(self, TCPService):
                 Stats.http_stats['total_requests'] += 1
+                req = args[0]
+                request_id = None
+                entity = None
+                try:
+                    req_b = yield from req.json()
+                    request_id = req_b.get('pid', None)
+                    entity = req_b.get('entity', 'packet')
+                except :
+                    pass
+                else:
+                    req.post = req.json
                 if required_params is not None:
-                    req = args[0]
                     query_params = req.GET
                     params = required_params
                     if not isinstance(required_params, list):
@@ -154,16 +165,14 @@ def get_decorated_fun_for_tcp_to_http(func, method, path, required_params, timeo
                         Stats.http_stats['total_responses'] += 1
                         Aggregator.update_stats(endpoint=func.__name__, status=400, success=False,
                                                 server_type='http', time_taken=0, process_time_taken=0)
-                        return Response(status=400, content_type='application/json', body=json.dumps(res_d).encode())
+                        resp_packet =  self._make_response_packet(request_id=request_id, from_id=self.node_id, entity=entity, result=None,
+                                                                  error=res_d['error'], failed=True, method=func.__name__,
+                                                                  service_name=self.name )
+                        return Response(status=400, content_type='application/json', body=json.dumps(resp_packet, cls=VykedEncoder).encode())
 
                 # Support for multi request body encodings
-                req = args[0]
-                try:
-                    yield from req.json()
-                except:
-                    pass
-                else:
-                    req.post = req.json
+
+
                 t1 = time.time()
                 tp1 = time.process_time()
                 wrapped_func = func
@@ -185,13 +194,23 @@ def get_decorated_fun_for_tcp_to_http(func, method, path, required_params, timeo
                     status = 'timeout'
                     success = False
                     _logger.exception("HTTP request had a timeout for method %s", func.__name__)
-                    raise e
+                    resp_packet = self._make_response_packet(request_id=request_id, from_id=self.node_id, entity=entity,
+                                                             result=None,
+                                                             error=str(e), failed=True, method=func.__name__,
+                                                             service_name=self.name)
+                    return Response(status=408, content_type='application/json',
+                                    body=json.dumps(resp_packet, cls=VykedEncoder).encode())
 
                 except VykedServiceException as e:
                     Stats.http_stats['total_responses'] += 1
                     status = 'handled_exception'
                     _logger.info('Handled exception %s for method %s ', e.__class__.__name__, func.__name__)
-                    raise e
+                    resp_packet = self._make_response_packet(request_id=request_id, from_id=self.node_id, entity=entity,
+                                                             result=None,
+                                                             error=str(e), failed=True, method=func.__name__,
+                                                             service_name=self.name)
+                    return Response(status=400, content_type='application/json',
+                                    body=json.dumps(resp_packet, cls=VykedEncoder).encode())
 
                 except Exception as e:
                     Stats.http_stats['total_errors'] += 1
@@ -205,17 +224,21 @@ def get_decorated_fun_for_tcp_to_http(func, method, path, required_params, timeo
                     _exception_logger = logging.getLogger('exceptions')
                     d["message"] = traceback.format_exc()
                     _exception_logger.info(dict(d))
-                    raise e
+                    resp_packet = self._make_response_packet(request_id=request_id, from_id=self.node_id, entity=entity,
+                                                             result=None,
+                                                             error=str(e), failed=True, method=func.__name__,
+                                                             service_name=self.name)
+                    return Response(status=400, content_type='application/json',
+                                    body=json.dumps(resp_packet, cls=VykedEncoder).encode())
 
                 else:
                     t2 = time.time()
                     tp2 = time.process_time()
                     hostname = socket.gethostname()
                     service_name = '_'.join(setproctitle.getproctitle().split('_')[:-1])
-                    status = result.status
-
+                    status = getattr(result,'status', 200)
                     logd = {
-                        'status': result.status,
+                        'status': status,
                         'time_taken': int((t2 - t1) * 1000),
                         'process_time_taken': int((tp2 - tp1) * 1000),
                         'type': 'http',
@@ -224,7 +247,11 @@ def get_decorated_fun_for_tcp_to_http(func, method, path, required_params, timeo
                     logging.getLogger('stats').debug(logd)
                     _logger.debug('Timeout for %s is %s seconds', func.__name__, api_timeout)
                     Stats.http_stats['total_responses'] += 1
-                    return result
+                    resp_packet = self._make_response_packet(request_id=request_id, from_id=self.node_id, entity=entity,
+                                                             result=result,
+                                                             error=None, failed=False, method=func.__name__,
+                                                             service_name=self.name)
+                    return Response(status=status, content_type='application/json', body=json.dumps(resp_packet, cls=VykedEncoder).encode())
 
                 finally:
                     t2 = time.time()

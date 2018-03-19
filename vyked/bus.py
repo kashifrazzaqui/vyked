@@ -12,10 +12,10 @@ from random import shuffle
 
 from .services import TCPServiceClient, HTTPServiceClient
 from .pubsub import PubSub
-from .packet import ControlPacket
+from .packet import ControlPacket, MessagePacket
 from .protocol_factory import get_vyked_protocol
 from .utils.jsonencoder import VykedEncoder
-from .exceptions import ClientNotFoundError, RecursionDepthExceeded
+from .exceptions import ClientNotFoundError, RecursionDepthExceeded, RequestException
 
 
 HTTP = 'http'
@@ -147,16 +147,37 @@ class TCPBus:
             path = params.pop('path')
             url = 'http://{}:{}{}'.format(host, port, path)
             http_keys = ['data', 'headers', 'cookies', 'auth', 'allow_redirects', 'compress', 'chunked']
+            request_packet = None
+            if method =='post':
+                data = params.pop('data', {})
+                request_packet = MessagePacket.request(name = service, version = version, app_name = app, packet_type= 'request', endpoint = path, params= data, entity = entity)
+                params['data'] = json.dumps(request_packet, cls=VykedEncoder)
             kwargs = {k: params[k] for k in http_keys if k in params}
             query_params = params.pop('params', {})
             if app is not None:
                 query_params['app'] = app
             query_params['version'] = version
             query_params['service'] = service
-            self._logger.info("TCP  TO HTTP CALL  FOR  {}, HOST {}, PORT {}, PARAMS {}".format(path,host, port, params))
-            response  =  yield from aiohttp.request(method, url, params=query_params, **kwargs)
-            response =   yield from response.json()
-            return response
+            self._logger.debug("TCP  TO HTTP CALL  FOR  {}, HOST {}, PORT {}, PARAMS {}".format(path,host, port, params))
+            response = None
+            try:
+                response  =  yield from aiohttp.request(method, url, params=query_params, **kwargs)
+                result =   yield from response.json()
+            except Exception as e:
+                exception = RequestException()
+                if response:
+                    exception.error = "{}_{}".format(response.status, e)
+                else:
+                    exception.error = "{}_{}".format(503, "Connection to  http server failed")
+                raise exception
+            self._logger.debug("TCP  TO HTTP RESPONSE {}".format(result))
+            if (not result) or ( result.get('payload',None) == None):
+                raise ClientNotFoundError("{}_{}".format(404, "No response from client"))
+            elif 'error' in result['payload']:
+                exception = RequestException()
+                exception.error = result['payload']['error']
+                raise exception
+            return result['payload']['result']
 
     @retry(should_retry_for_exception=_retry_for_exception, strategy=[0, 2, 4, 8, 16, 32], max_attempts=6)
     @asyncio.coroutine

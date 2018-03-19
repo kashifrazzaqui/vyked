@@ -1,7 +1,7 @@
 from functools import wraps, partial
 from again.utils import unique_hex
 from ..utils.stats import Stats, Aggregator
-from ..exceptions import VykedServiceException
+from ..exceptions import VykedServiceException, RequestException
 from ..utils.common_utils import json_file_to_dict, valid_timeout, tcp_to_http_path_for_function, object_to_dict
 from ..utils.jsonencoder import VykedEncoder
 from ..config import CONFIG
@@ -95,7 +95,7 @@ def request(func):
         app_name = params.pop('app_name', None)
         request_id = unique_hex()
         if CONFIG.Convert_Tcp_To_Http:
-            post_params = {'data':json.dumps(params), 'path': tcp_to_http_path_for_function(func) }
+            post_params = {'data':params, 'path': tcp_to_http_path_for_function(func) }
             response =  self._send_http_request(app_name, method='post', entity=entity, params=post_params)
             return response
         else:
@@ -107,17 +107,16 @@ def request(func):
 
 def tcp_to_http_handler(func, obj):
     def handler(obj, request: Request) -> Response:
-        payload = yield from request.json()
+        request_params = yield from request.json()
+        payload = request_params.pop('payload', {})
+        logging.debug("recieved tcp_to_http request {}".format(request_params))
         required_params = inspect.getfullargspec(func).args[1:]
         missing_params = list(filter(lambda x: x not in payload, required_params))
         if missing_params:
             res_d = {'error': 'Required params {} not found'.format(','.join(missing_params))}
-            Aggregator.update_stats(endpoint=func.__name__, status=400, success=False,
-                                    server_type='http', time_taken=0, process_time_taken=0)
-            return Response(status=400, content_type='application/json', body=json.dumps(res_d , cls=VykedEncoder).encode())
+            raise RequestException(res_d['error'])
         result = yield from func(Host._tcp_service, **payload)
-        return Response(status=200, body=json.dumps(result, cls=VykedEncoder).encode(),
-                 headers= {'Content-Type': 'application/json'})
+        return result
     return handler
 
 
