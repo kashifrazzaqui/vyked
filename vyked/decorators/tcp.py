@@ -110,7 +110,9 @@ def tcp_to_http_handler(func, obj):
         request_params = yield from request.json()
         payload = request_params.pop('payload', {})
         logging.debug("recieved tcp_to_http request {}".format(request_params))
-        required_params = inspect.getfullargspec(func).args[1:]
+        required_params = inspect.getfullargspec(func).args[1:] if inspect.getfullargspec(func).args else []
+        defaults = list(inspect.getfullargspec(func).defaults if inspect.getfullargspec(func).defaults else [])
+        required_params = required_params[:-int(len(defaults))] if ( defaults and len(defaults)< len(required_params) ) else []
         missing_params = list(filter(lambda x: x not in payload, required_params))
         if missing_params:
             res_d = {'error': 'Required params {} not found'.format(','.join(missing_params))}
