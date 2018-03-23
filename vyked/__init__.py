@@ -1,11 +1,11 @@
-__all__ = ['Host', 'TCPServiceClient', 'TCPService', 'HTTPService', 'HTTPServiceClient', 'api', 'request', 'subscribe',
-           'publish', 'xsubscribe', 'get', 'post', 'head', 'put', 'patch', 'delete', 'options', 'trace',
-           'Registry', 'RequestException', 'Response', 'Request', 'log', 'setup_logging',
+__all__ = ['Host', 'TCPServiceClient', 'TCPService', 'HTTPService', 'HTTPServiceClient', 'api', 'request',
+           'subscribe', 'publish', 'xsubscribe', 'get', 'post', 'head', 'put', 'patch', 'delete', 'options', 'trace',
+           'websocket', 'Registry', 'RequestException', 'Response', 'Request', 'log', 'setup_logging',
            'apideprecated', 'VykedServiceException', 'VykedServiceError', '__version__']
 
 from .host import Host  # noqa
 from .services import (TCPService, HTTPService, HTTPServiceClient, TCPServiceClient)  # noqa
-from .services import (get, post, head, put, patch, delete, options, trace)  # noqa
+from .services import (get, post, head, put, patch, delete, options, trace, websocket)  # noqa
 from .services import (api, request, subscribe, publish, xsubscribe, apideprecated)  # noqa
 from .registry import Registry  # noqa
 from .utils import log  # noqa

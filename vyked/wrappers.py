@@ -1,4 +1,4 @@
-from aiohttp.web import Request as Req, Response as Res
+from aiohttp.web import Request as Req, Response as Res, WebSocketResponse as Wres
 
 
 class Request(Req):

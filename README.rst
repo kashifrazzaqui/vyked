@@ -55,7 +55,7 @@ or :
 
 Service
 ^^^^^^^
-Vyked allows you to host HTTP and TCP services. 
+Vyked allows you to host WS(Websocket), HTTP and TCP services.
 
 TCP Services
 ************
@@ -114,8 +114,35 @@ Vyked uses aiohttp to setup HTTP server.
         def create(self, request: Request):
             data = yield from request.json()
             return Response(status=200, body=(json.dumps(data)).encode())
-  
-To start a service: 
+
+
+Sample WS service:
+
+Vyked uses aiohttp to setup Websocket server.
+
+.. code-block:: python
+
+    from vyked import Host, WSService, ws
+
+
+    class ChatWSService(WSService):
+
+        def __init__(self, ip, port):
+            super(ChatWSService, self).__init__("ChatService", "1", ip, port)
+            self.msgs = []
+
+        @ws(path='/')
+        def chat(self, msg=None):
+            if 'updater' in msg.data:
+                messages = ""
+                for m in self.msgs:
+                    messages += m + "<br>"
+                return messages
+            else:
+                self.msgs.append(msg.data)
+
+
+To start a service:
 
 .. code-block:: python
 
