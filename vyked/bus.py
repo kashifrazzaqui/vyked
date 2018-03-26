@@ -235,7 +235,7 @@ class TCPBus:
 
     def _request_receiver(self, packet, protocol):
         api_fn = getattr(self.tcp_host, packet['endpoint'])
-        if api_fn.is_api:
+        if getattr(api_fn,'is_api', None) and api_fn.is_api:
             from_node_id = packet['from']
             entity = packet['entity']
             future = asyncio.async(api_fn(from_id=from_node_id, entity=entity, **packet['payload']))
@@ -246,7 +246,7 @@ class TCPBus:
 
             future.add_done_callback(send_result)
         else:
-            print('no api found for packet: ', packet)
+            self._logger.error('no api found for packet: ', packet)
 
     def handle_connected(self):
         if self.tcp_host:
