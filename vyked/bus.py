@@ -68,6 +68,7 @@ class TCPBus:
         self._registered = False
         self.pubsub = None
         self._logger = logging.getLogger(__name__)
+        self._aiohttp_session = aiohttp.ClientSession()
 
     def _create_service_clients(self):
         futures = []
@@ -161,7 +162,7 @@ class TCPBus:
             self._logger.debug("TCP  TO HTTP CALL  FOR  {}, HOST {}, PORT {}, PARAMS {}".format(path,host, port, params))
             response = None
             try:
-                response  =  yield from aiohttp.request(method, url, params=query_params, **kwargs)
+                response = yield from self._aiohttp_session.request(method, url, params=query_params, **kwargs)
                 result =   yield from response.json()
             except Exception as e:
                 exception = RequestException()
