@@ -16,6 +16,7 @@ from .packet import ControlPacket, MessagePacket
 from .protocol_factory import get_vyked_protocol
 from .utils.jsonencoder import VykedEncoder
 from .exceptions import ClientNotFoundError, RecursionDepthExceeded, RequestException
+from .config import CONFIG
 
 
 HTTP = 'http'
@@ -68,7 +69,8 @@ class TCPBus:
         self._registered = False
         self.pubsub = None
         self._logger = logging.getLogger(__name__)
-        self._aiohttp_session = aiohttp.ClientSession()
+        tcp_connector = aiohttp.TCPConnector(keepalive_timeout=CONFIG.Http_keep_alive_Timeout)
+        self._aiohttp_session = aiohttp.ClientSession(connector= tcp_connector)
 
     def _create_service_clients(self):
         futures = []
