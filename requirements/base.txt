@@ -14,3 +14,4 @@ factory-boy==2.5.2
 python-json-logger==0.1.2
 PyYAML==5.1
 requests==2.4.3
+cauldron==1.0.10
